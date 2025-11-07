@@ -34,8 +34,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ secrets.AWS_CLIENT_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Build application
@@ -48,9 +48,9 @@ jobs:
             --region ${{ env.AWS_REGION }} \
             --capabilities CAPABILITY_IAM \
             --parameter-overrides \
-              "DomainName=${{ secrets.DOMAIN_NAME }}" \
-              "HostedZoneId=${{ secrets.HOSTED_ZONE_ID }}" \
-              "CertificateArn=${{ secrets.CERTIFICATE_ARN }}" \
+              "DomainName=${{ vars.DOMAIN_NAME }}" \
+              "HostedZoneId=${{ vars.HOSTED_ZONE_ID }}" \
+              "CertificateArn=${{ vars.CERTIFICATE_ARN }}" \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
             --resolve-s3
@@ -80,8 +80,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ secrets.AWS_CLIENT_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Deploy Alexa Skill
