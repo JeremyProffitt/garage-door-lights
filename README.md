@@ -262,10 +262,18 @@ Configure these secrets in your GitHub repository:
 Settings → Secrets and variables → Actions → New repository secret
 ```
 
-- `AWS_ROLE_ARN` - IAM role ARN for GitHub Actions
+- `AWS_ACCESS_KEY_ID` - AWS access key ID for programmatic access
+- `AWS_SECRET_ACCESS_KEY` - AWS secret access key
 - `DOMAIN_NAME` - Your domain (e.g., lights.jeremy.ninja)
 - `HOSTED_ZONE_ID` - Route53 hosted zone ID
 - `CERTIFICATE_ARN` - ACM certificate ARN
+
+**To create AWS credentials:**
+1. Go to AWS IAM Console
+2. Create a new user or use existing user
+3. Attach policy: `AdministratorAccess` (or create custom policy with required permissions)
+4. Create access key under Security Credentials
+5. Copy Access Key ID and Secret Access Key
 
 ### Deploy on Push
 
