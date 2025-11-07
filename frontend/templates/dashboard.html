@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Candle Lights Controller</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">🕯️ Candle Lights</div>
+        <div class="nav-menu">
+            <a href="/dashboard" class="active">Dashboard</a>
+            <a href="/patterns">Patterns</a>
+            <a href="/devices">Devices</a>
+            <a href="/settings">Settings</a>
+            <a href="/auth/logout">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1>Welcome, {{.Username}}!</h1>
+
+        <div class="dashboard-grid" x-data="dashboard()">
+            <div class="card">
+                <h2>Quick Actions</h2>
+                <div class="buttons">
+                    <a href="/patterns" class="btn btn-primary">Create Pattern</a>
+                    <a href="/devices" class="btn btn-secondary">Add Device</a>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Your Devices</h2>
+                <div id="devicesList">Loading...</div>
+            </div>
+
+            <div class="card">
+                <h2>Recent Patterns</h2>
+                <div id="patternsList">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function dashboard() {
+            return {
+                devices: [],
+                patterns: [],
+                init() {
+                    this.loadDevices();
+                    this.loadPatterns();
+                },
+                async loadDevices() {
+                    const resp = await fetch('/api/devices');
+                    const data = await resp.json();
+                    if (data.success) {
+                        this.devices = data.data || [];
+                        this.renderDevices();
+                    }
+                },
+                async loadPatterns() {
+                    const resp = await fetch('/api/patterns');
+                    const data = await resp.json();
+                    if (data.success) {
+                        this.patterns = data.data || [];
+                        this.renderPatterns();
+                    }
+                },
+                renderDevices() {
+                    const el = document.getElementById('devicesList');
+                    if (this.devices.length === 0) {
+                        el.innerHTML = '<p>No devices registered yet.</p>';
+                        return;
+                    }
+                    el.innerHTML = this.devices.slice(0, 5).map(d => `
+                        <div class="list-item">
+                            <span>${d.name}</span>
+                            <span class="badge ${d.isOnline ? 'badge-success' : 'badge-danger'}">
+                                ${d.isOnline ? 'Online' : 'Offline'}
+                            </span>
+                        </div>
+                    `).join('');
+                },
+                renderPatterns() {
+                    const el = document.getElementById('patternsList');
+                    if (this.patterns.length === 0) {
+                        el.innerHTML = '<p>No patterns created yet.</p>';
+                        return;
+                    }
+                    el.innerHTML = this.patterns.slice(0, 5).map(p => `
+                        <div class="list-item">
+                            <span>${p.name}</span>
+                            <span class="badge">${p.type}</span>
+                        </div>
+                    `).join('');
+                }
+            }
+        }
+    </script>
+</body>
+</html>

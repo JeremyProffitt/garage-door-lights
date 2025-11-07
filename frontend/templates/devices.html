@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Devices - Candle Lights Controller</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">🕯️ Candle Lights</div>
+        <div class="nav-menu">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/patterns">Patterns</a>
+            <a href="/devices" class="active">Devices</a>
+            <a href="/settings">Settings</a>
+            <a href="/auth/logout">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container" x-data="devicesPage()">
+        <h1>Your Devices</h1>
+
+        <button @click="showAddModal = true" class="btn btn-primary">Add New Device</button>
+
+        <div class="devices-grid">
+            <template x-for="device in devices" :key="device.deviceId">
+                <div class="card device-card">
+                    <div class="device-header">
+                        <h3 x-text="device.name"></h3>
+                        <span class="badge" :class="device.isOnline ? 'badge-success' : 'badge-danger'" x-text="device.isOnline ? 'Online' : 'Offline'"></span>
+                    </div>
+                    <div class="device-info">
+                        <p><strong>Particle ID:</strong> <span x-text="device.particleId"></span></p>
+                        <p><strong>Last Seen:</strong> <span x-text="new Date(device.lastSeen).toLocaleString()"></span></p>
+                        <p x-show="device.assignedPattern"><strong>Current Pattern:</strong> <span x-text="getPatternName(device.assignedPattern)"></span></p>
+                    </div>
+                    <div class="buttons">
+                        <button @click="selectDeviceForPattern(device)" class="btn btn-sm btn-primary">Assign Pattern</button>
+                        <button @click="testDevice(device)" class="btn btn-sm btn-secondary">Test</button>
+                        <button @click="deleteDevice(device.deviceId)" class="btn btn-sm btn-danger">Delete</button>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- Add Device Modal -->
+        <div x-show="showAddModal" class="modal" @click.self="showAddModal = false">
+            <div class="modal-content">
+                <h2>Add New Device</h2>
+                <form @submit.prevent="addDevice">
+                    <div class="form-group">
+                        <label>Device Name</label>
+                        <input type="text" x-model="newDevice.name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Particle Device ID</label>
+                        <input type="text" x-model="newDevice.particleId" required>
+                        <small>Find this in your Particle Console</small>
+                    </div>
+                    <div class="buttons">
+                        <button type="submit" class="btn btn-primary">Add Device</button>
+                        <button type="button" @click="showAddModal = false" class="btn btn-secondary">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Assign Pattern Modal -->
+        <div x-show="showPatternModal" class="modal" @click.self="showPatternModal = false">
+            <div class="modal-content">
+                <h2>Assign Pattern to <span x-text="selectedDevice?.name"></span></h2>
+                <div class="patterns-list">
+                    <template x-for="pattern in patterns" :key="pattern.patternId">
+                        <div class="pattern-item" @click="assignPattern(pattern.patternId)">
+                            <span x-text="pattern.name"></span>
+                            <span class="badge" x-text="pattern.type"></span>
+                            <div class="color-preview" :style="`background: rgb(${pattern.red}, ${pattern.green}, ${pattern.blue})`"></div>
+                        </div>
+                    </template>
+                </div>
+                <button type="button" @click="showPatternModal = false" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/devices.js"></script>
+</body>
+</html>

@@ -1,0 +1,87 @@
+{
+  "manifest": {
+    "publishingInformation": {
+      "locales": {
+        "en-US": {
+          "summary": "Control your WS2812B candle lights",
+          "examplePhrases": [
+            "Alexa, turn on candle lights",
+            "Alexa, set candle lights to red",
+            "Alexa, dim candle lights"
+          ],
+          "keywords": [
+            "candle",
+            "lights",
+            "rgb",
+            "particle",
+            "smart home"
+          ],
+          "name": "Candle Lights Controller",
+          "description": "Control your Particle Argon WS2812B RGB LED candle lights with Alexa. Change colors, brightness, and patterns with voice commands."
+        }
+      },
+      "isAvailableWorldwide": true,
+      "testingInstructions": "Use the test credentials provided during certification.",
+      "category": "SMART_HOME",
+      "distributionCountries": []
+    },
+    "apis": {
+      "smartHome": {
+        "endpoint": {
+          "uri": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:FUNCTION_NAME"
+        },
+        "regions": {
+          "NA": {
+            "endpoint": {
+              "uri": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:FUNCTION_NAME"
+            }
+          }
+        }
+      }
+    },
+    "manifestVersion": "1.0",
+    "permissions": [],
+    "privacyAndCompliance": {
+      "allowsPurchases": false,
+      "locales": {
+        "en-US": {
+          "privacyPolicyUrl": "https://lights.jeremy.ninja/privacy",
+          "termsOfUseUrl": "https://lights.jeremy.ninja/terms"
+        }
+      },
+      "isExportCompliant": true,
+      "containsAds": false,
+      "isChildDirected": false,
+      "usesPersonalInfo": false
+    },
+    "events": {
+      "endpoint": {
+        "uri": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:FUNCTION_NAME"
+      },
+      "subscriptions": [
+        {
+          "eventName": "SKILL_ENABLED"
+        },
+        {
+          "eventName": "SKILL_DISABLED"
+        },
+        {
+          "eventName": "SKILL_PERMISSION_ACCEPTED"
+        },
+        {
+          "eventName": "SKILL_PERMISSION_CHANGED"
+        },
+        {
+          "eventName": "SKILL_ACCOUNT_LINKED"
+        }
+      ],
+      "regions": {
+        "NA": {
+          "endpoint": {
+            "uri": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:FUNCTION_NAME"
+          }
+        }
+      }
+    }
+  }
+}

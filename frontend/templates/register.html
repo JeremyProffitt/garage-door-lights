@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - Candle Lights Controller</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="form-container">
+            <h1>Register</h1>
+            <form id="registerForm">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <div class="form-group">
+                    <label for="particleUsername">Particle Username (optional)</label>
+                    <input type="text" id="particleUsername" name="particleUsername">
+                </div>
+                <div class="form-group">
+                    <label for="particleToken">Particle Access Token (optional)</label>
+                    <input type="text" id="particleToken" name="particleToken">
+                    <small>You can add this later in settings</small>
+                </div>
+                <div id="error" class="error" style="display:none;"></div>
+                <button type="submit" class="btn btn-primary">Register</button>
+                <p>Already have an account? <a href="/login">Login</a></p>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = {
+                username: document.getElementById('username').value,
+                email: document.getElementById('email').value,
+                password: document.getElementById('password').value,
+                particleUsername: document.getElementById('particleUsername').value,
+                particleToken: document.getElementById('particleToken').value
+            };
+            const errorEl = document.getElementById('error');
+
+            try {
+                const response = await fetch('/auth/register', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    window.location.href = data.redirect;
+                } else {
+                    errorEl.textContent = data.error;
+                    errorEl.style.display = 'block';
+                }
+            } catch (err) {
+                errorEl.textContent = 'Registration failed. Please try again.';
+                errorEl.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>
