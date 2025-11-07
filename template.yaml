@@ -89,7 +89,7 @@ Resources:
   AuthFunction:
     Type: AWS::Serverless::Function
     Metadata:
-      BuildMethod: go1.x
+      BuildMethod: makefile
     Properties:
       CodeUri: backend/functions/auth/
       Handler: bootstrap
@@ -119,7 +119,7 @@ Resources:
   PatternsFunction:
     Type: AWS::Serverless::Function
     Metadata:
-      BuildMethod: go1.x
+      BuildMethod: makefile
     Properties:
       CodeUri: backend/functions/patterns/
       Handler: bootstrap
@@ -163,7 +163,7 @@ Resources:
   DevicesFunction:
     Type: AWS::Serverless::Function
     Metadata:
-      BuildMethod: go1.x
+      BuildMethod: makefile
     Properties:
       CodeUri: backend/functions/devices/
       Handler: bootstrap
@@ -215,7 +215,7 @@ Resources:
   ParticleFunction:
     Type: AWS::Serverless::Function
     Metadata:
-      BuildMethod: go1.x
+      BuildMethod: makefile
     Properties:
       CodeUri: backend/functions/particle/
       Handler: bootstrap
@@ -244,7 +244,7 @@ Resources:
   AlexaFunction:
     Type: AWS::Serverless::Function
     Metadata:
-      BuildMethod: go1.x
+      BuildMethod: makefile
     Properties:
       CodeUri: backend/functions/alexa/
       Handler: bootstrap
@@ -281,7 +281,7 @@ Resources:
   FrontendFunction:
     Type: AWS::Serverless::Function
     Metadata:
-      BuildMethod: go1.x
+      BuildMethod: makefile
     Properties:
       CodeUri: frontend/
       Handler: bootstrap
