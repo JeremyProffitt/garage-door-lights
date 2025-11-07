@@ -1,0 +1,347 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Particle Argon Candle Lights Control System
+
+Parameters:
+  DomainName:
+    Type: String
+    Default: lights.jeremy.ninja
+    Description: Domain name for the API and website
+  HostedZoneId:
+    Type: String
+    Description: Route53 Hosted Zone ID for the domain
+  CertificateArn:
+    Type: String
+    Description: ACM Certificate ARN for the custom domain
+
+Globals:
+  Function:
+    Runtime: provided.al2
+    Architectures:
+      - x86_64
+    Timeout: 30
+    Environment:
+      Variables:
+        USERS_TABLE: !Ref UsersTable
+        PATTERNS_TABLE: !Ref PatternsTable
+        DEVICES_TABLE: !Ref DevicesTable
+        DOMAIN_NAME: !Ref DomainName
+
+Resources:
+  # DynamoDB Tables
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${AWS::StackName}-users
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: username
+          AttributeType: S
+      KeySchema:
+        - AttributeName: username
+          KeyType: HASH
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+
+  PatternsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${AWS::StackName}-patterns
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: patternId
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: patternId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: userId-index
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  DevicesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${AWS::StackName}-devices
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: deviceId
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: deviceId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: userId-index
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  # Lambda Functions
+  AuthFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: go1.x
+    Properties:
+      CodeUri: backend/functions/auth/
+      Handler: bootstrap
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+      Events:
+        Login:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /auth/login
+            Method: POST
+        Register:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /auth/register
+            Method: POST
+        Validate:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /auth/validate
+            Method: POST
+
+  PatternsFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: go1.x
+    Properties:
+      CodeUri: backend/functions/patterns/
+      Handler: bootstrap
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PatternsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+      Events:
+        List:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /patterns
+            Method: GET
+        Create:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /patterns
+            Method: POST
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /patterns/{patternId}
+            Method: GET
+        Update:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /patterns/{patternId}
+            Method: PUT
+        Delete:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /patterns/{patternId}
+            Method: DELETE
+
+  DevicesFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: go1.x
+    Properties:
+      CodeUri: backend/functions/devices/
+      Handler: bootstrap
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DevicesTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref PatternsTable
+      Events:
+        List:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /devices
+            Method: GET
+        Register:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /devices
+            Method: POST
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /devices/{deviceId}
+            Method: GET
+        Update:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /devices/{deviceId}
+            Method: PUT
+        Delete:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /devices/{deviceId}
+            Method: DELETE
+        AssignPattern:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /devices/{deviceId}/pattern
+            Method: PUT
+
+  ParticleFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: go1.x
+    Properties:
+      CodeUri: backend/functions/particle/
+      Handler: bootstrap
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref DevicesTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref PatternsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+      Events:
+        SendCommand:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /particle/command
+            Method: POST
+        GetDeviceInfo:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /particle/device/{deviceId}
+            Method: GET
+
+  # Alexa Smart Home Skill Lambda
+  AlexaFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: go1.x
+    Properties:
+      CodeUri: backend/functions/alexa/
+      Handler: bootstrap
+      Timeout: 60
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref DevicesTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref PatternsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+      Events:
+        AlexaSkillEvent:
+          Type: AlexaSkill
+
+  # API Gateway
+  ApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub ${AWS::StackName}-api
+      StageName: prod
+      Cors:
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+      Domain:
+        DomainName: !Sub api.${DomainName}
+        CertificateArn: !Ref CertificateArn
+        EndpointConfiguration: EDGE
+        Route53:
+          HostedZoneId: !Ref HostedZoneId
+
+  # Frontend Lambda (Go Fiber)
+  FrontendFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: go1.x
+    Properties:
+      CodeUri: frontend/
+      Handler: bootstrap
+      MemorySize: 512
+      Timeout: 30
+      Environment:
+        Variables:
+          API_ENDPOINT: !Sub https://api.${DomainName}
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Query
+              Resource:
+                - !GetAtt UsersTable.Arn
+      Events:
+        Root:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WebsiteGateway
+            Path: /
+            Method: ANY
+        Proxy:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WebsiteGateway
+            Path: /{proxy+}
+            Method: ANY
+
+  WebsiteGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub ${AWS::StackName}-website
+      StageName: prod
+      BinaryMediaTypes:
+        - "*/*"
+      Domain:
+        DomainName: !Ref DomainName
+        CertificateArn: !Ref CertificateArn
+        EndpointConfiguration: EDGE
+        Route53:
+          HostedZoneId: !Ref HostedZoneId
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub https://api.${DomainName}
+  WebsiteUrl:
+    Description: Website URL
+    Value: !Sub https://${DomainName}
+  AlexaSkillEndpoint:
+    Description: Alexa Skill Lambda ARN
+    Value: !GetAtt AlexaFunction.Arn
+  UsersTableName:
+    Description: Users DynamoDB table name
+    Value: !Ref UsersTable
+  PatternsTableName:
+    Description: Patterns DynamoDB table name
+    Value: !Ref PatternsTable
+  DevicesTableName:
+    Description: Devices DynamoDB table name
+    Value: !Ref DevicesTable

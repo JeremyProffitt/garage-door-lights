@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patterns - Candle Lights Controller</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">🕯️ Candle Lights</div>
+        <div class="nav-menu">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/patterns" class="active">Patterns</a>
+            <a href="/devices">Devices</a>
+            <a href="/settings">Settings</a>
+            <a href="/auth/logout">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container" x-data="patternsPage()">
+        <h1>Light Patterns</h1>
+
+        <button @click="showCreateModal = true" class="btn btn-primary">Create New Pattern</button>
+
+        <div class="patterns-grid">
+            <template x-for="pattern in patterns" :key="pattern.patternId">
+                <div class="card pattern-card">
+                    <h3 x-text="pattern.name"></h3>
+                    <p x-text="pattern.description"></p>
+                    <div class="pattern-details">
+                        <span class="badge" x-text="pattern.type"></span>
+                        <div class="color-preview" :style="`background: rgb(${pattern.red}, ${pattern.green}, ${pattern.blue})`"></div>
+                    </div>
+                    <div class="pattern-info">
+                        <small>Brightness: <span x-text="pattern.brightness"></span></small>
+                        <small>Speed: <span x-text="pattern.speed"></span>ms</small>
+                    </div>
+                    <div class="buttons">
+                        <button @click="editPattern(pattern)" class="btn btn-sm btn-secondary">Edit</button>
+                        <button @click="deletePattern(pattern.patternId)" class="btn btn-sm btn-danger">Delete</button>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- Create/Edit Modal -->
+        <div x-show="showCreateModal" class="modal" @click.self="showCreateModal = false">
+            <div class="modal-content">
+                <h2 x-text="editingPattern ? 'Edit Pattern' : 'Create Pattern'"></h2>
+                <form @submit.prevent="savePattern">
+                    <div class="form-group">
+                        <label>Name</label>
+                        <input type="text" x-model="form.name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <input type="text" x-model="form.description">
+                    </div>
+                    <div class="form-group">
+                        <label>Pattern Type</label>
+                        <select x-model="form.type" required>
+                            <option value="candle">Candle</option>
+                            <option value="solid">Solid</option>
+                            <option value="pulse">Pulse</option>
+                            <option value="wave">Wave</option>
+                            <option value="rainbow">Rainbow</option>
+                            <option value="fire">Fire</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Red (0-255)</label>
+                            <input type="number" x-model.number="form.red" min="0" max="255" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Green (0-255)</label>
+                            <input type="number" x-model.number="form.green" min="0" max="255" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Blue (0-255)</label>
+                            <input type="number" x-model.number="form.blue" min="0" max="255" required>
+                        </div>
+                    </div>
+                    <div class="color-preview-large" :style="`background: rgb(${form.red}, ${form.green}, ${form.blue})`"></div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Brightness (0-255)</label>
+                            <input type="number" x-model.number="form.brightness" min="0" max="255" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Speed (ms)</label>
+                            <input type="number" x-model.number="form.speed" min="10" max="1000" required>
+                        </div>
+                    </div>
+                    <div class="buttons">
+                        <button type="submit" class="btn btn-primary">Save</button>
+                        <button type="button" @click="showCreateModal = false" class="btn btn-secondary">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/patterns.js"></script>
+</body>
+</html>
