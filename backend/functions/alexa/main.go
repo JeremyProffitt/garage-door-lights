@@ -224,7 +224,11 @@ func handlePowerControl(ctx context.Context, request AlexaRequest) (AlexaRespons
         callParticleFunction(device.ParticleID, command, argument, user.ParticleToken)
     }
 
-    return createSuccessResponse(request, "powerState", powerState == "TurnOn" ? "ON" : "OFF"), nil
+    stateValue := "OFF"
+    if powerState == "TurnOn" {
+        stateValue = "ON"
+    }
+    return createSuccessResponse(request, "powerState", stateValue), nil
 }
 
 func handleColorControl(ctx context.Context, request AlexaRequest) (AlexaResponse, error) {
