@@ -12,4 +12,4 @@ require (
     github.com/google/uuid v1.5.0
 )
 
-replace candle-lights/backend/shared => ../../shared
+replace candle-lights/backend/shared => ./shared

@@ -38,6 +38,12 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Copy shared module to function directories
+        run: |
+          for func in auth patterns devices particle alexa; do
+            cp -r backend/shared backend/functions/$func/
+          done
+
       - name: Build application
         run: sam build
 

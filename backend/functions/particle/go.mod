@@ -11,4 +11,4 @@ require (
     github.com/aws/aws-sdk-go-v2/service/dynamodb v1.26.7
 )
 
-replace candle-lights/backend/shared => ../../shared
+replace candle-lights/backend/shared => ./shared

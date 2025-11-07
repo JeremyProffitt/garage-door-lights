@@ -14,4 +14,4 @@ require (
     golang.org/x/crypto v0.17.0
 )
 
-replace candle-lights/backend/shared => ../../shared
+replace candle-lights/backend/shared => ./shared
