@@ -262,10 +262,39 @@ Configure these secrets in your GitHub repository:
 Settings → Secrets and variables → Actions → New repository secret
 ```
 
-- `AWS_ROLE_ARN` - IAM role ARN for GitHub Actions
+#### AWS Secrets (Required)
+- `AWS_ACCESS_KEY_ID` - AWS access key ID for programmatic access
+- `AWS_SECRET_ACCESS_KEY` - AWS secret access key
 - `DOMAIN_NAME` - Your domain (e.g., lights.jeremy.ninja)
 - `HOSTED_ZONE_ID` - Route53 hosted zone ID
 - `CERTIFICATE_ARN` - ACM certificate ARN
+
+**To create AWS credentials:**
+1. Go to AWS IAM Console
+2. Create a new user or use existing user
+3. Attach policy: `AdministratorAccess` (or create custom policy with required permissions)
+4. Create access key under Security Credentials
+5. Copy Access Key ID and Secret Access Key
+
+#### Alexa Secrets (Optional - for automated skill deployment)
+- `ALEXA_VENDOR_ID` - Your Amazon Developer Vendor ID
+- `ALEXA_CLIENT_ID` - Login with Amazon (LWA) Client ID
+- `ALEXA_CLIENT_SECRET` - Login with Amazon Client Secret
+- `ALEXA_REFRESH_TOKEN` - ASK CLI refresh token
+- `ALEXA_SKILL_ID` - (Optional) Existing skill ID to update instead of creating new
+
+**To get Alexa credentials:**
+```bash
+# Run the setup script
+./scripts/setup-alexa-credentials.sh
+
+# Or manually:
+# 1. Install ASK CLI: npm install -g ask-cli
+# 2. Configure: ask configure
+# 3. Get vendor ID from ~/.ask/cli_config
+# 4. Create LWA Security Profile: https://developer.amazon.com/settings/console/securityprofile
+# 5. Get Client ID and Secret from the security profile
+```
 
 ### Deploy on Push
 
@@ -277,15 +306,49 @@ git commit -m "Update application"
 git push origin main
 ```
 
+To trigger Alexa skill deployment, either:
+- Use workflow dispatch (manual trigger)
+- Include `[alexa]` in your commit message:
+```bash
+git commit -m "Update Alexa skill [alexa]"
+```
+
 ## Alexa Integration Setup
 
-### 1. Create Alexa Smart Home Skill
+You can deploy the Alexa skill either **automatically via GitHub Actions** or **manually**.
+
+### Option A: Automated Deployment (Recommended)
+
+1. **Configure Alexa secrets** (see GitHub Actions Setup above)
+2. **Trigger deployment:**
+   ```bash
+   # Via commit message
+   git commit -m "Deploy Alexa skill [alexa]"
+   git push
+
+   # Or manually via GitHub Actions UI
+   # Go to Actions → Deploy Candle Lights Controller → Run workflow
+   ```
+
+3. **The script will automatically:**
+   - Get Lambda ARN from CloudFormation
+   - Create or update the Alexa skill
+   - Configure Lambda permissions
+   - Enable skill for testing
+
+4. **Configure account linking** in Alexa Developer Console:
+   - Authorization URL: `https://lights.jeremy.ninja/oauth/authorize`
+   - Token URL: `https://api.lights.jeremy.ninja/oauth/token`
+
+### Option B: Manual Deployment
+
+#### 1. Create Alexa Smart Home Skill
 
 1. Go to [Alexa Developer Console](https://developer.amazon.com/alexa/console/ask)
 2. Create Skill → Smart Home
 3. Use `alexa-skill/skill.json` as template
 
-### 2. Configure Lambda Function
+#### 2. Configure Lambda Function
 
 From SAM deployment outputs, get the `AlexaSkillEndpoint`:
 
@@ -298,7 +361,7 @@ aws cloudformation describe-stacks \
 
 Add this ARN to your Alexa skill configuration.
 
-### 3. Enable Account Linking
+#### 3. Enable Account Linking
 
 Configure OAuth using `alexa-skill/account-linking.json` as reference:
 
@@ -306,7 +369,7 @@ Configure OAuth using `alexa-skill/account-linking.json` as reference:
 - Token URL: `https://api.lights.jeremy.ninja/oauth/token`
 - Client ID/Secret: Generated from your app
 
-### 4. Test Voice Commands
+### Test Voice Commands
 
 ```
 "Alexa, discover devices"
