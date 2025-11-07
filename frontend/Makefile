@@ -1,5 +1,5 @@
 .PHONY: build-FrontendFunction
 
 build-FrontendFunction:
-	go mod download
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -tags lambda.norpc -o bootstrap main.go
+	go mod tidy
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -mod=readonly -tags lambda.norpc -o bootstrap main.go
