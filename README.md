@@ -168,11 +168,11 @@ cp .env.example .env
 Edit `.env` with your configuration:
 
 ```bash
-AWS_REGION=us-east-1
+AWS_REGION=us-east-2
 AWS_ACCOUNT_ID=123456789012
 DOMAIN_NAME=lights.jeremy.ninja
 HOSTED_ZONE_ID=Z1234567890ABC
-CERTIFICATE_ARN=arn:aws:acm:us-east-1:123456789012:certificate/...
+CERTIFICATE_ARN=arn:aws:acm:us-east-2:123456789012:certificate/...
 STACK_NAME=candle-lights-prod
 ```
 
@@ -185,7 +185,7 @@ aws acm request-certificate \
   --domain-name lights.jeremy.ninja \
   --domain-name "*.lights.jeremy.ninja" \
   --validation-method DNS \
-  --region us-east-1
+  --region us-east-2
 ```
 
 Follow the DNS validation steps in the AWS Console.
@@ -214,7 +214,7 @@ Or manually:
 sam build
 sam deploy \
   --stack-name candle-lights-prod \
-  --region us-east-1 \
+  --region us-east-2 \
   --capabilities CAPABILITY_IAM \
   --parameter-overrides \
     "DomainName=lights.jeremy.ninja" \
