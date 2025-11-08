@@ -103,7 +103,6 @@ jobs:
   deploy-alexa:
     runs-on: ubuntu-latest
     needs: deploy
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[alexa]')
 
     steps:
       - name: Checkout code
