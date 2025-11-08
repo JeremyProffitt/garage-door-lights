@@ -265,7 +265,7 @@ void fireEffect() {
 
     // Randomly ignite new sparks
     if (random8() < sparking) {
-        int y = random8(3);
+        int y = random8(0, 3);
         heat[y] = qadd8(heat[y], random8(160, 255));
     }
 
