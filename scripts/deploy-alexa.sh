@@ -63,19 +63,22 @@ cat skill.json | \
 if [ "$CREATE_NEW" = true ]; then
     echo "Creating new Alexa skill..."
 
+    # Read the skill manifest JSON
+    SKILL_MANIFEST=$(cat skill-updated.json)
+
     # Create skill using SMAPI REST API
     SMAPI_RESPONSE=$(curl -X POST \
         -H "Authorization: Bearer $ALEXA_LWA_TOKEN" \
         -H "Content-Type: application/json" \
-        -d @skill-updated.json \
-        "https://api.amazonalexa.com/v1/skills" \
-        2>/dev/null)
+        -d "$SKILL_MANIFEST" \
+        "https://api.amazonalexa.com/v1/skills")
+
+    echo "API Response: $SMAPI_RESPONSE"
 
     SKILL_ID=$(echo "$SMAPI_RESPONSE" | jq -r '.skillId // empty')
 
     if [ -z "$SKILL_ID" ]; then
         echo "Error: Failed to create skill"
-        echo "Response: $SMAPI_RESPONSE"
         exit 1
     fi
 
@@ -92,11 +95,14 @@ if [ "$CREATE_NEW" = true ]; then
 else
     echo "Updating existing Alexa skill: $ALEXA_SKILL_ID"
 
+    # Read the skill manifest JSON
+    SKILL_MANIFEST=$(cat skill-updated.json)
+
     # Update existing skill using SMAPI REST API
     curl -X PUT \
         -H "Authorization: Bearer $ALEXA_LWA_TOKEN" \
         -H "Content-Type: application/json" \
-        -d @skill-updated.json \
+        -d "$SKILL_MANIFEST" \
         "https://api.amazonalexa.com/v1/skills/$ALEXA_SKILL_ID/stages/development/manifest"
 
     SKILL_ID=$ALEXA_SKILL_ID
