@@ -46,17 +46,14 @@ else
             fi
 
             # Refresh the access token using LWA refresh endpoint
-            # Note: Refresh tokens from Alexa Developer Console may not require client_id
-            if [ -n "$ALEXA_CLIENT_ID" ]; then
-                REFRESH_RESPONSE=$(curl -s -X POST https://api.amazon.com/auth/o2/token \
-                    -H "Content-Type: application/x-www-form-urlencoded" \
-                    -d "grant_type=refresh_token&refresh_token=$REFRESH_TOKEN&client_id=$ALEXA_CLIENT_ID")
-            else
-                # Try without client_id (some LWA tokens support this)
-                REFRESH_RESPONSE=$(curl -s -X POST https://api.amazon.com/auth/o2/token \
-                    -H "Content-Type: application/x-www-form-urlencoded" \
-                    -d "grant_type=refresh_token&refresh_token=$REFRESH_TOKEN")
+            if [ -z "$ALEXA_CLIENT_ID" ] || [ -z "$ALEXA_CLIENT_SECRET" ]; then
+                echo "Error: ALEXA_CLIENT_ID and ALEXA_CLIENT_SECRET required for token refresh"
+                exit 1
             fi
+
+            REFRESH_RESPONSE=$(curl -s -X POST https://api.amazon.com/auth/o2/token \
+                -H "Content-Type: application/x-www-form-urlencoded" \
+                -d "grant_type=refresh_token&refresh_token=$REFRESH_TOKEN&client_id=$ALEXA_CLIENT_ID&client_secret=$ALEXA_CLIENT_SECRET")
 
             NEW_ACCESS_TOKEN=$(echo "$REFRESH_RESPONSE" | jq -r '.access_token // empty')
 

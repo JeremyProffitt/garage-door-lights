@@ -126,6 +126,8 @@ jobs:
           ALEXA_VENDOR_ID: ${{ secrets.ALEXA_VENDOR_ID }}
           ALEXA_LWA_TOKEN: ${{ secrets.ALEXA_LWA_TOKEN }}
           ALEXA_SKILL_ID: ${{ secrets.ALEXA_SKILL_ID }}
+          ALEXA_CLIENT_ID: ${{ secrets.ALEXA_CLIENT_ID }}
+          ALEXA_CLIENT_SECRET: ${{ secrets.ALEXA_CLIENT_SECRET }}
         run: |
           chmod +x scripts/deploy-alexa.sh
           ./scripts/deploy-alexa.sh
@@ -133,7 +135,6 @@ jobs:
   firmware:
     runs-on: ubuntu-latest
     needs: deploy
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[firmware]')
 
     steps:
       - name: Checkout code
