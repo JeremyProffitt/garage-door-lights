@@ -70,19 +70,11 @@ jobs:
             cp -r backend/shared backend/functions/$func/
           done
 
-      - name: Build application
-        run: sam build --use-container
+      - name: Clean previous builds
+        run: rm -rf .aws-sam
 
-      - name: Clear SAM deployment cache
-        run: |
-          # Get the SAM managed bucket name
-          SAM_BUCKET=$(aws s3 ls | grep "aws-sam-cli-managed-default-samclisourcebucket" | awk '{print $3}')
-          if [ -n "$SAM_BUCKET" ]; then
-            echo "Clearing SAM bucket: $SAM_BUCKET"
-            aws s3 rm s3://$SAM_BUCKET/ --recursive || true
-          else
-            echo "SAM bucket not found, skipping cleanup"
-          fi
+      - name: Build application
+        run: sam build
 
       - name: Deploy application
         run: |
@@ -97,6 +89,7 @@ jobs:
               "CertificateArn=${{ vars.CERTIFICATE_ARN }}" \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
+            --s3-prefix "build-${{ github.run_id }}" \
             --resolve-s3
 
       - name: Get outputs
