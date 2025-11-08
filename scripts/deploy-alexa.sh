@@ -59,50 +59,26 @@ cat skill.json | \
     sed "s|ACCOUNT_ID|$AWS_ACCOUNT_ID|g" \
     > skill-updated.json
 
-# Configure ASK CLI credentials using jq for proper JSON escaping
-echo "Configuring ASK CLI..."
-mkdir -p ~/.ask
-
-# Use jq to safely create the JSON config with proper escaping
-jq -n \
-  --arg token "$ALEXA_LWA_TOKEN" \
-  --arg vendor "$ALEXA_VENDOR_ID" \
-  '{
-    "profiles": {
-      "default": {
-        "aws_profile": null,
-        "token": {
-          "access_token": $token,
-          "refresh_token": $token,
-          "token_type": "bearer",
-          "expires_in": 3600,
-          "expires_at": "2099-01-01T00:00:00.000Z"
-        },
-        "vendor_id": $vendor
-      }
-    }
-  }' > ~/.ask/cli_config
-
-# Install ASK CLI if not present
-if ! command -v ask &> /dev/null; then
-    echo "Installing ASK CLI..."
-    npm install -g ask-cli
-fi
-
-# Deploy skill
+# Deploy skill using SMAPI REST API directly
 if [ "$CREATE_NEW" = true ]; then
     echo "Creating new Alexa skill..."
 
-    # Create skill using SMAPI
-    # Read manifest file and pass as JSON string
-    MANIFEST_JSON=$(cat skill-updated.json)
+    # Create skill using SMAPI REST API
+    SMAPI_RESPONSE=$(curl -X POST \
+        -H "Authorization: Bearer $ALEXA_LWA_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d @skill-updated.json \
+        "https://api.amazonalexa.com/v1/skills" \
+        2>/dev/null)
 
-    ask smapi create-skill-for-vendor \
-        --vendor-id "$ALEXA_VENDOR_ID" \
-        --manifest "$MANIFEST_JSON" \
-        > skill-creation-response.json
+    SKILL_ID=$(echo "$SMAPI_RESPONSE" | jq -r '.skillId // empty')
 
-    SKILL_ID=$(cat skill-creation-response.json | jq -r '.skillId')
+    if [ -z "$SKILL_ID" ]; then
+        echo "Error: Failed to create skill"
+        echo "Response: $SMAPI_RESPONSE"
+        exit 1
+    fi
+
     echo "Created skill with ID: $SKILL_ID"
 
     if [ -n "$GITHUB_ENV" ]; then
@@ -116,14 +92,12 @@ if [ "$CREATE_NEW" = true ]; then
 else
     echo "Updating existing Alexa skill: $ALEXA_SKILL_ID"
 
-    # Update existing skill
-    # Read manifest file and pass as JSON string
-    MANIFEST_JSON=$(cat skill-updated.json)
-
-    ask smapi update-skill-manifest \
-        --skill-id "$ALEXA_SKILL_ID" \
-        --manifest "$MANIFEST_JSON" \
-        --stage development
+    # Update existing skill using SMAPI REST API
+    curl -X PUT \
+        -H "Authorization: Bearer $ALEXA_LWA_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d @skill-updated.json \
+        "https://api.amazonalexa.com/v1/skills/$ALEXA_SKILL_ID/stages/development/manifest"
 
     SKILL_ID=$ALEXA_SKILL_ID
 fi
@@ -139,12 +113,13 @@ aws lambda add-permission \
     --region "$AWS_REGION" \
     || echo "Permission may already exist"
 
-# Enable skill for testing
+# Enable skill for testing using SMAPI REST API
 echo "Enabling skill for testing..."
-ask smapi set-skill-enablement \
-    --skill-id "$SKILL_ID" \
-    --stage development \
-    --enablement-status "ENABLED" \
+curl -X PUT \
+    -H "Authorization: Bearer $ALEXA_LWA_TOKEN" \
+    -H "Content-Type: application/json" \
+    "https://api.amazonalexa.com/v1/skills/$SKILL_ID/stages/development/enablement" \
+    -d '{"stage": "development"}' \
     || echo "Skill may already be enabled"
 
 echo ""
