@@ -94,9 +94,12 @@ if [ "$CREATE_NEW" = true ]; then
     echo "Creating new Alexa skill..."
 
     # Create skill using SMAPI
-    # Note: vendor_id is already configured in the CLI profile
-    ask smapi create-skill \
-        --manifest "file:skill-updated.json" \
+    # Read manifest file and pass as JSON string
+    MANIFEST_JSON=$(cat skill-updated.json)
+
+    ask smapi create-skill-for-vendor \
+        --vendor-id "$ALEXA_VENDOR_ID" \
+        --manifest "$MANIFEST_JSON" \
         > skill-creation-response.json
 
     SKILL_ID=$(cat skill-creation-response.json | jq -r '.skillId')
@@ -114,9 +117,12 @@ else
     echo "Updating existing Alexa skill: $ALEXA_SKILL_ID"
 
     # Update existing skill
+    # Read manifest file and pass as JSON string
+    MANIFEST_JSON=$(cat skill-updated.json)
+
     ask smapi update-skill-manifest \
         --skill-id "$ALEXA_SKILL_ID" \
-        --manifest file:skill-updated.json \
+        --manifest "$MANIFEST_JSON" \
         --stage development
 
     SKILL_ID=$ALEXA_SKILL_ID
