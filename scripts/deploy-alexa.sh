@@ -93,19 +93,18 @@ fi
 if [ "$CREATE_NEW" = true ]; then
     echo "Creating new Alexa skill..."
 
-    # Create skill package directory structure
-    mkdir -p skill-package
-    cp skill-updated.json skill-package/skill.json
-
-    # Deploy new skill
-    ask smapi create-skill-for-vendor \
-        --manifest file:skill-updated.json \
-        --vendor-id "$ALEXA_VENDOR_ID" \
+    # Create skill using SMAPI
+    # Note: vendor_id is already configured in the CLI profile
+    ask smapi create-skill \
+        --manifest "file:skill-updated.json" \
         > skill-creation-response.json
 
     SKILL_ID=$(cat skill-creation-response.json | jq -r '.skillId')
     echo "Created skill with ID: $SKILL_ID"
-    echo "ALEXA_SKILL_ID=$SKILL_ID" >> $GITHUB_ENV
+
+    if [ -n "$GITHUB_ENV" ]; then
+        echo "ALEXA_SKILL_ID=$SKILL_ID" >> $GITHUB_ENV
+    fi
 
     # Wait for skill creation to complete
     echo "Waiting for skill creation to complete..."
