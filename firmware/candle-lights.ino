@@ -1,8 +1,7 @@
 // Particle Argon WS2812B Candle Simulator
 // Supports 8 RGB LEDs with cloud control and flash storage
 
-#include <neopixel.h>
-#include <EEPROM.h>
+#include "neopixel.h"
 
 #define PIXEL_COUNT 8
 #define PIXEL_PIN D2
