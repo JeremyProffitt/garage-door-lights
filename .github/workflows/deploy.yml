@@ -124,9 +124,7 @@ jobs:
       - name: Deploy Alexa Skill
         env:
           ALEXA_VENDOR_ID: ${{ secrets.ALEXA_VENDOR_ID }}
-          ALEXA_CLIENT_ID: ${{ secrets.ALEXA_CLIENT_ID }}
-          ALEXA_CLIENT_SECRET: ${{ secrets.ALEXA_CLIENT_SECRET }}
-          ALEXA_REFRESH_TOKEN: ${{ secrets.ALEXA_REFRESH_TOKEN }}
+          ALEXA_LWA_TOKEN: ${{ secrets.ALEXA_LWA_TOKEN }}
           ALEXA_SKILL_ID: ${{ secrets.ALEXA_SKILL_ID }}
         run: |
           chmod +x scripts/deploy-alexa.sh
@@ -134,12 +132,22 @@ jobs:
 
   firmware:
     runs-on: ubuntu-latest
+    needs: deploy
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[firmware]')
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Validate firmware
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Deploy Particle Firmware
+        env:
+          PARTICLE_ACCESS_TOKEN: ${{ secrets.PARTICLE_ACCESS_TOKEN }}
+          PARTICLE_DEVICE_ID: ${{ secrets.PARTICLE_DEVICE_ID }}
         run: |
-          echo "Firmware validation would happen here"
-          echo "Use Particle CLI to compile and flash firmware"
-          echo "particle compile argon firmware/"
+          chmod +x scripts/deploy-particle.sh
+          ./scripts/deploy-particle.sh

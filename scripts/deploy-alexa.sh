@@ -15,18 +15,8 @@ if [ -z "$ALEXA_VENDOR_ID" ]; then
     exit 1
 fi
 
-if [ -z "$ALEXA_CLIENT_ID" ]; then
-    echo "Error: ALEXA_CLIENT_ID not set"
-    exit 1
-fi
-
-if [ -z "$ALEXA_CLIENT_SECRET" ]; then
-    echo "Error: ALEXA_CLIENT_SECRET not set"
-    exit 1
-fi
-
-if [ -z "$ALEXA_REFRESH_TOKEN" ]; then
-    echo "Error: ALEXA_REFRESH_TOKEN not set"
+if [ -z "$ALEXA_LWA_TOKEN" ]; then
+    echo "Error: ALEXA_LWA_TOKEN not set"
     exit 1
 fi
 
@@ -78,8 +68,8 @@ cat > ~/.ask/cli_config << EOF
     "default": {
       "aws_profile": null,
       "token": {
-        "access_token": "",
-        "refresh_token": "$ALEXA_REFRESH_TOKEN",
+        "access_token": "$ALEXA_LWA_TOKEN",
+        "refresh_token": "$ALEXA_LWA_TOKEN",
         "token_type": "bearer",
         "expires_in": 3600,
         "expires_at": "2099-01-01T00:00:00.000Z"
