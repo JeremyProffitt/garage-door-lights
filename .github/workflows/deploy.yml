@@ -73,6 +73,17 @@ jobs:
       - name: Build application
         run: sam build --use-container
 
+      - name: Clear SAM deployment cache
+        run: |
+          # Get the SAM managed bucket name
+          SAM_BUCKET=$(aws s3 ls | grep "aws-sam-cli-managed-default-samclisourcebucket" | awk '{print $3}')
+          if [ -n "$SAM_BUCKET" ]; then
+            echo "Clearing SAM bucket: $SAM_BUCKET"
+            aws s3 rm s3://$SAM_BUCKET/ --recursive || true
+          else
+            echo "SAM bucket not found, skipping cleanup"
+          fi
+
       - name: Deploy application
         run: |
           sam deploy \
