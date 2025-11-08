@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Script to deploy Alexa Smart Home Skill
-# This script uses the ASK CLI to deploy the skill configuration
+# Uses ASK CLI for automated deployment
 
 set -e
 
@@ -10,42 +10,121 @@ echo "Alexa Skill Deployment"
 echo "======================================"
 
 # Check required environment variables
-if [ -z "$ALEXA_VENDOR_ID" ]; then
-    echo "Error: ALEXA_VENDOR_ID not set"
+if [ -z "$ALEXA_LWA_TOKEN" ]; then
+    echo "Error: ALEXA_LWA_TOKEN not set"
+    echo "This should contain the refresh_token from ASK CLI configuration"
     exit 1
 fi
 
-if [ -z "$ALEXA_CLIENT_ID" ] || [ -z "$ALEXA_CLIENT_SECRET" ]; then
-    echo "Error: ALEXA_CLIENT_ID and ALEXA_CLIENT_SECRET are required"
-    exit 1
+# Install ASK CLI if not present
+if ! command -v ask &> /dev/null; then
+    echo "Installing ASK CLI..."
+    npm install -g ask-cli
 fi
 
-# Get a fresh access token using client credentials
-echo "Getting fresh access token using client credentials..."
-TOKEN_RESPONSE=$(curl -s -X POST https://api.amazon.com/auth/o2/token \
-    -H "Content-Type: application/x-www-form-urlencoded" \
-    -d "grant_type=client_credentials&client_id=$ALEXA_CLIENT_ID&client_secret=$ALEXA_CLIENT_SECRET")
+echo "✓ ASK CLI installed"
 
-ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.access_token // empty')
+# Configure ASK CLI with LWA token
+echo "Configuring ASK CLI with LWA token..."
+mkdir -p ~/.ask
 
-if [ -z "$ACCESS_TOKEN" ]; then
-    echo "Error: Failed to get access token"
-    echo "Response: $TOKEN_RESPONSE"
-    exit 1
-fi
+# Extract refresh token from ALEXA_LWA_TOKEN (supports both JSON and plain string)
+REFRESH_TOKEN=""
+VENDOR_ID_FROM_JSON=""
 
-echo "Access token obtained successfully"
+if echo "$ALEXA_LWA_TOKEN" | jq -e . >/dev/null 2>&1; then
+    # Token is JSON, extract refresh_token
+    echo "Detected JSON format token, extracting refresh_token..."
+    REFRESH_TOKEN=$(echo "$ALEXA_LWA_TOKEN" | jq -r '.refresh_token')
 
-if [ -z "$ALEXA_SKILL_ID" ]; then
-    echo "Warning: ALEXA_SKILL_ID not set - will create new skill"
-    CREATE_NEW=true
+    if [ -z "$REFRESH_TOKEN" ] || [ "$REFRESH_TOKEN" = "null" ]; then
+        echo "Error: Failed to extract refresh_token from JSON"
+        exit 1
+    fi
+
+    # Try to extract vendor_id if present
+    VENDOR_ID_FROM_JSON=$(echo "$ALEXA_LWA_TOKEN" | jq -r '.vendor_id // empty')
 else
-    CREATE_NEW=false
+    # Token is plain string
+    REFRESH_TOKEN="$ALEXA_LWA_TOKEN"
+fi
+
+# Determine vendor ID (priority: env var > JSON > auto-fetch)
+VENDOR_ID=""
+if [ -n "$ALEXA_VENDOR_ID" ]; then
+    VENDOR_ID="$ALEXA_VENDOR_ID"
+    echo "✓ Using vendor ID from ALEXA_VENDOR_ID: $VENDOR_ID"
+elif [ -n "$VENDOR_ID_FROM_JSON" ]; then
+    VENDOR_ID="$VENDOR_ID_FROM_JSON"
+    echo "✓ Using vendor ID from JSON token: $VENDOR_ID"
+fi
+
+# Create ASK CLI config
+if [ -n "$VENDOR_ID" ]; then
+    jq -n \
+      --arg refresh_token "$REFRESH_TOKEN" \
+      --arg vendor_id "$VENDOR_ID" \
+      '{
+        profiles: {
+          default: {
+            aws_profile: "default",
+            token: {
+              access_token: "",
+              refresh_token: $refresh_token,
+              token_type: "bearer",
+              expires_in: 3600,
+              expires_at: "1970-01-01T00:00:00.000Z"
+            },
+            vendor_id: $vendor_id
+          }
+        }
+      }' > ~/.ask/cli_config
+    echo "✓ ASK CLI configured with refresh token and vendor ID"
+else
+    # Create config without vendor_id and try to fetch it
+    jq -n \
+      --arg refresh_token "$REFRESH_TOKEN" \
+      '{
+        profiles: {
+          default: {
+            aws_profile: "default",
+            token: {
+              access_token: "",
+              refresh_token: $refresh_token,
+              token_type: "bearer",
+              expires_in: 3600,
+              expires_at: "1970-01-01T00:00:00.000Z"
+            }
+          }
+        }
+      }' > ~/.ask/cli_config
+
+    echo "Attempting to fetch vendor ID..."
+    set +e
+    VENDOR_ID_RESPONSE=$(ask smapi list-vendors 2>&1)
+    SMAPI_EXIT_CODE=$?
+    set -e
+
+    if [ $SMAPI_EXIT_CODE -eq 0 ]; then
+        VENDOR_ID=$(echo "$VENDOR_ID_RESPONSE" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+        if [ -n "$VENDOR_ID" ]; then
+            echo "✓ Vendor ID retrieved: $VENDOR_ID"
+            jq --arg vendor_id "$VENDOR_ID" '.profiles.default.vendor_id = $vendor_id' ~/.ask/cli_config > ~/.ask/cli_config.tmp && mv ~/.ask/cli_config.tmp ~/.ask/cli_config
+            echo "✓ ASK CLI configured"
+        else
+            echo "Warning: Could not parse vendor ID, ASK CLI will attempt to fetch during deployment"
+        fi
+    else
+        echo "Error: Could not fetch vendor ID"
+        echo "Please set ALEXA_VENDOR_ID as a GitHub secret"
+        exit 1
+    fi
 fi
 
 # Get Lambda ARN from CloudFormation
 STACK_NAME=${STACK_NAME:-"candle-lights-prod"}
-AWS_REGION=${AWS_REGION:-"us-east-1"}
+AWS_REGION=${AWS_REGION:-"us-east-2"}
 
 echo "Getting Lambda ARN from CloudFormation stack: $STACK_NAME"
 LAMBDA_ARN=$(aws cloudformation describe-stacks \
@@ -69,91 +148,106 @@ echo "AWS Account ID: $AWS_ACCOUNT_ID"
 echo "Updating skill.json with Lambda ARN..."
 cd alexa-skill
 
-# Create temporary skill.json with updated Lambda ARN
-cat skill.json | \
-    sed "s|arn:aws:lambda:us-east-1:ACCOUNT_ID:function:FUNCTION_NAME|$LAMBDA_ARN|g" | \
-    sed "s|ACCOUNT_ID|$AWS_ACCOUNT_ID|g" \
-    > skill-updated.json
+# Backup original and update
+cp skill.json skill.json.bak
+sed -i.tmp "s|ACCOUNT_ID|${AWS_ACCOUNT_ID}|g" skill.json
+sed -i.tmp "s|arn:aws:lambda:[^:]*:${AWS_ACCOUNT_ID}:function:[^\"]*|${LAMBDA_ARN}|g" skill.json
+rm -f skill.json.tmp
 
-# Deploy skill using SMAPI REST API directly
-if [ "$CREATE_NEW" = true ]; then
-    echo "Creating new Alexa skill..."
+echo "✓ skill.json updated"
 
-    # Read the skill manifest JSON
-    SKILL_MANIFEST=$(cat skill-updated.json)
+# Setup skill package structure for ASK CLI v2
+echo "Setting up skill package structure..."
+mkdir -p skill-package/interactionModels/custom
 
-    # Create skill using SMAPI REST API
-    SMAPI_RESPONSE=$(curl -X POST \
-        -H "Authorization: Bearer $ACCESS_TOKEN" \
-        -H "Content-Type: application/json" \
-        -d "$SKILL_MANIFEST" \
-        "https://api.amazonalexa.com/v1/skills")
+# Copy skill manifest
+cp skill.json skill-package/skill.json
 
-    echo "API Response: $SMAPI_RESPONSE"
-
-    SKILL_ID=$(echo "$SMAPI_RESPONSE" | jq -r '.skillId // empty')
-
-    if [ -z "$SKILL_ID" ]; then
-        echo "Error: Failed to create skill"
-        exit 1
-    fi
-
-    echo "Created skill with ID: $SKILL_ID"
-
-    if [ -n "$GITHUB_ENV" ]; then
-        echo "ALEXA_SKILL_ID=$SKILL_ID" >> $GITHUB_ENV
-    fi
-
-    # Wait for skill creation to complete
-    echo "Waiting for skill creation to complete..."
-    sleep 10
-
-else
-    echo "Updating existing Alexa skill: $ALEXA_SKILL_ID"
-
-    # Read the skill manifest JSON
-    SKILL_MANIFEST=$(cat skill-updated.json)
-
-    # Update existing skill using SMAPI REST API
-    curl -X PUT \
-        -H "Authorization: Bearer $ACCESS_TOKEN" \
-        -H "Content-Type: application/json" \
-        -d "$SKILL_MANIFEST" \
-        "https://api.amazonalexa.com/v1/skills/$ALEXA_SKILL_ID/stages/development/manifest"
-
-    SKILL_ID=$ALEXA_SKILL_ID
+# Copy interaction model if it exists
+if [ -f interactionModel.json ]; then
+    cp interactionModel.json skill-package/interactionModels/custom/en-US.json
 fi
 
-# Add Lambda trigger permission for Alexa
-echo "Adding Lambda trigger permission for Alexa..."
-aws lambda add-permission \
-    --function-name "$LAMBDA_ARN" \
-    --statement-id "AlexaSkill-$SKILL_ID" \
-    --action "lambda:InvokeFunction" \
-    --principal alexa-appkit.amazon.com \
-    --event-source-token "$SKILL_ID" \
-    --region "$AWS_REGION" \
-    || echo "Permission may already exist"
+# Create ask-resources.json
+cat > ask-resources.json << 'EOF'
+{
+  "askcliResourcesVersion": "2020-03-31",
+  "profiles": {
+    "default": {
+      "skillMetadata": {
+        "src": "./skill-package"
+      }
+    }
+  }
+}
+EOF
 
-# Enable skill for testing using SMAPI REST API
-echo "Enabling skill for testing..."
-curl -X PUT \
-    -H "Authorization: Bearer $ACCESS_TOKEN" \
-    -H "Content-Type: application/json" \
-    "https://api.amazonalexa.com/v1/skills/$SKILL_ID/stages/development/enablement" \
-    -d '{"stage": "development"}' \
-    || echo "Skill may already be enabled"
+echo "✓ Skill package structure created"
 
-echo ""
-echo "======================================"
-echo "Alexa Skill Deployment Complete!"
-echo "======================================"
-echo "Skill ID: $SKILL_ID"
-echo "Lambda ARN: $LAMBDA_ARN"
-echo ""
-echo "Next steps:"
-echo "1. Configure account linking in Alexa Developer Console"
-echo "2. Test with 'Alexa, discover devices'"
-echo "3. Submit for certification when ready"
-echo ""
-echo "Alexa Developer Console: https://developer.amazon.com/alexa/console/ask/build/$SKILL_ID"
+# Deploy skill using ASK CLI
+echo "Deploying skill with ASK CLI..."
+set +e
+ask deploy > /tmp/ask-deploy.log 2>&1
+DEPLOY_RESULT=$?
+set -e
+
+if [ $DEPLOY_RESULT -eq 0 ]; then
+    # Extract skill ID
+    SKILL_ID=""
+    if [ -f .ask/ask-states.json ]; then
+        SKILL_ID=$(grep -o '"skillId":"[^"]*"' .ask/ask-states.json | cut -d'"' -f4 | head -1)
+    fi
+
+    echo "✓ Skill deployment complete!"
+
+    if [ -n "$SKILL_ID" ]; then
+        echo "Skill ID: $SKILL_ID"
+
+        # Add Lambda trigger permission
+        echo "Adding Lambda trigger permission..."
+        FUNCTION_NAME=$(echo "$LAMBDA_ARN" | cut -d':' -f7)
+        aws lambda add-permission \
+            --function-name "$FUNCTION_NAME" \
+            --statement-id "AlexaSkill-$SKILL_ID" \
+            --action "lambda:InvokeFunction" \
+            --principal "alexa-appkit.amazon.com" \
+            --event-source-token "$SKILL_ID" \
+            --region "$AWS_REGION" \
+            2>&1 | grep -v "ResourceConflictException" || true
+
+        echo "✓ Lambda permissions configured"
+    fi
+
+    # Restore backup
+    mv skill.json.bak skill.json
+
+    cd ..
+
+    echo ""
+    echo "======================================"
+    echo "Alexa Skill Deployment Complete!"
+    echo "======================================"
+    echo "Lambda ARN: $LAMBDA_ARN"
+    if [ -n "$SKILL_ID" ]; then
+        echo "Skill ID: $SKILL_ID"
+        echo ""
+        echo "Next steps:"
+        echo "1. Go to https://developer.amazon.com/alexa/console/ask"
+        echo "2. Find your skill: Candle Lights Controller"
+        echo "3. Enable testing in Development"
+        echo "4. Test with: 'Alexa, discover devices'"
+    fi
+    echo ""
+else
+    echo "Error: Skill deployment failed"
+    echo ""
+    echo "Deployment log:"
+    cat /tmp/ask-deploy.log
+    echo ""
+
+    # Restore backup
+    mv skill.json.bak skill.json
+
+    cd ..
+    exit 1
+fi
