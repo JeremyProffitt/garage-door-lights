@@ -273,7 +273,7 @@ Resources:
       Domain:
         DomainName: !Sub api.${DomainName}
         CertificateArn: !Ref CertificateArn
-        EndpointConfiguration: EDGE
+        EndpointConfiguration: REGIONAL
         Route53:
           HostedZoneId: !Ref HostedZoneId
 
@@ -322,7 +322,7 @@ Resources:
       Domain:
         DomainName: !Ref DomainName
         CertificateArn: !Ref CertificateArn
-        EndpointConfiguration: EDGE
+        EndpointConfiguration: REGIONAL
         Route53:
           HostedZoneId: !Ref HostedZoneId
 
