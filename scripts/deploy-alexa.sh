@@ -124,7 +124,7 @@ fi
 
 # Get Lambda ARN from CloudFormation
 STACK_NAME=${STACK_NAME:-"candle-lights-prod"}
-AWS_REGION=${AWS_REGION:-"us-east-1"}
+AWS_REGION=${AWS_REGION:-"us-east-2"}
 
 echo "Getting Lambda ARN from CloudFormation stack: $STACK_NAME"
 LAMBDA_ARN=$(aws cloudformation describe-stacks \
