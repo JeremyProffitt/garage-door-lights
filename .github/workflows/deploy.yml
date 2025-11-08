@@ -123,7 +123,6 @@ jobs:
       - name: Deploy Alexa Skill
         env:
           ALEXA_VENDOR_ID: ${{ secrets.ALEXA_VENDOR_ID }}
-          ALEXA_LWA_TOKEN: ${{ secrets.ALEXA_LWA_TOKEN }}
           ALEXA_SKILL_ID: ${{ secrets.ALEXA_SKILL_ID }}
           ALEXA_CLIENT_ID: ${{ secrets.ALEXA_CLIENT_ID }}
           ALEXA_CLIENT_SECRET: ${{ secrets.ALEXA_SECRET_KEY }}
