@@ -126,7 +126,7 @@ jobs:
           ALEXA_LWA_TOKEN: ${{ secrets.ALEXA_LWA_TOKEN }}
           ALEXA_SKILL_ID: ${{ secrets.ALEXA_SKILL_ID }}
           ALEXA_CLIENT_ID: ${{ secrets.ALEXA_CLIENT_ID }}
-          ALEXA_CLIENT_SECRET: ${{ secrets.ALEXA_CLIENT_SECRET }}
+          ALEXA_CLIENT_SECRET: ${{ secrets.ALEXA_SECRET_KEY }}
         run: |
           chmod +x scripts/deploy-alexa.sh
           ./scripts/deploy-alexa.sh
