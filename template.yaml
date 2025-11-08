@@ -6,7 +6,11 @@ Parameters:
   DomainName:
     Type: String
     Default: lights.jeremy.ninja
-    Description: Domain name for the API and website
+    Description: Domain name for the website
+  ApiDomainName:
+    Type: String
+    Default: api-lights.jeremy.ninja
+    Description: Domain name for the API
   HostedZoneId:
     Type: String
     Description: Route53 Hosted Zone ID for the domain
@@ -271,7 +275,7 @@ Resources:
         AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: "'*'"
       Domain:
-        DomainName: !Sub api.${DomainName}
+        DomainName: !Ref ApiDomainName
         CertificateArn: !Ref CertificateArn
         EndpointConfiguration: REGIONAL
         Route53:
@@ -289,7 +293,7 @@ Resources:
       Timeout: 30
       Environment:
         Variables:
-          API_ENDPOINT: !Sub https://api.${DomainName}
+          API_ENDPOINT: !Sub https://${ApiDomainName}
       Policies:
         - Statement:
             - Effect: Allow
@@ -329,7 +333,7 @@ Resources:
 Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint URL
-    Value: !Sub https://api.${DomainName}
+    Value: !Sub https://${ApiDomainName}
   WebsiteUrl:
     Description: Website URL
     Value: !Sub https://${DomainName}

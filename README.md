@@ -338,7 +338,7 @@ You can deploy the Alexa skill either **automatically via GitHub Actions** or **
 
 4. **Configure account linking** in Alexa Developer Console:
    - Authorization URL: `https://lights.jeremy.ninja/oauth/authorize`
-   - Token URL: `https://api.lights.jeremy.ninja/oauth/token`
+   - Token URL: `https://api-lights.jeremy.ninja/oauth/token`
 
 ### Option B: Manual Deployment
 
@@ -366,7 +366,7 @@ Add this ARN to your Alexa skill configuration.
 Configure OAuth using `alexa-skill/account-linking.json` as reference:
 
 - Authorization URL: `https://lights.jeremy.ninja/oauth/authorize`
-- Token URL: `https://api.lights.jeremy.ninja/oauth/token`
+- Token URL: `https://api-lights.jeremy.ninja/oauth/token`
 - Client ID/Secret: Generated from your app
 
 ### Test Voice Commands
@@ -385,7 +385,7 @@ Configure OAuth using `alexa-skill/account-linking.json` as reference:
 
 ```bash
 # Register
-curl -X POST https://api.lights.jeremy.ninja/auth/register \
+curl -X POST https://api-lights.jeremy.ninja/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "username": "john",
@@ -394,7 +394,7 @@ curl -X POST https://api.lights.jeremy.ninja/auth/register \
   }'
 
 # Login
-curl -X POST https://api.lights.jeremy.ninja/auth/login \
+curl -X POST https://api-lights.jeremy.ninja/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "username": "john",
@@ -406,11 +406,11 @@ curl -X POST https://api.lights.jeremy.ninja/auth/login \
 
 ```bash
 # List patterns
-curl https://api.lights.jeremy.ninja/patterns \
+curl https://api-lights.jeremy.ninja/patterns \
   -H "Authorization: Bearer $TOKEN"
 
 # Create pattern
-curl -X POST https://api.lights.jeremy.ninja/patterns \
+curl -X POST https://api-lights.jeremy.ninja/patterns \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -428,7 +428,7 @@ curl -X POST https://api.lights.jeremy.ninja/patterns \
 
 ```bash
 # Register device
-curl -X POST https://api.lights.jeremy.ninja/devices \
+curl -X POST https://api-lights.jeremy.ninja/devices \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -437,7 +437,7 @@ curl -X POST https://api.lights.jeremy.ninja/devices \
   }'
 
 # Assign pattern to device
-curl -X PUT https://api.lights.jeremy.ninja/devices/{deviceId}/pattern \
+curl -X PUT https://api-lights.jeremy.ninja/devices/{deviceId}/pattern \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -449,7 +449,7 @@ curl -X PUT https://api.lights.jeremy.ninja/devices/{deviceId}/pattern \
 
 ```bash
 # Send command to device
-curl -X POST https://api.lights.jeremy.ninja/particle/command \
+curl -X POST https://api-lights.jeremy.ninja/particle/command \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
