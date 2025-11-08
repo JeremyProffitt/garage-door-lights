@@ -59,26 +59,29 @@ cat skill.json | \
     sed "s|ACCOUNT_ID|$AWS_ACCOUNT_ID|g" \
     > skill-updated.json
 
-# Configure ASK CLI credentials
+# Configure ASK CLI credentials using jq for proper JSON escaping
 echo "Configuring ASK CLI..."
 mkdir -p ~/.ask
-cat > ~/.ask/cli_config << EOF
-{
-  "profiles": {
-    "default": {
-      "aws_profile": null,
-      "token": {
-        "access_token": "$ALEXA_LWA_TOKEN",
-        "refresh_token": "$ALEXA_LWA_TOKEN",
-        "token_type": "bearer",
-        "expires_in": 3600,
-        "expires_at": "2099-01-01T00:00:00.000Z"
-      },
-      "vendor_id": "$ALEXA_VENDOR_ID"
+
+# Use jq to safely create the JSON config with proper escaping
+jq -n \
+  --arg token "$ALEXA_LWA_TOKEN" \
+  --arg vendor "$ALEXA_VENDOR_ID" \
+  '{
+    "profiles": {
+      "default": {
+        "aws_profile": null,
+        "token": {
+          "access_token": $token,
+          "refresh_token": $token,
+          "token_type": "bearer",
+          "expires_in": 3600,
+          "expires_at": "2099-01-01T00:00:00.000Z"
+        },
+        "vendor_id": $vendor
+      }
     }
-  }
-}
-EOF
+  }' > ~/.ask/cli_config
 
 # Install ASK CLI if not present
 if ! command -v ask &> /dev/null; then
