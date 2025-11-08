@@ -71,7 +71,7 @@ jobs:
           done
 
       - name: Build application
-        run: sam build
+        run: sam build --use-container
 
       - name: Deploy application
         run: |
