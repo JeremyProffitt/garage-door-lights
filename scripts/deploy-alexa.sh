@@ -20,6 +20,14 @@ if [ -z "$ALEXA_LWA_TOKEN" ]; then
     exit 1
 fi
 
+# Parse LWA token JSON to extract access_token
+ACCESS_TOKEN=$(echo "$ALEXA_LWA_TOKEN" | jq -r '.access_token // empty')
+if [ -z "$ACCESS_TOKEN" ]; then
+    # If parsing failed, assume it's already a plain token
+    ACCESS_TOKEN="$ALEXA_LWA_TOKEN"
+fi
+echo "Access token extracted successfully"
+
 if [ -z "$ALEXA_SKILL_ID" ]; then
     echo "Warning: ALEXA_SKILL_ID not set - will create new skill"
     CREATE_NEW=true
@@ -68,7 +76,7 @@ if [ "$CREATE_NEW" = true ]; then
 
     # Create skill using SMAPI REST API
     SMAPI_RESPONSE=$(curl -X POST \
-        -H "Authorization: Bearer $ALEXA_LWA_TOKEN" \
+        -H "Authorization: Bearer $ACCESS_TOKEN" \
         -H "Content-Type: application/json" \
         -d "$SKILL_MANIFEST" \
         "https://api.amazonalexa.com/v1/skills")
@@ -100,7 +108,7 @@ else
 
     # Update existing skill using SMAPI REST API
     curl -X PUT \
-        -H "Authorization: Bearer $ALEXA_LWA_TOKEN" \
+        -H "Authorization: Bearer $ACCESS_TOKEN" \
         -H "Content-Type: application/json" \
         -d "$SKILL_MANIFEST" \
         "https://api.amazonalexa.com/v1/skills/$ALEXA_SKILL_ID/stages/development/manifest"
@@ -122,7 +130,7 @@ aws lambda add-permission \
 # Enable skill for testing using SMAPI REST API
 echo "Enabling skill for testing..."
 curl -X PUT \
-    -H "Authorization: Bearer $ALEXA_LWA_TOKEN" \
+    -H "Authorization: Bearer $ACCESS_TOKEN" \
     -H "Content-Type: application/json" \
     "https://api.amazonalexa.com/v1/skills/$SKILL_ID/stages/development/enablement" \
     -d '{"stage": "development"}' \
