@@ -24,7 +24,7 @@ fi
 echo "Getting fresh access token using client credentials..."
 TOKEN_RESPONSE=$(curl -s -X POST https://api.amazon.com/auth/o2/token \
     -H "Content-Type: application/x-www-form-urlencoded" \
-    -d "grant_type=client_credentials&client_id=$ALEXA_CLIENT_ID&client_secret=$ALEXA_CLIENT_SECRET&scope=alexa::ask:skills:readwrite alexa::ask:models:readwrite alexa::ask:skills:test")
+    -d "grant_type=client_credentials&client_id=$ALEXA_CLIENT_ID&client_secret=$ALEXA_CLIENT_SECRET&scope=alexa::ask:skills:readwrite")
 
 ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.access_token // empty')
 
