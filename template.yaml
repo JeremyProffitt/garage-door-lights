@@ -260,9 +260,6 @@ Resources:
             TableName: !Ref PatternsTable
         - DynamoDBReadPolicy:
             TableName: !Ref UsersTable
-      Events:
-        AlexaSkillEvent:
-          Type: AlexaSkill
 
   # API Gateway
   ApiGateway:

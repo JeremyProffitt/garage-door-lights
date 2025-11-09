@@ -144,6 +144,18 @@ echo "Lambda ARN: $LAMBDA_ARN"
 AWS_ACCOUNT_ID=$(echo $LAMBDA_ARN | cut -d':' -f5)
 echo "AWS Account ID: $AWS_ACCOUNT_ID"
 
+# Add initial Lambda permission for Smart Home skills BEFORE deploying the skill
+echo "Adding initial Lambda permission for Smart Home..."
+FUNCTION_NAME=$(echo "$LAMBDA_ARN" | cut -d':' -f7)
+aws lambda add-permission \
+    --function-name "$FUNCTION_NAME" \
+    --statement-id "AlexaSmartHome-Initial" \
+    --action "lambda:InvokeFunction" \
+    --principal "alexa-connectedhome.amazon.com" \
+    --region "$AWS_REGION" \
+    2>&1 | grep -v "ResourceConflictException" || true
+echo "✓ Initial Lambda permission added"
+
 # Update skill.json with Lambda ARN
 echo "Updating skill.json with Lambda ARN..."
 cd alexa-skill
@@ -203,19 +215,18 @@ if [ $DEPLOY_RESULT -eq 0 ]; then
     if [ -n "$SKILL_ID" ]; then
         echo "Skill ID: $SKILL_ID"
 
-        # Add Lambda trigger permission
-        echo "Adding Lambda trigger permission..."
+        # Add Lambda trigger permission for Smart Home skill
+        echo "Adding Lambda trigger permission for Smart Home skill..."
         FUNCTION_NAME=$(echo "$LAMBDA_ARN" | cut -d':' -f7)
         aws lambda add-permission \
             --function-name "$FUNCTION_NAME" \
-            --statement-id "AlexaSkill-$SKILL_ID" \
+            --statement-id "AlexaSmartHome-$SKILL_ID" \
             --action "lambda:InvokeFunction" \
-            --principal "alexa-appkit.amazon.com" \
-            --event-source-token "$SKILL_ID" \
+            --principal "alexa-connectedhome.amazon.com" \
             --region "$AWS_REGION" \
             2>&1 | grep -v "ResourceConflictException" || true
 
-        echo "✓ Lambda permissions configured"
+        echo "✓ Lambda permissions configured for Smart Home"
     fi
 
     # Restore backup
