@@ -144,17 +144,85 @@ echo "Lambda ARN: $LAMBDA_ARN"
 AWS_ACCOUNT_ID=$(echo $LAMBDA_ARN | cut -d':' -f5)
 echo "AWS Account ID: $AWS_ACCOUNT_ID"
 
-# Add initial Lambda permission for Smart Home skills BEFORE deploying the skill
-echo "Adding initial Lambda permission for Smart Home..."
+# Check for existing skill and get its ID
+echo "Checking for existing Candle Lights Controller skill..."
 FUNCTION_NAME=$(echo "$LAMBDA_ARN" | cut -d':' -f7)
-aws lambda add-permission \
-    --function-name "$FUNCTION_NAME" \
-    --statement-id "AlexaSmartHome-Initial" \
-    --action "lambda:InvokeFunction" \
-    --principal "alexa-connectedhome.amazon.com" \
-    --region "$AWS_REGION" \
-    2>&1 | grep -v "ResourceConflictException" || true
-echo "✓ Initial Lambda permission added"
+
+# Create initial config to query skills
+mkdir -p ~/.ask
+if [ -n "$VENDOR_ID" ]; then
+    jq -n \
+      --arg refresh_token "$REFRESH_TOKEN" \
+      --arg vendor_id "$VENDOR_ID" \
+      '{
+        profiles: {
+          default: {
+            aws_profile: "default",
+            token: {
+              access_token: "",
+              refresh_token: $refresh_token,
+              token_type: "bearer",
+              expires_in: 3600,
+              expires_at: "1970-01-01T00:00:00.000Z"
+            },
+            vendor_id: $vendor_id
+          }
+        }
+      }' > ~/.ask/cli_config
+fi
+
+# Try to get existing skill ID
+EXISTING_SKILL_ID=""
+set +e
+SKILL_LIST=$(ask smapi list-skills-for-vendor --vendor-id "$VENDOR_ID" 2>&1)
+if [ $? -eq 0 ]; then
+    EXISTING_SKILL_ID=$(echo "$SKILL_LIST" | jq -r '.skills[] | select(.nameByLocale."en-US" == "Candle Lights Controller") | .skillId' | head -1)
+fi
+set -e
+
+# Add Lambda permission based on whether we have an existing skill
+if [ -n "$EXISTING_SKILL_ID" ] && [ "$EXISTING_SKILL_ID" != "null" ]; then
+    echo "Found existing skill ID: $EXISTING_SKILL_ID"
+    echo "Adding Lambda permission with skill-specific token..."
+
+    # Remove old permissions if they exist
+    aws lambda remove-permission \
+        --function-name "$FUNCTION_NAME" \
+        --statement-id "AlexaSmartHome-$EXISTING_SKILL_ID" \
+        --region "$AWS_REGION" \
+        2>&1 | grep -v "ResourceNotFoundException" || true
+
+    # Add permission with event-source-token
+    aws lambda add-permission \
+        --function-name "$FUNCTION_NAME" \
+        --statement-id "AlexaSmartHome-$EXISTING_SKILL_ID" \
+        --action "lambda:InvokeFunction" \
+        --principal "alexa-connectedhome.amazon.com" \
+        --event-source-token "$EXISTING_SKILL_ID" \
+        --region "$AWS_REGION" \
+        2>&1 | grep -v "ResourceConflictException" || true
+    echo "✓ Lambda permission added with event-source-token"
+else
+    echo "No existing skill found, adding general Smart Home permission..."
+
+    # Remove old permission if it exists
+    aws lambda remove-permission \
+        --function-name "$FUNCTION_NAME" \
+        --statement-id "AlexaSmartHome-Initial" \
+        --region "$AWS_REGION" \
+        2>&1 | grep -v "ResourceNotFoundException" || true
+
+    # Add general permission without event-source-token for first-time deployment
+    # Note: This allows any Smart Home skill from the same vendor to invoke
+    aws lambda add-permission \
+        --function-name "$FUNCTION_NAME" \
+        --statement-id "AlexaSmartHome-Initial" \
+        --action "lambda:InvokeFunction" \
+        --principal "alexa-connectedhome.amazon.com" \
+        --region "$AWS_REGION" \
+        2>&1 | grep -v "ResourceConflictException" || true
+    echo "✓ General Lambda permission added"
+fi
 
 # Update skill.json with Lambda ARN
 echo "Updating skill.json with Lambda ARN..."
@@ -215,18 +283,31 @@ if [ $DEPLOY_RESULT -eq 0 ]; then
     if [ -n "$SKILL_ID" ]; then
         echo "Skill ID: $SKILL_ID"
 
-        # Add Lambda trigger permission for Smart Home skill
-        echo "Adding Lambda trigger permission for Smart Home skill..."
-        FUNCTION_NAME=$(echo "$LAMBDA_ARN" | cut -d':' -f7)
-        aws lambda add-permission \
-            --function-name "$FUNCTION_NAME" \
-            --statement-id "AlexaSmartHome-$SKILL_ID" \
-            --action "lambda:InvokeFunction" \
-            --principal "alexa-connectedhome.amazon.com" \
-            --region "$AWS_REGION" \
-            2>&1 | grep -v "ResourceConflictException" || true
+        # Update Lambda permission if this was a new skill deployment
+        if [ -z "$EXISTING_SKILL_ID" ] || [ "$EXISTING_SKILL_ID" = "null" ]; then
+            echo "Updating Lambda permission with new skill ID..."
 
-        echo "✓ Lambda permissions configured for Smart Home"
+            # Remove the general permission
+            aws lambda remove-permission \
+                --function-name "$FUNCTION_NAME" \
+                --statement-id "AlexaSmartHome-Initial" \
+                --region "$AWS_REGION" \
+                2>&1 | grep -v "ResourceNotFoundException" || true
+
+            # Add skill-specific permission with event-source-token
+            aws lambda add-permission \
+                --function-name "$FUNCTION_NAME" \
+                --statement-id "AlexaSmartHome-$SKILL_ID" \
+                --action "lambda:InvokeFunction" \
+                --principal "alexa-connectedhome.amazon.com" \
+                --event-source-token "$SKILL_ID" \
+                --region "$AWS_REGION" \
+                2>&1 | grep -v "ResourceConflictException" || true
+
+            echo "✓ Lambda permission updated with skill-specific token"
+        else
+            echo "✓ Lambda permission already configured for existing skill"
+        fi
     fi
 
     # Restore backup
