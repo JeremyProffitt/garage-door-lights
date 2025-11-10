@@ -113,8 +113,8 @@ jobs:
               "CertificateArn=${{ vars.CERTIFICATE_ARN }}" \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
-            --s3-bucket ${{ vars.CLOUDFORMATION_S3_BUCKET }} \
-            --s3-prefix "build-${{ github.run_id }}"
+            --s3-prefix "build-${{ github.run_id }}" \
+            --resolve-s3
 
       - name: Get outputs
         run: |
