@@ -1,6 +1,6 @@
 # 🕯️ Particle Argon WS2812B Candle Lights Controller
 
-A comprehensive IoT system for controlling WS2812B RGB LED lights attached to a Particle Argon board. Features include web interface, Alexa voice control, cloud storage, and realistic candle simulation effects.
+A comprehensive IoT system for controlling WS2812B RGB LED lights attached to a Particle Argon board. Features include web interface, cloud storage, and realistic candle simulation effects.
 
 ## Features
 
@@ -19,7 +19,6 @@ A comprehensive IoT system for controlling WS2812B RGB LED lights attached to a 
 
 ### Control Methods
 - 🌐 **Web Interface** - Full-featured web dashboard
-- 🗣️ **Alexa Voice Control** - "Alexa, turn on candle lights"
 - ☁️ **Particle Cloud** - Control from anywhere via Particle.io
 - 📱 **API** - RESTful API for integration
 
@@ -45,17 +44,17 @@ A comprehensive IoT system for controlling WS2812B RGB LED lights attached to a 
 │          AWS Cloud Platform              │
 ├─────────────────────────────────────────┤
 │                                          │
-│  ┌──────────────┐    ┌──────────────┐  │
-│  │  Web Client  │    │ Alexa Device │  │
-│  └──────┬───────┘    └──────┬───────┘  │
-│         │                   │           │
-│         ▼                   ▼           │
-│  ┌──────────────┐    ┌──────────────┐  │
-│  │ Go Fiber Web │    │ Alexa Lambda │  │
-│  │   Frontend   │    │   Function   │  │
-│  └──────┬───────┘    └──────┬───────┘  │
-│         │                   │           │
-│         ▼                   ▼           │
+│         ┌──────────────┐                │
+│         │  Web Client  │                │
+│         └──────┬───────┘                │
+│                │                         │
+│                ▼                         │
+│         ┌──────────────┐                │
+│         │ Go Fiber Web │                │
+│         │   Frontend   │                │
+│         └──────┬───────┘                │
+│                │                         │
+│                ▼                         │
 │  ┌──────────────────────────────────┐  │
 │  │      API Gateway (REST API)      │  │
 │  └──────┬───────────────────────────┘  │
@@ -92,8 +91,7 @@ garage-door-lights/
 │       ├── auth/            # Authentication handler
 │       ├── patterns/        # Pattern management
 │       ├── devices/         # Device management
-│       ├── particle/        # Particle.io integration
-│       └── alexa/           # Alexa Smart Home skill
+│       └── particle/        # Particle.io integration
 ├── frontend/                # Go Fiber web application
 │   ├── handlers/            # Route handlers
 │   ├── middleware/          # Auth middleware
@@ -103,9 +101,6 @@ garage-door-lights/
 │   ├── deploy.sh           # Deployment script
 │   ├── create-user-simple.sh # User creation
 │   └── load-secrets.sh     # Load environment variables
-├── alexa-skill/            # Alexa skill configuration
-│   ├── skill.json          # Skill manifest
-│   └── account-linking.json # OAuth configuration
 ├── .github/workflows/      # CI/CD pipelines
 │   └── deploy.yml          # GitHub Actions deployment
 ├── template.yaml           # AWS SAM template
@@ -128,7 +123,6 @@ garage-door-lights/
 
 ### Optional
 - [Particle CLI](https://docs.particle.io/getting-started/developer-tools/cli/) for firmware flashing
-- [Amazon Developer Account](https://developer.amazon.com/) for Alexa skill
 
 ## Hardware Setup
 
@@ -177,8 +171,6 @@ STACK_NAME=candle-lights-prod
 ```
 
 ### 3. Setup AWS Resources
-
-> **Note:** This project uses the **us-east-1** region because Alexa Smart Home skills require Lambda functions to be deployed in us-east-1. While you can use other regions, us-east-1 is recommended for full Alexa compatibility.
 
 #### Create ACM Certificate
 
@@ -284,7 +276,7 @@ Settings → Secrets and variables → Actions
 
 **To create the S3 bucket for deployments:**
 ```bash
-# Create S3 bucket in us-east-1 (required for Alexa compatibility)
+# Create S3 bucket in us-east-1
 aws s3 mb s3://your-cloudformation-bucket-name --region us-east-1
 
 # Verify bucket was created
@@ -292,26 +284,6 @@ aws s3 ls | grep your-cloudformation-bucket-name
 ```
 
 Then set `CLOUDFORMATION_S3_BUCKET` to your bucket name in GitHub variables.
-
-#### Alexa Secrets (Optional - for automated skill deployment)
-- `ALEXA_VENDOR_ID` - Your Amazon Developer Vendor ID
-- `ALEXA_CLIENT_ID` - Login with Amazon (LWA) Client ID
-- `ALEXA_CLIENT_SECRET` - Login with Amazon Client Secret
-- `ALEXA_REFRESH_TOKEN` - ASK CLI refresh token
-- `ALEXA_SKILL_ID` - (Optional) Existing skill ID to update instead of creating new
-
-**To get Alexa credentials:**
-```bash
-# Run the setup script
-./scripts/setup-alexa-credentials.sh
-
-# Or manually:
-# 1. Install ASK CLI: npm install -g ask-cli
-# 2. Configure: ask configure
-# 3. Get vendor ID from ~/.ask/cli_config
-# 4. Create LWA Security Profile: https://developer.amazon.com/settings/console/securityprofile
-# 5. Get Client ID and Secret from the security profile
-```
 
 ### Deploy on Push
 
@@ -321,79 +293,6 @@ The GitHub Actions workflow automatically deploys on push to `main`:
 git add .
 git commit -m "Update application"
 git push origin main
-```
-
-To trigger Alexa skill deployment, either:
-- Use workflow dispatch (manual trigger)
-- Include `[alexa]` in your commit message:
-```bash
-git commit -m "Update Alexa skill [alexa]"
-```
-
-## Alexa Integration Setup
-
-You can deploy the Alexa skill either **automatically via GitHub Actions** or **manually**.
-
-### Option A: Automated Deployment (Recommended)
-
-1. **Configure Alexa secrets** (see GitHub Actions Setup above)
-2. **Trigger deployment:**
-   ```bash
-   # Via commit message
-   git commit -m "Deploy Alexa skill [alexa]"
-   git push
-
-   # Or manually via GitHub Actions UI
-   # Go to Actions → Deploy Candle Lights Controller → Run workflow
-   ```
-
-3. **The script will automatically:**
-   - Get Lambda ARN from CloudFormation
-   - Create or update the Alexa skill
-   - Configure Lambda permissions
-   - Enable skill for testing
-
-4. **Configure account linking** in Alexa Developer Console:
-   - Authorization URL: `https://lights.jeremy.ninja/oauth/authorize`
-   - Token URL: `https://api-lights.jeremy.ninja/oauth/token`
-
-### Option B: Manual Deployment
-
-#### 1. Create Alexa Smart Home Skill
-
-1. Go to [Alexa Developer Console](https://developer.amazon.com/alexa/console/ask)
-2. Create Skill → Smart Home
-3. Use `alexa-skill/skill.json` as template
-
-#### 2. Configure Lambda Function
-
-From SAM deployment outputs, get the `AlexaSkillEndpoint`:
-
-```bash
-aws cloudformation describe-stacks \
-  --stack-name candle-lights-prod \
-  --query "Stacks[0].Outputs[?OutputKey=='AlexaSkillEndpoint'].OutputValue" \
-  --output text
-```
-
-Add this ARN to your Alexa skill configuration.
-
-#### 3. Enable Account Linking
-
-Configure OAuth using `alexa-skill/account-linking.json` as reference:
-
-- Authorization URL: `https://lights.jeremy.ninja/oauth/authorize`
-- Token URL: `https://api-lights.jeremy.ninja/oauth/token`
-- Client ID/Secret: Generated from your app
-
-### Test Voice Commands
-
-```
-"Alexa, discover devices"
-"Alexa, turn on candle lights"
-"Alexa, set candle lights to red"
-"Alexa, dim candle lights"
-"Alexa, brighten candle lights"
 ```
 
 ## API Reference
@@ -517,13 +416,6 @@ sam local start-api
 2. Check device ID matches Particle console
 3. Ensure device is online
 4. Check CloudWatch logs for errors
-
-### Alexa Not Discovering Devices
-
-1. Verify account linking is complete
-2. Check Lambda function permissions
-3. Ensure devices are registered in DynamoDB
-4. Try "Alexa, forget all devices" and rediscover
 
 ### Deployment Fails
 

@@ -110,6 +110,11 @@ func SendCommandHandler(c *fiber.Ctx) error {
     return proxyRequest(c, "POST", "/particle/command", body)
 }
 
+func RefreshDevicesHandler(c *fiber.Ctx) error {
+    body := c.Body()
+    return proxyRequest(c, "POST", "/particle/devices/refresh", body)
+}
+
 func proxyRequest(c *fiber.Ctx, method, path string, body []byte) error {
     token := c.Cookies("token")
     if token == "" {

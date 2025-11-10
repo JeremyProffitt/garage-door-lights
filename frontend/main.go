@@ -84,10 +84,29 @@ func setupRoutes(app *fiber.App) {
     app.Get("/devices", middleware.AuthMiddleware, handlers.DevicesHandler)
     app.Get("/settings", middleware.AuthMiddleware, handlers.SettingsHandler)
 
-    // Auth routes (non-API, for form submissions if needed)
+    // Auth routes (form submissions)
     app.Post("/auth/login", handlers.LoginHandler)
     app.Post("/auth/register", handlers.RegisterHandler)
     app.Get("/auth/logout", handlers.LogoutHandler)
+
+    // API routes (used by JavaScript - proxy to backend)
+    app.Post("/api/auth/login", handlers.LoginHandler)
+    app.Post("/api/auth/register", handlers.RegisterHandler)
+
+    // API routes for patterns (protected)
+    app.Get("/api/patterns", middleware.APIAuthMiddleware, handlers.GetPatternsHandler)
+    app.Post("/api/patterns", middleware.APIAuthMiddleware, handlers.CreatePatternHandler)
+    app.Put("/api/patterns/:id", middleware.APIAuthMiddleware, handlers.UpdatePatternHandler)
+    app.Delete("/api/patterns/:id", middleware.APIAuthMiddleware, handlers.DeletePatternHandler)
+
+    // API routes for devices (protected)
+    app.Get("/api/devices", middleware.APIAuthMiddleware, handlers.GetDevicesHandler)
+    app.Post("/api/devices", middleware.APIAuthMiddleware, handlers.CreateDeviceHandler)
+    app.Put("/api/devices/:id/pattern", middleware.APIAuthMiddleware, handlers.AssignPatternHandler)
+
+    // API routes for particle commands (protected)
+    app.Post("/api/particle/command", middleware.APIAuthMiddleware, handlers.SendCommandHandler)
+    app.Post("/api/particle/devices/refresh", middleware.APIAuthMiddleware, handlers.RefreshDevicesHandler)
 }
 
 func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
