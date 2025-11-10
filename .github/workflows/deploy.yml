@@ -189,12 +189,26 @@ jobs:
               'updatedAt': timestamp
           }
 
+          print(f"DEBUG: Item to write: {item}")
+          print(f"DEBUG: Timestamp: {timestamp}")
+          print(f"DEBUG: Existing user: {existing_user is not None}")
+
           try:
-              table.put_item(Item=item)
+              response = table.put_item(Item=item)
+              print(f"DEBUG: DynamoDB response: {response}")
               action = "updated" if existing_user else "created"
               print(f"✓ Admin user '{admin_user}' {action} successfully")
+
+              # Verify the write
+              verify_response = table.get_item(Key={'username': admin_user})
+              if 'Item' in verify_response:
+                  print(f"DEBUG: Verified user exists in DynamoDB")
+              else:
+                  print(f"WARNING: User not found after write!")
           except Exception as e:
               print(f"Error creating/updating admin user: {e}")
+              import traceback
+              traceback.print_exc()
               exit(1)
           PYTHON_SCRIPT
         env:
