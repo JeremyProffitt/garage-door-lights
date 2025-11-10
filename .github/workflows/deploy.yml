@@ -8,7 +8,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  STACK_NAME: candle-lights-prod
+  STACK_NAME: candle-lights
 
 jobs:
   deploy:
@@ -89,8 +89,8 @@ jobs:
               "CertificateArn=${{ vars.CERTIFICATE_ARN }}" \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
-            --s3-prefix "build-${{ github.run_id }}" \
-            --resolve-s3
+            --s3-bucket ${{ vars.CLOUDFORMATION_S3_BUCKET }} \
+            --s3-prefix "build-${{ github.run_id }}"
 
       - name: Get outputs
         run: |
@@ -113,7 +113,7 @@ jobs:
           from datetime import datetime
 
           # Get configuration from environment
-          stack_name = os.environ.get('STACK_NAME', 'candle-lights-prod')
+          stack_name = os.environ.get('STACK_NAME', 'candle-lights')
           region = os.environ.get('AWS_REGION', 'us-east-1')
           admin_user = os.environ.get('ADMIN_USER')
           admin_password = os.environ.get('ADMIN_PASSWORD')
