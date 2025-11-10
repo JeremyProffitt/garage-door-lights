@@ -64,8 +64,12 @@
                 console.log('Response data:', data);
 
                 if (data.success) {
-                    // Backend returns data.data.token, not data.redirect
+                    // Store the token and username in cookies
                     if (data.data && data.data.token) {
+                        // Set secure, httpOnly-like behavior via document.cookie
+                        const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toUTCString();
+                        document.cookie = `token=${data.data.token}; expires=${expires}; path=/; SameSite=Strict; Secure`;
+                        document.cookie = `username=${data.data.username}; expires=${expires}; path=/; SameSite=Strict`;
                         window.location.href = '/dashboard';
                     } else {
                         window.location.href = data.redirect || '/dashboard';
