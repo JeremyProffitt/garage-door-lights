@@ -7,10 +7,6 @@ Parameters:
     Type: String
     Default: lights.jeremy.ninja
     Description: Domain name for the website
-  ApiDomainName:
-    Type: String
-    Default: api-lights.jeremy.ninja
-    Description: Domain name for the API
   HostedZoneId:
     Type: String
     Description: Route53 Hosted Zone ID for the domain
@@ -104,20 +100,20 @@ Resources:
         Login:
           Type: Api
           Properties:
-            RestApiId: !Ref ApiGateway
-            Path: /auth/login
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/auth/login
             Method: POST
         Register:
           Type: Api
           Properties:
-            RestApiId: !Ref ApiGateway
-            Path: /auth/register
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/auth/register
             Method: POST
         Validate:
           Type: Api
           Properties:
-            RestApiId: !Ref ApiGateway
-            Path: /auth/validate
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/auth/validate
             Method: POST
 
   PatternsFunction:
@@ -136,32 +132,32 @@ Resources:
         List:
           Type: Api
           Properties:
-            RestApiId: !Ref ApiGateway
-            Path: /patterns
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/patterns
             Method: GET
         Create:
           Type: Api
           Properties:
-            RestApiId: !Ref ApiGateway
-            Path: /patterns
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/patterns
             Method: POST
         Get:
           Type: Api
           Properties:
-            RestApiId: !Ref ApiGateway
-            Path: /patterns/{patternId}
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/patterns/{patternId}
             Method: GET
         Update:
           Type: Api
           Properties:
-            RestApiId: !Ref ApiGateway
-            Path: /patterns/{patternId}
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/patterns/{patternId}
             Method: PUT
         Delete:
           Type: Api
           Properties:
-            RestApiId: !Ref ApiGateway
-            Path: /patterns/{patternId}
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/patterns/{patternId}
             Method: DELETE
 
   DevicesFunction:
@@ -182,38 +178,38 @@ Resources:
         List:
           Type: Api
           Properties:
-            RestApiId: !Ref ApiGateway
-            Path: /devices
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/devices
             Method: GET
         Register:
           Type: Api
           Properties:
-            RestApiId: !Ref ApiGateway
-            Path: /devices
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/devices
             Method: POST
         Get:
           Type: Api
           Properties:
-            RestApiId: !Ref ApiGateway
-            Path: /devices/{deviceId}
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/devices/{deviceId}
             Method: GET
         Update:
           Type: Api
           Properties:
-            RestApiId: !Ref ApiGateway
-            Path: /devices/{deviceId}
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/devices/{deviceId}
             Method: PUT
         Delete:
           Type: Api
           Properties:
-            RestApiId: !Ref ApiGateway
-            Path: /devices/{deviceId}
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/devices/{deviceId}
             Method: DELETE
         AssignPattern:
           Type: Api
           Properties:
-            RestApiId: !Ref ApiGateway
-            Path: /devices/{deviceId}/pattern
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/devices/{deviceId}/pattern
             Method: PUT
 
   ParticleFunction:
@@ -234,20 +230,20 @@ Resources:
         SendCommand:
           Type: Api
           Properties:
-            RestApiId: !Ref ApiGateway
-            Path: /particle/command
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/particle/command
             Method: POST
         GetDeviceInfo:
           Type: Api
           Properties:
-            RestApiId: !Ref ApiGateway
-            Path: /particle/device/{deviceId}
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/particle/device/{deviceId}
             Method: GET
         RefreshDevices:
           Type: Api
           Properties:
-            RestApiId: !Ref ApiGateway
-            Path: /particle/devices/refresh
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/particle/devices/refresh
             Method: POST
 
   # Alexa Smart Home Skill Lambda
@@ -266,23 +262,6 @@ Resources:
             TableName: !Ref PatternsTable
         - DynamoDBReadPolicy:
             TableName: !Ref UsersTable
-
-  # API Gateway
-  ApiGateway:
-    Type: AWS::Serverless::Api
-    Properties:
-      Name: !Sub ${AWS::StackName}-api
-      StageName: prod
-      Cors:
-        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
-        AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
-        AllowOrigin: "'*'"
-      Domain:
-        DomainName: !Ref ApiDomainName
-        CertificateArn: !Ref CertificateArn
-        EndpointConfiguration: REGIONAL
-        Route53:
-          HostedZoneId: !Ref HostedZoneId
 
   # Frontend Lambda (Go Fiber)
   FrontendFunction:
@@ -326,6 +305,10 @@ Resources:
       StageName: prod
       BinaryMediaTypes:
         - "*/*"
+      Cors:
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
       Domain:
         DomainName: !Ref DomainName
         CertificateArn: !Ref CertificateArn
@@ -334,11 +317,8 @@ Resources:
           HostedZoneId: !Ref HostedZoneId
 
 Outputs:
-  ApiEndpoint:
-    Description: API Gateway endpoint URL
-    Value: !Sub https://${ApiDomainName}
   WebsiteUrl:
-    Description: Website URL
+    Description: Website URL (API available at /api)
     Value: !Sub https://${DomainName}
   AlexaSkillEndpoint:
     Description: Alexa Skill Lambda ARN
