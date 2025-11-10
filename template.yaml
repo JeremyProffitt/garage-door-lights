@@ -275,7 +275,7 @@ Resources:
       Timeout: 30
       Environment:
         Variables:
-          API_ENDPOINT: !Sub https://${ApiDomainName}
+          API_ENDPOINT: !Sub https://${DomainName}
       Policies:
         - Statement:
             - Effect: Allow
