@@ -9,7 +9,7 @@ on:
 env:
   AWS_REGION: us-east-1
   STACK_NAME: candle-lights-prod
-  CF_S3_BUCKET: cloudformation-jeremy-ninja-us-east-1
+  CF_S3_BUCKET: aws-sam-cli-managed-default-samclisourcebucket-1k2f5g9le515n
 
 jobs:
   deploy:
