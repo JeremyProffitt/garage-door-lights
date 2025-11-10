@@ -501,3 +501,60 @@ body {
 .pattern-item:hover {
     border-color: #667eea;
 }
+
+/* Color Picker Styles */
+.color-preview-multi {
+    display: flex;
+    height: 30px;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-top: 10px;
+}
+
+.color-swatch {
+    height: 100%;
+    transition: all 0.3s ease;
+}
+
+.color-swatch:hover {
+    opacity: 0.8;
+}
+
+.color-entry {
+    animation: fadeIn 0.3s ease-in;
+}
+
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    background: linear-gradient(90deg, #e0e0e0, #7e22ce);
+    border-radius: 5px;
+    outline: none;
+    height: 8px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    background: #7e22ce;
+    cursor: pointer;
+    border-radius: 50%;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    background: #7e22ce;
+    cursor: pointer;
+    border-radius: 50%;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    border: none;
+}
+
+input[type="color"] {
+    cursor: pointer;
+    border-radius: 10px;
+}

@@ -19,9 +19,13 @@
     </nav>
 
     <div class="container" x-data="devicesPage()">
-        <h1>Your Devices</h1>
+        <h1 style="color: white;">Your Devices</h1>
 
         <button @click="showAddModal = true" class="btn btn-primary">Add New Device</button>
+
+        <div x-show="devices.length === 0" style="color: white; margin-top: 2rem; font-size: 1.1rem;">
+            <p>No devices registered yet. Click "Add New Device" to get started!</p>
+        </div>
 
         <div class="devices-grid">
             <template x-for="device in devices" :key="device.deviceId">

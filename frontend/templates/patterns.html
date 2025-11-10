@@ -19,9 +19,13 @@
     </nav>
 
     <div class="container" x-data="patternsPage()">
-        <h1>Light Patterns</h1>
+        <h1 style="color: white;">Light Patterns</h1>
 
         <button @click="showCreateModal = true" class="btn btn-primary">Create New Pattern</button>
+
+        <div x-show="patterns.length === 0" style="color: white; margin-top: 2rem; font-size: 1.1rem;">
+            <p>No patterns created yet. Click "Create New Pattern" to get started!</p>
+        </div>
 
         <div class="patterns-grid">
             <template x-for="pattern in patterns" :key="pattern.patternId">
@@ -30,7 +34,13 @@
                     <p x-text="pattern.description"></p>
                     <div class="pattern-details">
                         <span class="badge" x-text="pattern.type"></span>
-                        <div class="color-preview" :style="`background: rgb(${pattern.red}, ${pattern.green}, ${pattern.blue})`"></div>
+                        <div class="color-preview-multi">
+                            <template x-if="pattern.colors && pattern.colors.length > 0">
+                                <template x-for="(color, idx) in pattern.colors" :key="idx">
+                                    <div class="color-swatch" :style="`background: rgb(${color.r}, ${color.g}, ${color.b}); width: ${color.percentage}%`" :title="`${color.percentage}%`"></div>
+                                </template>
+                            </template>
+                        </div>
                     </div>
                     <div class="pattern-info">
                         <small>Brightness: <span x-text="pattern.brightness"></span></small>
@@ -45,8 +55,8 @@
         </div>
 
         <!-- Create/Edit Modal -->
-        <div x-show="showCreateModal" class="modal" @click.self="showCreateModal = false">
-            <div class="modal-content">
+        <div x-show="showCreateModal" class="modal" style="display: none;">
+            <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
                 <h2 x-text="editingPattern ? 'Edit Pattern' : 'Create Pattern'"></h2>
                 <form @submit.prevent="savePattern">
                     <div class="form-group">
@@ -68,36 +78,103 @@
                             <option value="fire">Fire</option>
                         </select>
                     </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Red (0-255)</label>
-                            <input type="number" x-model.number="form.red" min="0" max="255" required>
+
+                    <!-- Colors Section -->
+                    <div class="form-group">
+                        <label>Colors (up to 8) <a href="#" @click.prevent="showRGBHelp = !showRGBHelp" style="font-size: 0.9em; margin-left: 5px;">ℹ️ What's RGB?</a></label>
+                        <div x-show="showRGBHelp" style="background: #f0f0f0; padding: 10px; border-radius: 8px; margin-bottom: 10px; font-size: 0.9em;">
+                            <strong>RGB Values:</strong> Red, Green, and Blue are combined to create any color. Each value ranges from 0-255.
+                            <br>Examples: Red (255,0,0), Green (0,255,0), Blue (0,0,255), Yellow (255,255,0), Purple (128,0,128)
                         </div>
-                        <div class="form-group">
-                            <label>Green (0-255)</label>
-                            <input type="number" x-model.number="form.green" min="0" max="255" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Blue (0-255)</label>
-                            <input type="number" x-model.number="form.blue" min="0" max="255" required>
-                        </div>
+
+                        <template x-for="(color, index) in form.colors" :key="index">
+                            <div class="color-entry" style="margin-bottom: 15px; padding: 15px; background: #f8f8f8; border-radius: 10px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                    <strong>Color <span x-text="index + 1"></span></strong>
+                                    <button type="button" @click="removeColor(index)" class="btn btn-sm btn-danger" x-show="form.colors.length > 1">Remove</button>
+                                </div>
+
+                                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                                    <button type="button" @click="openColorPicker(index)" class="btn btn-secondary" style="flex: 1;">
+                                        <span style="display: inline-block; width: 20px; height: 20px; border-radius: 3px; margin-right: 5px; vertical-align: middle;" :style="`background: rgb(${color.r}, ${color.g}, ${color.b})`"></span>
+                                        Pick Color
+                                    </button>
+                                </div>
+
+                                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label style="font-size: 0.9em;">R (0-255)</label>
+                                        <input type="number" x-model.number="color.r" min="0" max="255" required>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label style="font-size: 0.9em;">G (0-255)</label>
+                                        <input type="number" x-model.number="color.g" min="0" max="255" required>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label style="font-size: 0.9em;">B (0-255)</label>
+                                        <input type="number" x-model.number="color.b" min="0" max="255" required>
+                                    </div>
+                                </div>
+
+                                <div class="form-group" style="margin-top: 10px; margin-bottom: 0;">
+                                    <label style="font-size: 0.9em;">Percentage: <span x-text="color.percentage + '%'"></span></label>
+                                    <input type="range" x-model.number="color.percentage" min="1" max="100" @input="normalizePercentages(index)" style="width: 100%;">
+                                </div>
+                            </div>
+                        </template>
+
+                        <button type="button" @click="addColor()" class="btn btn-secondary" x-show="form.colors.length < 8" style="width: 100%; margin-top: 10px;">
+                            + Add Another Color
+                        </button>
                     </div>
-                    <div class="color-preview-large" :style="`background: rgb(${form.red}, ${form.green}, ${form.blue})`"></div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Brightness (0-255)</label>
-                            <input type="number" x-model.number="form.brightness" min="0" max="255" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Speed (ms)</label>
-                            <input type="number" x-model.number="form.speed" min="10" max="1000" required>
-                        </div>
+
+                    <!-- Brightness Slider -->
+                    <div class="form-group">
+                        <label>Brightness: <span x-text="form.brightness"></span> (0-255)</label>
+                        <input type="range" x-model.number="form.brightness" min="0" max="255" style="width: 100%;">
+                        <input type="number" x-model.number="form.brightness" min="0" max="255" style="width: 100px; margin-top: 5px;">
                     </div>
+
+                    <!-- Speed Slider -->
+                    <div class="form-group">
+                        <label>Speed: <span x-text="form.speed"></span> ms (10-1000)</label>
+                        <input type="range" x-model.number="form.speed" min="10" max="1000" step="10" style="width: 100%;">
+                        <input type="number" x-model.number="form.speed" min="10" max="1000" style="width: 100px; margin-top: 5px;">
+                    </div>
+
                     <div class="buttons">
                         <button type="submit" class="btn btn-primary">Save</button>
-                        <button type="button" @click="showCreateModal = false" class="btn btn-secondary">Cancel</button>
+                        <button type="button" @click="cancelEdit()" class="btn btn-secondary">Cancel</button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <!-- Color Picker Modal -->
+        <div x-show="showColorPicker" class="modal" style="display: none;">
+            <div class="modal-content" style="max-width: 400px;">
+                <h3>Pick a Color</h3>
+                <div style="text-align: center; margin: 20px 0;">
+                    <input type="color" x-model="tempColor" style="width: 200px; height: 200px; border: none; cursor: pointer;" @input="updateTempColorRGB()">
+                </div>
+                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 15px 0;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label>R</label>
+                        <input type="number" x-model.number="tempColorRGB.r" min="0" max="255" @input="updateTempColorFromRGB()">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label>G</label>
+                        <input type="number" x-model.number="tempColorRGB.g" min="0" max="255" @input="updateTempColorFromRGB()">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label>B</label>
+                        <input type="number" x-model.number="tempColorRGB.b" min="0" max="255" @input="updateTempColorFromRGB()">
+                    </div>
+                </div>
+                <div class="buttons">
+                    <button type="button" @click="applyColorPicker()" class="btn btn-primary">Apply</button>
+                    <button type="button" @click="showColorPicker = false" class="btn btn-secondary">Cancel</button>
+                </div>
             </div>
         </div>
     </div>
