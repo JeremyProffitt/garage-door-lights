@@ -101,7 +101,6 @@ jobs:
             --output table
 
       - name: Create admin user
-        if: ${{ vars.ADMIN_USER != '' && secrets.ADMIN_PASSWORD != '' }}
         run: |
           # Install Python dependencies
           pip install bcrypt boto3
