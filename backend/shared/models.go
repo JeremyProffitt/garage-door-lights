@@ -6,7 +6,6 @@ import "time"
 type User struct {
     Username         string    `json:"username" dynamodbav:"username"`
     PasswordHash     string    `json:"-" dynamodbav:"passwordHash"`
-    Email            string    `json:"email" dynamodbav:"email"`
     ParticleToken    string    `json:"-" dynamodbav:"particleToken"`
     ParticleUsername string    `json:"particleUsername,omitempty" dynamodbav:"particleUsername"`
     CreatedAt        time.Time `json:"createdAt" dynamodbav:"createdAt"`
@@ -61,7 +60,6 @@ type LoginRequest struct {
 type LoginResponse struct {
     Token    string `json:"token"`
     Username string `json:"username"`
-    Email    string `json:"email"`
 }
 
 // PatternType constants

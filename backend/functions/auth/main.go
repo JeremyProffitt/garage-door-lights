@@ -65,7 +65,6 @@ func handleLogin(ctx context.Context, request events.APIGatewayProxyRequest) (ev
     response := shared.LoginResponse{
         Token:    token,
         Username: user.Username,
-        Email:    user.Email,
     }
 
     return shared.CreateSuccessResponse(200, response), nil
@@ -75,7 +74,6 @@ func handleRegister(ctx context.Context, request events.APIGatewayProxyRequest) 
     var registerReq struct {
         Username         string `json:"username"`
         Password         string `json:"password"`
-        Email            string `json:"email"`
         ParticleUsername string `json:"particleUsername,omitempty"`
         ParticleToken    string `json:"particleToken,omitempty"`
     }
@@ -85,8 +83,8 @@ func handleRegister(ctx context.Context, request events.APIGatewayProxyRequest) 
     }
 
     // Validate input
-    if registerReq.Username == "" || registerReq.Password == "" || registerReq.Email == "" {
-        return shared.CreateErrorResponse(400, "Username, password, and email are required"), nil
+    if registerReq.Username == "" || registerReq.Password == "" {
+        return shared.CreateErrorResponse(400, "Username and password are required"), nil
     }
 
     // Check if user already exists
@@ -113,7 +111,6 @@ func handleRegister(ctx context.Context, request events.APIGatewayProxyRequest) 
     user := shared.User{
         Username:         registerReq.Username,
         PasswordHash:     passwordHash,
-        Email:            registerReq.Email,
         ParticleUsername: registerReq.ParticleUsername,
         ParticleToken:    registerReq.ParticleToken,
         CreatedAt:        time.Now(),
@@ -133,7 +130,6 @@ func handleRegister(ctx context.Context, request events.APIGatewayProxyRequest) 
     response := shared.LoginResponse{
         Token:    token,
         Username: user.Username,
-        Email:    user.Email,
     }
 
     return shared.CreateSuccessResponse(201, response), nil

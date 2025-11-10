@@ -1,21 +1,20 @@
 #!/bin/bash
 
 # Simplified user creation script using Python for password hashing
-# Usage: ./create-user-simple.sh <stack-name> <username> <email> <password> [particle-token]
+# Usage: ./create-user-simple.sh <stack-name> <username> <password> [particle-token]
 
 set -e
 
-if [ $# -lt 4 ]; then
-    echo "Usage: $0 <stack-name> <username> <email> <password> [particle-token]"
-    echo "Example: $0 candle-lights-prod john john@example.com mypassword abc123"
+if [ $# -lt 3 ]; then
+    echo "Usage: $0 <stack-name> <username> <password> [particle-token]"
+    echo "Example: $0 candle-lights-prod john mypassword abc123"
     exit 1
 fi
 
 STACK_NAME=$1
 USERNAME=$2
-EMAIL=$3
-PASSWORD=$4
-PARTICLE_TOKEN=${5:-""}
+PASSWORD=$3
+PARTICLE_TOKEN=${4:-""}
 
 # Get table name from CloudFormation stack
 TABLE_NAME=$(aws cloudformation describe-stacks \
@@ -42,12 +41,11 @@ aws dynamodb put-item \
     --item "{
         \"username\": {\"S\": \"$USERNAME\"},
         \"passwordHash\": {\"S\": \"$HASH\"},
-        \"email\": {\"S\": \"$EMAIL\"},
         \"particleToken\": {\"S\": \"$PARTICLE_TOKEN\"},
+        \"particleUsername\": {\"S\": \"\"},
         \"createdAt\": {\"S\": \"$TIMESTAMP\"},
         \"updatedAt\": {\"S\": \"$TIMESTAMP\"}
     }"
 
 echo "User created successfully!"
 echo "Username: $USERNAME"
-echo "Email: $EMAIL"

@@ -234,7 +234,6 @@ pip install bcrypt
 # Create user
 ./scripts/create-user-simple.sh candle-lights-prod \
   john \
-  john@example.com \
   mypassword \
   your-particle-token
 ```
@@ -275,7 +274,6 @@ Settings → Secrets and variables → Actions
 - `CERTIFICATE_ARN` - ACM certificate ARN
 - `CLOUDFORMATION_S3_BUCKET` - S3 bucket for SAM/CloudFormation artifacts (must be in us-east-1)
 - `ADMIN_USER` - Admin username (optional)
-- `ADMIN_EMAIL` - Admin email (optional)
 
 **To create AWS credentials:**
 1. Go to AWS IAM Console
@@ -408,7 +406,6 @@ curl -X POST https://api-lights.jeremy.ninja/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "username": "john",
-    "email": "john@example.com",
     "password": "mypassword"
   }'
 

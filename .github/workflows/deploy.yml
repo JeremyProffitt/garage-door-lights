@@ -140,7 +140,6 @@ jobs:
           region = os.environ.get('AWS_REGION', 'us-east-1')
           admin_user = os.environ.get('ADMIN_USER')
           admin_password = os.environ.get('ADMIN_PASSWORD')
-          admin_email = os.environ.get('ADMIN_EMAIL', f'{admin_user}@example.com')
 
           if not admin_user or not admin_password:
               print("ADMIN_USER or ADMIN_PASSWORD not set, skipping admin user creation")
@@ -170,31 +169,32 @@ jobs:
           table = dynamodb.Table(users_table)
 
           # Check if user already exists
+          existing_user = None
           try:
               response = table.get_item(Key={'username': admin_user})
               if 'Item' in response:
-                  print(f"Admin user '{admin_user}' already exists, skipping creation")
-                  exit(0)
+                  existing_user = response['Item']
+                  print(f"Admin user '{admin_user}' already exists, updating...")
           except Exception as e:
               print(f"Error checking for existing user: {e}")
 
-          # Create admin user
+          # Create or update admin user
           timestamp = datetime.utcnow().isoformat() + 'Z'
           item = {
               'username': admin_user,
               'passwordHash': password_hash,
-              'email': admin_email,
-              'particleToken': '',
-              'particleUsername': '',
-              'createdAt': timestamp,
+              'particleToken': existing_user.get('particleToken', '') if existing_user else '',
+              'particleUsername': existing_user.get('particleUsername', '') if existing_user else '',
+              'createdAt': existing_user.get('createdAt', timestamp) if existing_user else timestamp,
               'updatedAt': timestamp
           }
 
           try:
               table.put_item(Item=item)
-              print(f"✓ Admin user '{admin_user}' created successfully")
+              action = "updated" if existing_user else "created"
+              print(f"✓ Admin user '{admin_user}' {action} successfully")
           except Exception as e:
-              print(f"Error creating admin user: {e}")
+              print(f"Error creating/updating admin user: {e}")
               exit(1)
           PYTHON_SCRIPT
         env:
@@ -202,7 +202,6 @@ jobs:
           AWS_REGION: ${{ env.AWS_REGION }}
           ADMIN_USER: ${{ vars.ADMIN_USER }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-          ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL }}
 
   deploy-alexa:
     runs-on: ubuntu-latest
