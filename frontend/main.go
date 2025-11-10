@@ -3,6 +3,7 @@ package main
 import (
     "context"
     "embed"
+    "io/fs"
     "log"
     "net/http"
     "os"
@@ -23,7 +24,7 @@ import (
 //go:embed templates/*
 var templates embed.FS
 
-//go:embed static/*
+//go:embed static
 var staticFiles embed.FS
 
 var fiberLambda *fiberadapter.FiberLambda
@@ -56,8 +57,12 @@ func init() {
     })
 
     // Static files
+    staticFS, err := fs.Sub(staticFiles, "static")
+    if err != nil {
+        panic(err)
+    }
     app.Use("/static", filesystem.New(filesystem.Config{
-        Root: http.FS(staticFiles),
+        Root: http.FS(staticFS),
     }))
 
     // Routes
