@@ -41,6 +41,20 @@ func init() {
     app.Use(recover.New())
     app.Use(logger.New())
 
+    // HTTPS redirect middleware
+    app.Use(func(c *fiber.Ctx) error {
+        // Check X-Forwarded-Proto header (set by API Gateway/Load Balancer)
+        proto := c.Get("X-Forwarded-Proto", "https")
+
+        // If request came via HTTP, redirect to HTTPS
+        if proto == "http" {
+            host := c.Hostname()
+            path := c.OriginalURL()
+            return c.Redirect("https://"+host+path, 301)
+        }
+        return c.Next()
+    })
+
     // Static files
     app.Use("/static", filesystem.New(filesystem.Config{
         Root: http.FS(staticFiles),
