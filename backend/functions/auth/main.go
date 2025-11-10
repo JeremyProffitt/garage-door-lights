@@ -20,11 +20,11 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
     method := request.HTTPMethod
 
     switch {
-    case path == "/auth/login" && method == "POST":
+    case path == "/api/auth/login" && method == "POST":
         return handleLogin(ctx, request)
-    case path == "/auth/register" && method == "POST":
+    case path == "/api/auth/register" && method == "POST":
         return handleRegister(ctx, request)
-    case path == "/auth/validate" && method == "POST":
+    case path == "/api/auth/validate" && method == "POST":
         return handleValidate(ctx, request)
     default:
         return shared.CreateErrorResponse(404, "Not found"), nil

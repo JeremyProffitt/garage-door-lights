@@ -36,9 +36,9 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
     deviceID := request.PathParameters["deviceId"]
 
     switch {
-    case path == "/particle/command" && method == "POST":
+    case path == "/api/particle/command" && method == "POST":
         return handleSendCommand(ctx, username, request)
-    case path == "/particle/devices/refresh" && method == "POST":
+    case path == "/api/particle/devices/refresh" && method == "POST":
         return handleRefreshDevices(ctx, username)
     case deviceID != "" && method == "GET":
         return handleGetDeviceInfo(ctx, username, deviceID)

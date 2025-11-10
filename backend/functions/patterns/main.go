@@ -29,9 +29,9 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
     patternID := request.PathParameters["patternId"]
 
     switch {
-    case path == "/patterns" && method == "GET":
+    case path == "/api/patterns" && method == "GET":
         return handleListPatterns(ctx, username)
-    case path == "/patterns" && method == "POST":
+    case path == "/api/patterns" && method == "POST":
         return handleCreatePattern(ctx, username, request)
     case patternID != "" && method == "GET":
         return handleGetPattern(ctx, username, patternID)

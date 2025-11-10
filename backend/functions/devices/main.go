@@ -30,9 +30,9 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
     deviceID := request.PathParameters["deviceId"]
 
     switch {
-    case path == "/devices" && method == "GET":
+    case path == "/api/devices" && method == "GET":
         return handleListDevices(ctx, username)
-    case path == "/devices" && method == "POST":
+    case path == "/api/devices" && method == "POST":
         return handleRegisterDevice(ctx, username, request)
     case deviceID != "" && method == "GET":
         return handleGetDevice(ctx, username, deviceID)
@@ -40,7 +40,7 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
         return handleUpdateDevice(ctx, username, deviceID, request)
     case deviceID != "" && method == "DELETE":
         return handleDeleteDevice(ctx, username, deviceID)
-    case deviceID != "" && path == "/devices/"+deviceID+"/pattern" && method == "PUT":
+    case deviceID != "" && path == "/api/devices/"+deviceID+"/pattern" && method == "PUT":
         return handleAssignPattern(ctx, username, deviceID, request)
     default:
         return shared.CreateErrorResponse(404, "Not found"), nil
