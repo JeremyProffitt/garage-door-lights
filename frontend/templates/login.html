@@ -30,18 +30,28 @@
 
     <script>
         // Toggle password visibility
-        document.getElementById('togglePassword').addEventListener('click', function() {
+        document.getElementById('togglePassword').addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
             const passwordInput = document.getElementById('password');
             const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
             passwordInput.setAttribute('type', type);
             this.textContent = type === 'password' ? '👁️' : '🙈';
         });
 
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
+        // Handle login submission
+        async function handleLogin(e) {
+            if (e) {
+                e.preventDefault();
+            }
+
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
             const errorEl = document.getElementById('error');
+
+            // Clear any previous errors
+            errorEl.style.display = 'none';
+            errorEl.textContent = '';
 
             try {
                 const response = await fetch('/auth/login', {
@@ -55,14 +65,17 @@
                 if (data.success) {
                     window.location.href = data.redirect;
                 } else {
-                    errorEl.textContent = data.error;
+                    errorEl.textContent = data.error || 'Login failed';
                     errorEl.style.display = 'block';
                 }
             } catch (err) {
                 errorEl.textContent = 'Login failed. Please try again.';
                 errorEl.style.display = 'block';
             }
-        });
+        }
+
+        // Attach to form submit event (handles Enter key)
+        document.getElementById('loginForm').addEventListener('submit', handleLogin);
     </script>
 </body>
 </html>
