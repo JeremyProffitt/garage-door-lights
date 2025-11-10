@@ -122,6 +122,12 @@ Resources:
       LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-FrontendFunction'
       RetentionInDays: 7
 
+  ApiGatewayAccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/apigateway/${AWS::StackName}'
+      RetentionInDays: 7
+
   # Lambda Functions
   AuthFunction:
     DependsOn: AuthFunctionLogGroup
@@ -343,9 +349,13 @@ Resources:
 
   WebsiteGateway:
     Type: AWS::Serverless::Api
+    DependsOn: ApiGatewayAccessLogGroup
     Properties:
       Name: !Sub ${AWS::StackName}-website
       StageName: prod
+      AccessLogSetting:
+        DestinationArn: !GetAtt ApiGatewayAccessLogGroup.Arn
+        Format: '$context.requestId $context.extendedRequestId $context.identity.sourceIp $context.requestTime $context.httpMethod $context.routeKey $context.status $context.protocol $context.responseLength'
       BinaryMediaTypes:
         - "*/*"
       Cors:
