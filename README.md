@@ -256,20 +256,26 @@ particle flash your-device-name firmware/
 
 ## GitHub Actions Setup
 
-### Required Secrets
+### Required Secrets and Variables
 
-Configure these secrets in your GitHub repository:
+Configure these in your GitHub repository:
 
 ```
-Settings → Secrets and variables → Actions → New repository secret
+Settings → Secrets and variables → Actions
 ```
 
-#### AWS Secrets (Required)
-- `AWS_ACCESS_KEY_ID` - AWS access key ID for programmatic access
-- `AWS_SECRET_ACCESS_KEY` - AWS secret access key
-- `DOMAIN_NAME` - Your domain (e.g., lights.jeremy.ninja)
+#### Secrets (Required)
+- `AWS_CLIENT_ID` - AWS access key ID for programmatic access
+- `AWS_SECRET_KEY` - AWS secret access key
+- `ADMIN_PASSWORD` - Password for the admin user (optional)
+
+#### Variables (Required)
+- `DOMAIN_NAME` - Your domain (e.g., garage-door-lights.jeremy.ninja)
 - `HOSTED_ZONE_ID` - Route53 hosted zone ID
 - `CERTIFICATE_ARN` - ACM certificate ARN
+- `CLOUDFORMATION_S3_BUCKET` - S3 bucket for SAM/CloudFormation artifacts (must be in us-east-1)
+- `ADMIN_USER` - Admin username (optional)
+- `ADMIN_EMAIL` - Admin email (optional)
 
 **To create AWS credentials:**
 1. Go to AWS IAM Console
@@ -277,6 +283,17 @@ Settings → Secrets and variables → Actions → New repository secret
 3. Attach policy: `AdministratorAccess` (or create custom policy with required permissions)
 4. Create access key under Security Credentials
 5. Copy Access Key ID and Secret Access Key
+
+**To create the S3 bucket for deployments:**
+```bash
+# Create S3 bucket in us-east-1 (required for Alexa compatibility)
+aws s3 mb s3://your-cloudformation-bucket-name --region us-east-1
+
+# Verify bucket was created
+aws s3 ls | grep your-cloudformation-bucket-name
+```
+
+Then set `CLOUDFORMATION_S3_BUCKET` to your bucket name in GitHub variables.
 
 #### Alexa Secrets (Optional - for automated skill deployment)
 - `ALEXA_VENDOR_ID` - Your Amazon Developer Vendor ID
@@ -515,8 +532,10 @@ sam local start-api
 
 1. Check AWS credentials are configured
 2. Verify domain name and certificate
-3. Ensure S3 bucket for SAM deployment exists
-4. Check CloudFormation stack events for errors
+3. Ensure S3 bucket exists in us-east-1 region (run `aws s3api get-bucket-location --bucket YOUR_BUCKET`)
+4. Verify `CLOUDFORMATION_S3_BUCKET` GitHub variable is set correctly
+5. Check that the IAM user has permissions to write to the S3 bucket
+6. Check CloudFormation stack events for errors
 
 ## Cost Estimate
 
