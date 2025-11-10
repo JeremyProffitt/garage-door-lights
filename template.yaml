@@ -243,6 +243,12 @@ Resources:
             RestApiId: !Ref ApiGateway
             Path: /particle/device/{deviceId}
             Method: GET
+        RefreshDevices:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /particle/devices/refresh
+            Method: POST
 
   # Alexa Smart Home Skill Lambda
   AlexaFunction:

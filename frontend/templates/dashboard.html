@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Candle Lights Controller</title>
     <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 </head>
 <body>
     <nav class="navbar">
@@ -22,6 +23,20 @@
         <h1 style="color: white;">Welcome, {{.Username}}!</h1>
 
         <div class="dashboard-grid" x-data="dashboard()">
+            <div class="card">
+                <h2>Particle.io Connection</h2>
+                <div x-show="particleStatus === 'checking'" style="color: #6b7280;">
+                    <p>Checking connection...</p>
+                </div>
+                <div x-show="particleStatus === 'connected'" style="color: #10b981;">
+                    <p>✓ Connected to Particle.io</p>
+                </div>
+                <div x-show="particleStatus === 'error'" style="color: #ef4444;">
+                    <p>✗ Not connected to Particle.io</p>
+                    <a href="/settings" class="btn btn-secondary" style="margin-top: 10px;">Go to Settings</a>
+                </div>
+            </div>
+
             <div class="card">
                 <h2>Quick Actions</h2>
                 <div class="buttons">
@@ -51,25 +66,53 @@
             return {
                 devices: [],
                 patterns: [],
+                particleStatus: 'checking',
                 init() {
+                    this.checkParticleConnection();
                     this.loadDevices();
                     this.loadPatterns();
                 },
-                async loadDevices() {
-                    const resp = await fetch('/api/devices');
-                    const data = await resp.json();
-                    if (data.success) {
-                        this.devices = data.data || [];
-                        this.renderDevices();
+                async checkParticleConnection() {
+                    try {
+                        const resp = await fetch('/api/particle/devices/refresh', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'}
+                        });
+                        const data = await resp.json();
+                        if (data.success) {
+                            this.particleStatus = 'connected';
+                        } else {
+                            this.particleStatus = 'error';
+                        }
+                    } catch (err) {
+                        this.particleStatus = 'error';
                     }
                 },
-                async loadPatterns() {
-                    const resp = await fetch('/api/patterns');
-                    const data = await resp.json();
-                    if (data.success) {
-                        this.patterns = data.data || [];
-                        this.renderPatterns();
+                async loadDevices() {
+                    try {
+                        const resp = await fetch('/api/devices');
+                        const data = await resp.json();
+                        if (data.success) {
+                            this.devices = data.data || [];
+                        }
+                    } catch (err) {
+                        console.error('Failed to load devices:', err);
+                        this.devices = [];
                     }
+                    this.renderDevices();
+                },
+                async loadPatterns() {
+                    try {
+                        const resp = await fetch('/api/patterns');
+                        const data = await resp.json();
+                        if (data.success) {
+                            this.patterns = data.data || [];
+                        }
+                    } catch (err) {
+                        console.error('Failed to load patterns:', err);
+                        this.patterns = [];
+                    }
+                    this.renderPatterns();
                 },
                 renderDevices() {
                     const el = document.getElementById('devicesList');

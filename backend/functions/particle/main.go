@@ -38,6 +38,8 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
     switch {
     case path == "/particle/command" && method == "POST":
         return handleSendCommand(ctx, username, request)
+    case path == "/particle/devices/refresh" && method == "POST":
+        return handleRefreshDevices(ctx, username)
     case deviceID != "" && method == "GET":
         return handleGetDeviceInfo(ctx, username, deviceID)
     default:
@@ -136,6 +138,33 @@ func handleSendCommand(ctx context.Context, username string, request events.APIG
 
     return shared.CreateSuccessResponse(200, map[string]string{
         "message": "Command sent successfully",
+    }), nil
+}
+
+func handleRefreshDevices(ctx context.Context, username string) (events.APIGatewayProxyResponse, error) {
+    // Get user's Particle token
+    userKey, _ := attributevalue.MarshalMap(map[string]string{
+        "username": username,
+    })
+
+    var user shared.User
+    if err := shared.GetItem(ctx, usersTable, userKey, &user); err != nil {
+        return shared.CreateErrorResponse(500, "Database error"), nil
+    }
+
+    if user.ParticleToken == "" {
+        return shared.CreateErrorResponse(400, "Particle token not configured"), nil
+    }
+
+    // Get devices from Particle cloud
+    devices, err := getParticleDevices(user.ParticleToken)
+    if err != nil {
+        return shared.CreateErrorResponse(500, fmt.Sprintf("Failed to get devices from Particle: %v", err)), nil
+    }
+
+    return shared.CreateSuccessResponse(200, map[string]interface{}{
+        "count":   len(devices),
+        "devices": devices,
     }), nil
 }
 
@@ -250,6 +279,36 @@ func callParticleFunction(deviceID, functionName, argument, token string) error 
     }
 
     return nil
+}
+
+func getParticleDevices(token string) ([]map[string]interface{}, error) {
+    url := fmt.Sprintf("%s/devices", particleAPIBase)
+
+    req, err := http.NewRequest("GET", url, nil)
+    if err != nil {
+        return nil, err
+    }
+
+    req.Header.Set("Authorization", "Bearer "+token)
+
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        return nil, err
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusOK {
+        body, _ := io.ReadAll(resp.Body)
+        return nil, fmt.Errorf("particle API error: %s", string(body))
+    }
+
+    var devices []map[string]interface{}
+    if err := json.NewDecoder(resp.Body).Decode(&devices); err != nil {
+        return nil, err
+    }
+
+    return devices, nil
 }
 
 func getParticleDeviceInfo(deviceID, token string) (map[string]interface{}, error) {
