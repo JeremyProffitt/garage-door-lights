@@ -9,7 +9,7 @@ on:
 env:
   AWS_REGION: us-east-1
   STACK_NAME: candle-lights-prod
-  CF_S3_BUCKET: ${{ vars.CLOUDFORMATION_S3_BUCKET || 'cloudformation-jeremy-ninja-us-east-1' }}
+  CF_S3_BUCKET: cloudformation-jeremy-ninja-us-east-1
 
 jobs:
   deploy:
