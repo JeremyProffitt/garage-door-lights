@@ -35,6 +35,11 @@ if [ -z "$CERTIFICATE_ARN" ]; then
     exit 1
 fi
 
+if [ -z "$CLOUDFORMATION_S3_BUCKET" ]; then
+    echo "Error: CLOUDFORMATION_S3_BUCKET not set"
+    exit 1
+fi
+
 # Build the application
 echo "Building application..."
 sam build
@@ -49,7 +54,8 @@ sam deploy \
         "DomainName=$DOMAIN_NAME" \
         "HostedZoneId=$HOSTED_ZONE_ID" \
         "CertificateArn=$CERTIFICATE_ARN" \
-    --resolve-s3
+    --s3-bucket "$CLOUDFORMATION_S3_BUCKET" \
+    --s3-prefix "$STACK_NAME"
 
 echo ""
 echo "==================================="
