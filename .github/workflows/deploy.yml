@@ -89,7 +89,7 @@ jobs:
               "CertificateArn=${{ vars.CERTIFICATE_ARN }}" \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
-            --s3-bucket ${{ vars.CLOUDFORMATION_S3_BUCKET }} \
+            --s3-bucket ${{ vars.CLOUDFORMATION_S3_BUCKET || 'cloudformation-jeremy-ninja-us-east-1' }} \
             --s3-prefix "build-${{ github.run_id }}"
 
       - name: Get outputs
