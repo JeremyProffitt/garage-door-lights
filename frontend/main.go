@@ -84,19 +84,7 @@ func setupRoutes(app *fiber.App) {
     app.Get("/devices", middleware.AuthMiddleware, handlers.DevicesHandler)
     app.Get("/settings", middleware.AuthMiddleware, handlers.SettingsHandler)
 
-    // API proxy routes for AJAX calls
-    api := app.Group("/api")
-    api.Use(middleware.APIAuthMiddleware)
-    api.Get("/patterns", handlers.GetPatternsHandler)
-    api.Post("/patterns", handlers.CreatePatternHandler)
-    api.Put("/patterns/:id", handlers.UpdatePatternHandler)
-    api.Delete("/patterns/:id", handlers.DeletePatternHandler)
-    api.Get("/devices", handlers.GetDevicesHandler)
-    api.Post("/devices", handlers.CreateDeviceHandler)
-    api.Put("/devices/:id/pattern", handlers.AssignPatternHandler)
-    api.Post("/particle/command", handlers.SendCommandHandler)
-
-    // Auth routes
+    // Auth routes (non-API, for form submissions if needed)
     app.Post("/auth/login", handlers.LoginHandler)
     app.Post("/auth/register", handlers.RegisterHandler)
     app.Get("/auth/logout", handlers.LogoutHandler)
