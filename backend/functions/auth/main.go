@@ -33,7 +33,8 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
 func handleLogin(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
     var loginReq shared.LoginRequest
-    if err := json.Unmarshal([]byte(request.Body), &loginReq); err != nil {
+    body := shared.GetRequestBody(request)
+    if err := json.Unmarshal([]byte(body), &loginReq); err != nil {
         return shared.CreateErrorResponse(400, "Invalid request body"), nil
     }
 
@@ -78,7 +79,8 @@ func handleRegister(ctx context.Context, request events.APIGatewayProxyRequest) 
         ParticleToken    string `json:"particleToken,omitempty"`
     }
 
-    if err := json.Unmarshal([]byte(request.Body), &registerReq); err != nil {
+    body := shared.GetRequestBody(request)
+    if err := json.Unmarshal([]byte(body), &registerReq); err != nil {
         return shared.CreateErrorResponse(400, "Invalid request body"), nil
     }
 

@@ -61,7 +61,8 @@ func handleListPatterns(ctx context.Context, username string) (events.APIGateway
 
 func handleCreatePattern(ctx context.Context, username string, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
     var pattern shared.Pattern
-    if err := json.Unmarshal([]byte(request.Body), &pattern); err != nil {
+    body := shared.GetRequestBody(request)
+    if err := json.Unmarshal([]byte(body), &pattern); err != nil {
         return shared.CreateErrorResponse(400, "Invalid request body"), nil
     }
 
@@ -156,7 +157,8 @@ func handleUpdatePattern(ctx context.Context, username string, patternID string,
 
     // Parse updates
     var updates shared.Pattern
-    if err := json.Unmarshal([]byte(request.Body), &updates); err != nil {
+    body := shared.GetRequestBody(request)
+    if err := json.Unmarshal([]byte(body), &updates); err != nil {
         return shared.CreateErrorResponse(400, "Invalid request body"), nil
     }
 

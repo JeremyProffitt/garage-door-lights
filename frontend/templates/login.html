@@ -61,14 +61,21 @@
                 });
 
                 const data = await response.json();
+                console.log('Response data:', data);
 
                 if (data.success) {
-                    window.location.href = data.redirect;
+                    // Backend returns data.data.token, not data.redirect
+                    if (data.data && data.data.token) {
+                        window.location.href = '/dashboard';
+                    } else {
+                        window.location.href = data.redirect || '/dashboard';
+                    }
                 } else {
                     errorEl.textContent = data.error || 'Login failed';
                     errorEl.style.display = 'block';
                 }
             } catch (err) {
+                console.error('Login error:', err);
                 errorEl.textContent = 'Login failed. Please try again.';
                 errorEl.style.display = 'block';
             }

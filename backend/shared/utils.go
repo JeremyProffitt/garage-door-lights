@@ -1,6 +1,7 @@
 package shared
 
 import (
+    "encoding/base64"
     "encoding/json"
     "os"
 
@@ -77,4 +78,19 @@ func ValidateAuth(request events.APIGatewayProxyRequest) (string, error) {
     }
 
     return claims.Username, nil
+}
+
+// GetRequestBody returns the request body, decoding from base64 if needed
+func GetRequestBody(request events.APIGatewayProxyRequest) string {
+    body := request.Body
+
+    // If body is base64 encoded, decode it
+    if request.IsBase64Encoded {
+        decoded, err := base64.StdEncoding.DecodeString(body)
+        if err == nil {
+            return string(decoded)
+        }
+    }
+
+    return body
 }

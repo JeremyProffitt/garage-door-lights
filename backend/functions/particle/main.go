@@ -55,7 +55,8 @@ func handleSendCommand(ctx context.Context, username string, request events.APIG
         Argument  string `json:"argument,omitempty"`
     }
 
-    if err := json.Unmarshal([]byte(request.Body), &cmdReq); err != nil {
+    body := shared.GetRequestBody(request)
+    if err := json.Unmarshal([]byte(body), &cmdReq); err != nil {
         return shared.CreateErrorResponse(400, "Invalid request body"), nil
     }
 

@@ -68,7 +68,8 @@ func handleRegisterDevice(ctx context.Context, username string, request events.A
         ParticleID string `json:"particleId"`
     }
 
-    if err := json.Unmarshal([]byte(request.Body), &deviceReq); err != nil {
+    body := shared.GetRequestBody(request)
+    if err := json.Unmarshal([]byte(body), &deviceReq); err != nil {
         return shared.CreateErrorResponse(400, "Invalid request body"), nil
     }
 
@@ -143,7 +144,8 @@ func handleUpdateDevice(ctx context.Context, username string, deviceID string, r
         IsOnline *bool  `json:"isOnline,omitempty"`
     }
 
-    if err := json.Unmarshal([]byte(request.Body), &updates); err != nil {
+    body := shared.GetRequestBody(request)
+    if err := json.Unmarshal([]byte(body), &updates); err != nil {
         return shared.CreateErrorResponse(400, "Invalid request body"), nil
     }
 
@@ -222,7 +224,8 @@ func handleAssignPattern(ctx context.Context, username string, deviceID string, 
         PatternID string `json:"patternId"`
     }
 
-    if err := json.Unmarshal([]byte(request.Body), &assignReq); err != nil {
+    body := shared.GetRequestBody(request)
+    if err := json.Unmarshal([]byte(body), &assignReq); err != nil {
         return shared.CreateErrorResponse(400, "Invalid request body"), nil
     }
 
