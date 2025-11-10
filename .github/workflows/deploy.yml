@@ -38,6 +38,30 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Check and delete old production stack
+        run: |
+          OLD_STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name candle-lights-prod \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>&1 || echo "DOES_NOT_EXIST")
+
+          echo "Old production stack status: $OLD_STACK_STATUS"
+
+          if [ "$OLD_STACK_STATUS" != "DOES_NOT_EXIST" ]; then
+            echo "Old production stack exists, deleting to migrate to new stack name..."
+            aws cloudformation delete-stack \
+              --stack-name candle-lights-prod \
+              --region ${{ env.AWS_REGION }}
+            echo "Waiting for old stack deletion to complete..."
+            aws cloudformation wait stack-delete-complete \
+              --stack-name candle-lights-prod \
+              --region ${{ env.AWS_REGION }}
+            echo "Old stack deleted successfully"
+          else
+            echo "Old production stack does not exist"
+          fi
+
       - name: Check and delete failed stack
         run: |
           STACK_STATUS=$(aws cloudformation describe-stacks \
