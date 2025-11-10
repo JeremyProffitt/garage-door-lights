@@ -161,8 +161,8 @@ jobs:
 
           print(f"Using DynamoDB table: {users_table}")
 
-          # Hash password
-          password_hash = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+          # Hash password (using cost=14 to match backend Go bcrypt implementation)
+          password_hash = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt(14)).decode('utf-8')
 
           # Create DynamoDB client
           dynamodb = boto3.resource('dynamodb', region_name=region)
