@@ -5,6 +5,7 @@ function devicesPage() {
         showAddModal: false,
         showPatternModal: false,
         selectedDevice: null,
+        isLoading: true,
         newDevice: {
             name: '',
             particleId: ''
@@ -16,11 +17,13 @@ function devicesPage() {
         },
 
         async loadDevices() {
+            this.isLoading = true;
             const resp = await fetch('/api/devices');
             const data = await resp.json();
             if (data.success) {
                 this.devices = data.data || [];
             }
+            this.isLoading = false;
         },
 
         async loadPatterns() {
@@ -28,6 +31,29 @@ function devicesPage() {
             const data = await resp.json();
             if (data.success) {
                 this.patterns = data.data || [];
+            }
+        },
+
+        async refreshFromParticle() {
+            this.isLoading = true;
+            try {
+                const resp = await fetch('/api/particle/devices/refresh', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+
+                const data = await resp.json();
+
+                if (data.success) {
+                    alert(`Successfully refreshed! Found ${data.count || 0} device(s) from Particle.io`);
+                    await this.loadDevices();
+                } else {
+                    alert('Error refreshing devices: ' + (data.error || 'Unknown error'));
+                }
+            } catch (err) {
+                alert('Error refreshing devices: ' + err.message);
+            } finally {
+                this.isLoading = false;
             }
         },
 

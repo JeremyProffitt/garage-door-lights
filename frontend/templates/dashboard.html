@@ -32,12 +32,16 @@
 
             <div class="card">
                 <h2>Your Devices</h2>
-                <div id="devicesList">Loading...</div>
+                <div id="devicesList">
+                    <p style="color: #6b7280;">Loading devices...</p>
+                </div>
             </div>
 
             <div class="card">
                 <h2>Recent Patterns</h2>
-                <div id="patternsList">Loading...</div>
+                <div id="patternsList">
+                    <p style="color: #6b7280;">Loading patterns...</p>
+                </div>
             </div>
         </div>
     </div>
@@ -70,7 +74,7 @@
                 renderDevices() {
                     const el = document.getElementById('devicesList');
                     if (this.devices.length === 0) {
-                        el.innerHTML = '<p>No devices registered yet.</p>';
+                        el.innerHTML = '<p style="color: #6b7280;">No devices registered yet. <a href="/devices" style="color: #7e22ce; font-weight: 600;">Go to Devices page</a> to add one!</p>';
                         return;
                     }
                     el.innerHTML = this.devices.slice(0, 5).map(d => `
@@ -85,7 +89,7 @@
                 renderPatterns() {
                     const el = document.getElementById('patternsList');
                     if (this.patterns.length === 0) {
-                        el.innerHTML = '<p>No patterns created yet.</p>';
+                        el.innerHTML = '<p style="color: #6b7280;">No patterns created yet. <a href="/patterns" style="color: #7e22ce; font-weight: 600;">Go to Patterns page</a> to create one!</p>';
                         return;
                     }
                     el.innerHTML = this.patterns.slice(0, 5).map(p => `

@@ -21,10 +21,17 @@
     <div class="container" x-data="devicesPage()">
         <h1 style="color: white;">Your Devices</h1>
 
-        <button @click="showAddModal = true" class="btn btn-primary">Add New Device</button>
+        <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+            <button @click="showAddModal = true" class="btn btn-primary">Add New Device</button>
+            <button @click="refreshFromParticle()" class="btn btn-secondary">🔄 Refresh from Particle.io</button>
+        </div>
 
-        <div x-show="devices.length === 0" style="color: white; margin-top: 2rem; font-size: 1.1rem;">
-            <p>No devices registered yet. Click "Add New Device" to get started!</p>
+        <div x-show="devices.length === 0 && !isLoading" style="color: white; margin-top: 2rem; font-size: 1.1rem;">
+            <p>No devices registered yet. Click "Add New Device" to manually add a device, or "Refresh from Particle.io" to import your Particle devices!</p>
+        </div>
+
+        <div x-show="isLoading" style="color: white; margin-top: 2rem; font-size: 1.1rem;">
+            <p>Loading devices...</p>
         </div>
 
         <div class="devices-grid">
@@ -49,7 +56,7 @@
         </div>
 
         <!-- Add Device Modal -->
-        <div x-show="showAddModal" class="modal" @click.self="showAddModal = false">
+        <div x-show="showAddModal" class="modal" style="display: none;" @click.self="showAddModal = false">
             <div class="modal-content">
                 <h2>Add New Device</h2>
                 <form @submit.prevent="addDevice">
@@ -71,7 +78,7 @@
         </div>
 
         <!-- Assign Pattern Modal -->
-        <div x-show="showPatternModal" class="modal" @click.self="showPatternModal = false">
+        <div x-show="showPatternModal" class="modal" style="display: none;" @click.self="showPatternModal = false">
             <div class="modal-content">
                 <h2>Assign Pattern to <span x-text="selectedDevice?.name"></span></h2>
                 <div class="patterns-list">
