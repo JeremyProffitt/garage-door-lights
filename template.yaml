@@ -85,8 +85,46 @@ Resources:
           Projection:
             ProjectionType: ALL
 
+  # CloudWatch Log Groups with retention
+  AuthFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-AuthFunction'
+      RetentionInDays: 7
+
+  PatternsFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-PatternsFunction'
+      RetentionInDays: 7
+
+  DevicesFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-DevicesFunction'
+      RetentionInDays: 7
+
+  ParticleFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-ParticleFunction'
+      RetentionInDays: 7
+
+  AlexaFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-AlexaFunction'
+      RetentionInDays: 7
+
+  FrontendFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-FrontendFunction'
+      RetentionInDays: 7
+
   # Lambda Functions
   AuthFunction:
+    DependsOn: AuthFunctionLogGroup
     Type: AWS::Serverless::Function
     Metadata:
       BuildMethod: makefile
@@ -117,6 +155,7 @@ Resources:
             Method: POST
 
   PatternsFunction:
+    DependsOn: PatternsFunctionLogGroup
     Type: AWS::Serverless::Function
     Metadata:
       BuildMethod: makefile
@@ -161,6 +200,7 @@ Resources:
             Method: DELETE
 
   DevicesFunction:
+    DependsOn: DevicesFunctionLogGroup
     Type: AWS::Serverless::Function
     Metadata:
       BuildMethod: makefile
@@ -213,6 +253,7 @@ Resources:
             Method: PUT
 
   ParticleFunction:
+    DependsOn: ParticleFunctionLogGroup
     Type: AWS::Serverless::Function
     Metadata:
       BuildMethod: makefile
@@ -248,6 +289,7 @@ Resources:
 
   # Alexa Smart Home Skill Lambda
   AlexaFunction:
+    DependsOn: AlexaFunctionLogGroup
     Type: AWS::Serverless::Function
     Metadata:
       BuildMethod: makefile
@@ -265,6 +307,7 @@ Resources:
 
   # Frontend Lambda (Go Fiber)
   FrontendFunction:
+    DependsOn: FrontendFunctionLogGroup
     Type: AWS::Serverless::Function
     Metadata:
       BuildMethod: makefile
