@@ -225,10 +225,8 @@ func handleRefreshDevices(ctx context.Context, username string) (events.APIGatew
 
 	log.Printf("Successfully retrieved %d devices from Particle", len(devices))
 	for i, dev := range devices {
-		if devMap, ok := dev.(map[string]interface{}); ok {
-			log.Printf("  Device %d: id=%v, name=%v, connected=%v",
-				i+1, devMap["id"], devMap["name"], devMap["connected"])
-		}
+		log.Printf("  Device %d: id=%v, name=%v, connected=%v",
+			i+1, dev["id"], dev["name"], dev["connected"])
 	}
 
 	return shared.CreateSuccessResponse(200, map[string]interface{}{
