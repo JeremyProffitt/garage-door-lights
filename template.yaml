@@ -147,6 +147,12 @@ Resources:
             RestApiId: !Ref WebsiteGateway
             Path: /api/auth/validate
             Method: POST
+        UpdateParticleSettings:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/settings/particle
+            Method: POST
 
   PatternsFunction:
     DependsOn: PatternsFunctionLogGroup
@@ -279,6 +285,18 @@ Resources:
           Properties:
             RestApiId: !Ref WebsiteGateway
             Path: /api/particle/devices/refresh
+            Method: POST
+        ValidateToken:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/particle/validate-token
+            Method: POST
+        OAuthInitiate:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/particle/oauth/initiate
             Method: POST
 
   # Frontend Lambda (Go Fiber)
