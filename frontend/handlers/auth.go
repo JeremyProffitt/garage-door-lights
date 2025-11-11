@@ -141,8 +141,8 @@ func LoginHandler(c *fiber.Ctx) error {
 		Value:    authResp.Data.Token,
 		Expires:  time.Now().Add(24 * time.Hour),
 		HTTPOnly: true,
-		Secure:   true,
-		SameSite: "Strict",
+		Secure:   false, // Allow both HTTP and HTTPS for better compatibility
+		SameSite: "Lax",  // Allow OAuth redirects while maintaining CSRF protection
 		Path:     "/",
 	})
 
@@ -152,8 +152,8 @@ func LoginHandler(c *fiber.Ctx) error {
 		Value:    authResp.Data.Username,
 		Expires:  time.Now().Add(24 * time.Hour),
 		HTTPOnly: false,
-		Secure:   true,
-		SameSite: "Strict",
+		Secure:   false, // Allow both HTTP and HTTPS for better compatibility
+		SameSite: "Lax",  // Allow OAuth redirects while maintaining CSRF protection
 		Path:     "/",
 	})
 
@@ -263,8 +263,8 @@ func RegisterHandler(c *fiber.Ctx) error {
 		Value:    authResp.Data.Token,
 		Expires:  time.Now().Add(24 * time.Hour),
 		HTTPOnly: true,
-		Secure:   true,
-		SameSite: "Strict",
+		Secure:   false, // Allow both HTTP and HTTPS for better compatibility
+		SameSite: "Lax",  // Allow OAuth redirects while maintaining CSRF protection
 		Path:     "/",
 	})
 
@@ -274,8 +274,8 @@ func RegisterHandler(c *fiber.Ctx) error {
 		Value:    authResp.Data.Username,
 		Expires:  time.Now().Add(24 * time.Hour),
 		HTTPOnly: false,
-		Secure:   true,
-		SameSite: "Strict",
+		Secure:   false, // Allow both HTTP and HTTPS for better compatibility
+		SameSite: "Lax",  // Allow OAuth redirects while maintaining CSRF protection
 		Path:     "/",
 	})
 

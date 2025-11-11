@@ -13,6 +13,10 @@ Parameters:
   CertificateArn:
     Type: String
     Description: ACM Certificate ARN for the custom domain
+  JwtSecret:
+    Type: String
+    NoEcho: true
+    Description: Secret key for JWT token signing (should be a random 32+ character string)
 
 Globals:
   Function:
@@ -26,6 +30,7 @@ Globals:
         PATTERNS_TABLE: !Ref PatternsTable
         DEVICES_TABLE: !Ref DevicesTable
         DOMAIN_NAME: !Ref DomainName
+        JWT_SECRET: !Ref JwtSecret
 
 Resources:
   # DynamoDB Tables

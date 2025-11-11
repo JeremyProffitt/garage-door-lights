@@ -3,6 +3,7 @@ package shared
 import (
     "encoding/base64"
     "encoding/json"
+    "log"
     "os"
 
     "github.com/aws/aws-lambda-go/events"
@@ -69,15 +70,30 @@ func GetAuthToken(request events.APIGatewayProxyRequest) string {
 func ValidateAuth(request events.APIGatewayProxyRequest) (string, error) {
     token := GetAuthToken(request)
     if token == "" {
+        log.Println("ValidateAuth: No auth token found in request")
+        log.Printf("ValidateAuth: Headers: %+v", request.Headers)
+        log.Printf("ValidateAuth: Cookies: %+v", request.Headers["Cookie"])
         return "", nil
     }
 
+    log.Printf("ValidateAuth: Token found (first 20 chars): %s...", safeTokenDisplay(token, 20))
+
     claims, err := ValidateToken(token)
     if err != nil {
+        log.Printf("ValidateAuth: Token validation failed: %v", err)
         return "", err
     }
 
+    log.Printf("ValidateAuth: Token validated successfully for user: %s", claims.Username)
     return claims.Username, nil
+}
+
+// safeTokenDisplay returns a safe-to-log portion of a token
+func safeTokenDisplay(token string, length int) string {
+    if len(token) < length {
+        return token
+    }
+    return token[:length]
 }
 
 // GetRequestBody returns the request body, decoding from base64 if needed

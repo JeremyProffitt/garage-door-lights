@@ -110,6 +110,7 @@ jobs:
               "DomainName=${{ vars.DOMAIN_NAME }}" \
               "HostedZoneId=${{ vars.HOSTED_ZONE_ID }}" \
               "CertificateArn=${{ vars.CERTIFICATE_ARN }}" \
+              "JwtSecret=${{ secrets.JWT_SECRET }}" \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
             --s3-bucket ${{ vars.CLOUDFORMATION_S3_BUCKET }} \
