@@ -71,63 +71,63 @@ func SettingsHandler(c *fiber.Ctx) error {
 // API handlers that proxy to backend Lambda functions
 
 func GetPatternsHandler(c *fiber.Ctx) error {
-    return proxyRequest(c, "GET", "/patterns", nil)
+    return proxyRequest(c, "GET", "/api/patterns", nil)
 }
 
 func CreatePatternHandler(c *fiber.Ctx) error {
     body := c.Body()
-    return proxyRequest(c, "POST", "/patterns", body)
+    return proxyRequest(c, "POST", "/api/patterns", body)
 }
 
 func UpdatePatternHandler(c *fiber.Ctx) error {
     id := c.Params("id")
     body := c.Body()
-    return proxyRequest(c, "PUT", "/patterns/"+id, body)
+    return proxyRequest(c, "PUT", "/api/patterns/"+id, body)
 }
 
 func DeletePatternHandler(c *fiber.Ctx) error {
     id := c.Params("id")
-    return proxyRequest(c, "DELETE", "/patterns/"+id, nil)
+    return proxyRequest(c, "DELETE", "/api/patterns/"+id, nil)
 }
 
 func GetDevicesHandler(c *fiber.Ctx) error {
-    return proxyRequest(c, "GET", "/devices", nil)
+    return proxyRequest(c, "GET", "/api/devices", nil)
 }
 
 func CreateDeviceHandler(c *fiber.Ctx) error {
     body := c.Body()
-    return proxyRequest(c, "POST", "/devices", body)
+    return proxyRequest(c, "POST", "/api/devices", body)
 }
 
 func AssignPatternHandler(c *fiber.Ctx) error {
     id := c.Params("id")
     body := c.Body()
-    return proxyRequest(c, "PUT", "/devices/"+id+"/pattern", body)
+    return proxyRequest(c, "PUT", "/api/devices/"+id+"/pattern", body)
 }
 
 func SendCommandHandler(c *fiber.Ctx) error {
     body := c.Body()
-    return proxyRequest(c, "POST", "/particle/command", body)
+    return proxyRequest(c, "POST", "/api/particle/command", body)
 }
 
 func RefreshDevicesHandler(c *fiber.Ctx) error {
     body := c.Body()
-    return proxyRequest(c, "POST", "/particle/devices/refresh", body)
+    return proxyRequest(c, "POST", "/api/particle/devices/refresh", body)
 }
 
 func UpdateParticleSettingsHandler(c *fiber.Ctx) error {
     body := c.Body()
-    return proxyRequest(c, "POST", "/settings/particle", body)
+    return proxyRequest(c, "POST", "/api/settings/particle", body)
 }
 
 func ValidateParticleTokenHandler(c *fiber.Ctx) error {
     body := c.Body()
-    return proxyRequest(c, "POST", "/particle/validate-token", body)
+    return proxyRequest(c, "POST", "/api/particle/validate-token", body)
 }
 
 func ParticleOAuthInitiateHandler(c *fiber.Ctx) error {
     body := c.Body()
-    return proxyRequest(c, "POST", "/particle/oauth/initiate", body)
+    return proxyRequest(c, "POST", "/api/particle/oauth/initiate", body)
 }
 
 func proxyRequest(c *fiber.Ctx, method, path string, body []byte) error {
