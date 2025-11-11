@@ -88,45 +88,76 @@
                             <br>Examples: Red (255,0,0), Green (0,255,0), Blue (0,0,255), Yellow (255,255,0), Purple (128,0,128)
                         </div>
 
-                        <template x-for="(color, index) in form.colors" :key="index">
-                            <div class="color-entry" style="margin-bottom: 15px; padding: 15px; background: #f8f8f8; border-radius: 10px;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                                    <strong>Color <span x-text="index + 1"></span></strong>
-                                    <button type="button" @click="removeColor(index)" class="btn btn-sm btn-danger" x-show="form.colors.length > 1">Remove</button>
-                                </div>
-
-                                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                                    <button type="button" @click="openColorPicker(index)" class="btn btn-secondary" style="flex: 1;">
-                                        <span style="display: inline-block; width: 20px; height: 20px; border-radius: 3px; margin-right: 5px; vertical-align: middle;" :style="`background: rgb(${color.r}, ${color.g}, ${color.b})`"></span>
-                                        Pick Color
+                        <!-- Color Tabs -->
+                        <div style="margin-bottom: 15px;">
+                            <div style="display: flex; gap: 5px; border-bottom: 2px solid #ddd; padding-bottom: 5px; margin-bottom: 15px;">
+                                <template x-for="(color, index) in form.colors" :key="index">
+                                    <button
+                                        type="button"
+                                        @click="activeColorTab = index"
+                                        :class="activeColorTab === index ? 'color-tab active' : 'color-tab'"
+                                        style="padding: 8px 16px; border: none; background: #f0f0f0; border-radius: 6px 6px 0 0; cursor: pointer; font-weight: 500; transition: all 0.2s;"
+                                        :style="activeColorTab === index ? 'background: white; border-bottom: 2px solid #7e22ce;' : ''">
+                                        <span style="display: inline-block; width: 16px; height: 16px; border-radius: 3px; margin-right: 5px; vertical-align: middle; border: 1px solid #ccc;" :style="`background: rgb(${color.r}, ${color.g}, ${color.b})`"></span>
+                                        Color <span x-text="index + 1"></span>
                                     </button>
-                                </div>
-
-                                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
-                                    <div class="form-group" style="margin-bottom: 0;">
-                                        <label style="font-size: 0.9em;">R (0-255)</label>
-                                        <input type="number" x-model.number="color.r" min="0" max="255" required>
-                                    </div>
-                                    <div class="form-group" style="margin-bottom: 0;">
-                                        <label style="font-size: 0.9em;">G (0-255)</label>
-                                        <input type="number" x-model.number="color.g" min="0" max="255" required>
-                                    </div>
-                                    <div class="form-group" style="margin-bottom: 0;">
-                                        <label style="font-size: 0.9em;">B (0-255)</label>
-                                        <input type="number" x-model.number="color.b" min="0" max="255" required>
-                                    </div>
-                                </div>
-
-                                <div class="form-group" style="margin-top: 10px; margin-bottom: 0;">
-                                    <label style="font-size: 0.9em;">Percentage: <span x-text="color.percentage + '%'"></span></label>
-                                    <input type="range" x-model.number="color.percentage" min="1" max="100" @input="normalizePercentages(index)" style="width: 100%;">
-                                </div>
+                                </template>
+                                <button
+                                    type="button"
+                                    @click="addColor()"
+                                    x-show="form.colors.length < 8"
+                                    style="padding: 8px 16px; border: none; background: #e0e0e0; border-radius: 6px 6px 0 0; cursor: pointer; font-weight: 500; color: #7e22ce;">
+                                    + Add Color
+                                </button>
                             </div>
-                        </template>
 
-                        <button type="button" @click="addColor()" class="btn btn-secondary" x-show="form.colors.length < 8" style="width: 100%; margin-top: 10px;">
-                            + Add Another Color
-                        </button>
+                            <!-- Color Tab Content -->
+                            <template x-for="(color, index) in form.colors" :key="index">
+                                <div x-show="activeColorTab === index" style="padding: 20px; background: white; border-radius: 8px; border: 1px solid #ddd;">
+                                    <!-- Color Preview Bar -->
+                                    <div style="height: 20px; width: 100%; border-radius: 10px; margin-bottom: 20px; border: 2px solid #ddd;" :style="`background: rgb(${color.r}, ${color.g}, ${color.b})`"></div>
+
+                                    <!-- Color Picker and RGB Values -->
+                                    <div style="display: flex; gap: 20px; align-items: center; margin-bottom: 20px;">
+                                        <!-- Color Picker (centered, smaller) -->
+                                        <div style="flex: 1; display: flex; justify-content: center;">
+                                            <input
+                                                type="color"
+                                                :value="rgbToHex(color.r, color.g, color.b)"
+                                                @input="updateColorFromPicker(index, $event.target.value)"
+                                                style="width: 120px; height: 120px; border: 2px solid #ddd; border-radius: 8px; cursor: pointer;">
+                                        </div>
+
+                                        <!-- RGB Values (smaller, to the right) -->
+                                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                                            <div style="display: flex; align-items: center; gap: 8px;">
+                                                <label style="font-size: 0.85em; width: 15px; font-weight: 600;">R</label>
+                                                <input type="number" x-model.number="color.r" min="0" max="255" required style="width: 70px; padding: 4px 8px; font-size: 0.9em;">
+                                            </div>
+                                            <div style="display: flex; align-items: center; gap: 8px;">
+                                                <label style="font-size: 0.85em; width: 15px; font-weight: 600;">G</label>
+                                                <input type="number" x-model.number="color.g" min="0" max="255" required style="width: 70px; padding: 4px 8px; font-size: 0.9em;">
+                                            </div>
+                                            <div style="display: flex; align-items: center; gap: 8px;">
+                                                <label style="font-size: 0.85em; width: 15px; font-weight: 600;">B</label>
+                                                <input type="number" x-model.number="color.b" min="0" max="255" required style="width: 70px; padding: 4px 8px; font-size: 0.9em;">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Percentage Slider -->
+                                    <div style="margin-bottom: 15px;">
+                                        <label style="font-size: 0.9em; font-weight: 600;">Percentage: <span x-text="color.percentage + '%'"></span></label>
+                                        <input type="range" x-model.number="color.percentage" min="1" max="100" @input="normalizePercentages(index)" style="width: 100%; margin-top: 5px;">
+                                    </div>
+
+                                    <!-- Remove Button -->
+                                    <div style="text-align: right;">
+                                        <button type="button" @click="removeColor(index)" class="btn btn-sm btn-danger" x-show="form.colors.length > 1">Remove This Color</button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
                     </div>
 
                     <!-- Brightness Slider -->

@@ -6,6 +6,7 @@ function patternsPage() {
         showRGBHelp: false,
         editingPattern: null,
         currentColorIndex: null,
+        activeColorTab: 0,
         tempColor: '#ff6400',
         tempColorRGB: { r: 255, g: 100, b: 0 },
         form: {
@@ -45,12 +46,18 @@ function patternsPage() {
                 // Redistribute percentages
                 this.form.colors.forEach(c => c.percentage = newPercentage);
                 this.form.colors.push({ r: 255, g: 255, b: 255, percentage: newPercentage });
+                // Switch to the newly added color tab
+                this.activeColorTab = this.form.colors.length - 1;
             }
         },
 
         removeColor(index) {
             if (this.form.colors.length > 1) {
                 this.form.colors.splice(index, 1);
+                // If we removed the active tab, switch to the previous one (or 0 if we removed the first one)
+                if (this.activeColorTab >= this.form.colors.length) {
+                    this.activeColorTab = this.form.colors.length - 1;
+                }
                 this.normalizePercentages();
             }
         },
@@ -126,6 +133,7 @@ function patternsPage() {
 
         editPattern(pattern) {
             this.editingPattern = pattern;
+            this.activeColorTab = 0;
             this.form = {
                 name: pattern.name,
                 description: pattern.description,
@@ -197,6 +205,7 @@ function patternsPage() {
         },
 
         resetForm() {
+            this.activeColorTab = 0;
             this.form = {
                 name: '',
                 description: '',
@@ -207,6 +216,21 @@ function patternsPage() {
                 brightness: 128,
                 speed: 50
             };
+        },
+
+        rgbToHex(r, g, b) {
+            const toHex = (n) => {
+                const hex = Math.max(0, Math.min(255, n)).toString(16);
+                return hex.length === 1 ? '0' + hex : hex;
+            };
+            return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+        },
+
+        updateColorFromPicker(index, hexValue) {
+            const hex = hexValue.replace('#', '');
+            this.form.colors[index].r = parseInt(hex.substr(0, 2), 16);
+            this.form.colors[index].g = parseInt(hex.substr(2, 2), 16);
+            this.form.colors[index].b = parseInt(hex.substr(4, 2), 16);
         }
     }
 }
