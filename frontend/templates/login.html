@@ -5,88 +5,148 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Candle Lights Controller</title>
     <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .error-message {
+            background-color: #fee;
+            color: #c00;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            display: none;
+        }
+        .error-message.show {
+            display: block;
+        }
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
         <div class="form-container">
             <h1>Login</h1>
+
+            <div id="errorMessage" class="error-message"></div>
+
             <form id="loginForm">
                 <div class="form-group">
                     <label for="username">Username</label>
-                    <input type="text" id="username" name="username" required>
+                    <input type="text" id="username" name="username" required autofocus>
                 </div>
+
                 <div class="form-group">
                     <label for="password">Password</label>
                     <div style="position: relative;">
                         <input type="password" id="password" name="password" required style="padding-right: 45px;">
-                        <button type="button" id="togglePassword" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem;">👁️</button>
+                        <button type="button" id="togglePassword"
+                                style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+                                       background: none; border: none; cursor: pointer; font-size: 1.2rem;">
+                            👁️
+                        </button>
                     </div>
                 </div>
-                <div id="error" class="error" style="display:none;"></div>
-                <button type="submit" class="btn btn-primary">Login</button>
+
+                <button type="submit" class="btn btn-primary" id="loginButton">Login</button>
             </form>
+
+            <p style="margin-top: 20px; text-align: center;">
+                Don't have an account? <a href="/register">Register</a>
+            </p>
         </div>
     </div>
 
     <script>
+        const loginForm = document.getElementById('loginForm');
+        const loginButton = document.getElementById('loginButton');
+        const errorMessage = document.getElementById('errorMessage');
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const togglePasswordBtn = document.getElementById('togglePassword');
+
         // Toggle password visibility
-        document.getElementById('togglePassword').addEventListener('click', function(e) {
+        togglePasswordBtn.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
-            const passwordInput = document.getElementById('password');
             const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
             passwordInput.setAttribute('type', type);
             this.textContent = type === 'password' ? '👁️' : '🙈';
         });
 
-        // Handle login submission
-        async function handleLogin(e) {
-            if (e) {
-                e.preventDefault();
-            }
-
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-            const errorEl = document.getElementById('error');
-
-            // Clear any previous errors
-            errorEl.style.display = 'none';
-            errorEl.textContent = '';
-
-            try {
-                const response = await fetch('/api/auth/login', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({username, password})
-                });
-
-                const data = await response.json();
-                console.log('Response data:', data);
-
-                if (data.success) {
-                    // Store the token and username in cookies
-                    if (data.data && data.data.token) {
-                        // Set secure, httpOnly-like behavior via document.cookie
-                        const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toUTCString();
-                        document.cookie = `token=${data.data.token}; expires=${expires}; path=/; SameSite=Strict; Secure`;
-                        document.cookie = `username=${data.data.username}; expires=${expires}; path=/; SameSite=Strict`;
-                        window.location.href = '/dashboard';
-                    } else {
-                        window.location.href = data.redirect || '/dashboard';
-                    }
-                } else {
-                    errorEl.textContent = data.error || 'Login failed';
-                    errorEl.style.display = 'block';
-                }
-            } catch (err) {
-                console.error('Login error:', err);
-                errorEl.textContent = 'Login failed. Please try again.';
-                errorEl.style.display = 'block';
-            }
+        // Show error message
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.add('show');
         }
 
-        // Attach to form submit event (handles Enter key)
-        document.getElementById('loginForm').addEventListener('submit', handleLogin);
+        // Hide error message
+        function hideError() {
+            errorMessage.textContent = '';
+            errorMessage.classList.remove('show');
+        }
+
+        // Handle form submission
+        loginForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            hideError();
+
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value;
+
+            if (!username || !password) {
+                showError('Please enter both username and password');
+                return;
+            }
+
+            // Disable form during submission
+            loginButton.disabled = true;
+            loginButton.textContent = 'Logging in...';
+            loginForm.classList.add('loading');
+
+            try {
+                console.log('Attempting login for user:', username);
+
+                const response = await fetch('/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, password }),
+                    credentials: 'same-origin'
+                });
+
+                console.log('Response status:', response.status);
+
+                let data;
+                try {
+                    data = await response.json();
+                    console.log('Response data:', data);
+                } catch (parseError) {
+                    console.error('Failed to parse response:', parseError);
+                    throw new Error('Invalid response from server');
+                }
+
+                if (data.success) {
+                    console.log('Login successful, redirecting to dashboard...');
+                    // Successful login
+                    window.location.href = data.redirect || '/dashboard';
+                } else {
+                    // Login failed
+                    const errorMsg = data.error || 'Login failed. Please check your credentials.';
+                    console.error('Login failed:', errorMsg);
+                    showError(errorMsg);
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showError('An error occurred. Please try again. Error: ' + error.message);
+            } finally {
+                // Re-enable form
+                loginButton.disabled = false;
+                loginButton.textContent = 'Login';
+                loginForm.classList.remove('loading');
+            }
+        });
     </script>
 </body>
 </html>
