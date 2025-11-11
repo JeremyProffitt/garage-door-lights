@@ -107,6 +107,11 @@ func setupRoutes(app *fiber.App) {
     // API routes for particle commands (protected)
     app.Post("/api/particle/command", middleware.APIAuthMiddleware, handlers.SendCommandHandler)
     app.Post("/api/particle/devices/refresh", middleware.APIAuthMiddleware, handlers.RefreshDevicesHandler)
+    app.Post("/api/particle/validate-token", middleware.APIAuthMiddleware, handlers.ValidateParticleTokenHandler)
+    app.Post("/api/particle/oauth/initiate", middleware.APIAuthMiddleware, handlers.ParticleOAuthInitiateHandler)
+
+    // API routes for settings (protected)
+    app.Post("/api/settings/particle", middleware.APIAuthMiddleware, handlers.UpdateParticleSettingsHandler)
 }
 
 func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {

@@ -28,50 +28,76 @@
 
             <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 2rem 0;">
 
-            <h3 style="margin-top: 1.5rem; margin-bottom: 1rem; color: #7e22ce;">Particle.io Access Token</h3>
-            <p>To control your devices, you need to provide your Particle.io access token.</p>
+            <h3 style="margin-top: 1.5rem; margin-bottom: 1rem; color: #7e22ce;">Particle.io Integration</h3>
+            <p>Connect your Particle.io account to control your devices.</p>
 
             <div style="background: #f0f4ff; padding: 1.5rem; border-radius: 12px; margin: 1.5rem 0; border-left: 4px solid #7e22ce;">
-                <h4 style="margin-top: 0; margin-bottom: 1rem; color: #7e22ce;">📝 How to Generate a Particle Access Token</h4>
+                <h4 style="margin-top: 0; margin-bottom: 1rem; color: #7e22ce;">🔌 Connect to Particle.io</h4>
+                <p style="margin-bottom: 1rem;">Choose one of the following methods to connect:</p>
 
-                <p style="margin-bottom: 0.5rem;"><strong>Option 1: Using Particle CLI (Recommended)</strong></p>
-                <ol style="margin-left: 1.5rem; margin-bottom: 1rem;">
-                    <li>Install Particle CLI: <code style="background: #fff; padding: 2px 6px; border-radius: 4px;">npm install -g particle-cli</code></li>
-                    <li>Login to your account: <code style="background: #fff; padding: 2px 6px; border-radius: 4px;">particle login</code></li>
-                    <li>Generate a token: <code style="background: #fff; padding: 2px 6px; border-radius: 4px;">particle token create</code></li>
-                    <li>Copy the generated access token and paste it below</li>
-                </ol>
+                <button type="button" id="connectParticleBtn" class="btn btn-primary" style="margin-bottom: 1rem; width: 100%;">
+                    🔗 Connect with Particle.io OAuth
+                </button>
 
-                <p style="margin-bottom: 0.5rem;"><strong>Option 2: Using Particle Console</strong></p>
-                <ol style="margin-left: 1.5rem; margin-bottom: 0;">
-                    <li>Go to <a href="https://console.particle.io/" target="_blank" style="color: #7e22ce; font-weight: 600;">Particle Console</a></li>
-                    <li>Navigate to Settings → Access Tokens</li>
-                    <li>Click "New Token" and give it a name</li>
-                    <li>Set the duration (90 days recommended)</li>
-                    <li>Copy the token and paste it below</li>
-                </ol>
+                <p style="text-align: center; margin: 1rem 0; color: #666;">— OR —</p>
+
+                <details style="margin-top: 1rem;">
+                    <summary style="cursor: pointer; color: #7e22ce; font-weight: 600; margin-bottom: 0.5rem;">📝 Manually enter access token</summary>
+                    <div style="margin-top: 1rem; padding-left: 1rem;">
+                        <p style="margin-bottom: 0.5rem;"><strong>Option 1: Using Particle CLI</strong></p>
+                        <ol style="margin-left: 1.5rem; margin-bottom: 1rem; font-size: 0.9rem;">
+                            <li>Install: <code style="background: #fff; padding: 2px 6px; border-radius: 4px;">npm install -g particle-cli</code></li>
+                            <li>Login: <code style="background: #fff; padding: 2px 6px; border-radius: 4px;">particle login</code></li>
+                            <li>Generate: <code style="background: #fff; padding: 2px 6px; border-radius: 4px;">particle token create</code></li>
+                        </ol>
+
+                        <p style="margin-bottom: 0.5rem;"><strong>Option 2: Using Particle Console</strong></p>
+                        <ol style="margin-left: 1.5rem; margin-bottom: 0; font-size: 0.9rem;">
+                            <li>Visit <a href="https://console.particle.io/" target="_blank" style="color: #7e22ce;">console.particle.io</a></li>
+                            <li>Go to Settings → Access Tokens</li>
+                            <li>Create a new token (90 days recommended)</li>
+                        </ol>
+                    </div>
+                </details>
             </div>
+
+            <div id="successMessage" style="background-color: #d4edda; color: #155724; padding: 10px; border-radius: 4px; margin-bottom: 15px; display: none;"></div>
+            <div id="errorMessage" style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin-bottom: 15px; display: none;"></div>
 
             <form id="particleForm">
                 <div class="form-group">
-                    <label>Particle Username</label>
-                    <input type="text" id="particleUsername" name="particleUsername" placeholder="your-particle-username">
-                    <small>Your Particle.io account username or email</small>
-                </div>
-                <div class="form-group">
                     <label>Particle Access Token</label>
                     <div style="position: relative;">
-                        <input type="password" id="particleToken" name="particleToken" placeholder="paste-your-token-here" style="padding-right: 45px;">
+                        <input type="password" id="particleToken" name="particleToken" placeholder="Paste your token here or use OAuth above" style="padding-right: 45px;">
                         <button type="button" id="toggleToken" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem;">👁️</button>
                     </div>
-                    <small>This token will be encrypted and stored securely. Never share your token with anyone!</small>
+                    <small>This token will be encrypted and stored securely. Never share your token!</small>
                 </div>
-                <button type="submit" class="btn btn-primary">Save Particle Settings</button>
+                <div style="display: flex; gap: 1rem;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">Save Token</button>
+                    <button type="button" id="validateTokenBtn" class="btn" style="flex: 1; background: #10b981; color: white;">Validate Token</button>
+                </div>
             </form>
         </div>
     </div>
 
     <script>
+        const successMessage = document.getElementById('successMessage');
+        const errorMessage = document.getElementById('errorMessage');
+
+        function showSuccess(message) {
+            successMessage.textContent = message;
+            successMessage.style.display = 'block';
+            errorMessage.style.display = 'none';
+            setTimeout(() => { successMessage.style.display = 'none'; }, 5000);
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+            successMessage.style.display = 'none';
+        }
+
         // Toggle token visibility
         document.getElementById('toggleToken')?.addEventListener('click', function() {
             const tokenInput = document.getElementById('particleToken');
@@ -80,9 +106,92 @@
             this.textContent = type === 'password' ? '👁️' : '🙈';
         });
 
+        // Connect with Particle OAuth
+        document.getElementById('connectParticleBtn')?.addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/particle/oauth/initiate', {
+                    method: 'POST',
+                    credentials: 'same-origin'
+                });
+                const data = await response.json();
+
+                if (data.success && data.data.authUrl) {
+                    // Open OAuth window
+                    window.location.href = data.data.authUrl;
+                } else {
+                    showError(data.error || 'Failed to initiate OAuth flow');
+                }
+            } catch (error) {
+                showError('Error connecting to Particle.io: ' + error.message);
+            }
+        });
+
+        // Save token manually
         document.getElementById('particleForm')?.addEventListener('submit', async (e) => {
             e.preventDefault();
-            alert('Particle settings saved! (This feature requires additional backend implementation)');
+            const token = document.getElementById('particleToken').value.trim();
+
+            if (!token) {
+                showError('Please enter a Particle access token');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/settings/particle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ particleToken: token })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showSuccess('Particle token saved successfully!');
+                    document.getElementById('particleToken').value = '';
+                } else {
+                    showError(data.error || 'Failed to save token');
+                }
+            } catch (error) {
+                showError('Error saving token: ' + error.message);
+            }
+        });
+
+        // Validate token
+        document.getElementById('validateTokenBtn')?.addEventListener('click', async () => {
+            const token = document.getElementById('particleToken').value.trim();
+
+            if (!token) {
+                showError('Please enter a Particle access token to validate');
+                return;
+            }
+
+            const btn = document.getElementById('validateTokenBtn');
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = 'Validating...';
+
+            try {
+                const response = await fetch('/api/particle/validate-token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ particleToken: token })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showSuccess('Token is valid! ' + (data.data?.message || ''));
+                } else {
+                    showError('Token validation failed: ' + (data.error || 'Invalid token'));
+                }
+            } catch (error) {
+                showError('Error validating token: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
         });
     </script>
 </body>

@@ -21,9 +21,50 @@
             opacity: 0.6;
             pointer-events: none;
         }
+        .spinner-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+        .spinner-overlay.show {
+            display: flex;
+        }
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #7e22ce;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .spinner-text {
+            color: white;
+            margin-top: 20px;
+            font-size: 16px;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
+    <!-- Loading Spinner Overlay -->
+    <div id="spinnerOverlay" class="spinner-overlay">
+        <div style="text-align: center;">
+            <div class="spinner"></div>
+            <div class="spinner-text">Logging in...</div>
+        </div>
+    </div>
+
     <div class="container">
         <div class="form-container">
             <h1>Login</h1>
@@ -64,6 +105,7 @@
         const usernameInput = document.getElementById('username');
         const passwordInput = document.getElementById('password');
         const togglePasswordBtn = document.getElementById('togglePassword');
+        const spinnerOverlay = document.getElementById('spinnerOverlay');
 
         // Toggle password visibility
         togglePasswordBtn.addEventListener('click', function(e) {
@@ -99,7 +141,8 @@
                 return;
             }
 
-            // Disable form during submission
+            // Show spinner and disable form during submission
+            spinnerOverlay.classList.add('show');
             loginButton.disabled = true;
             loginButton.textContent = 'Logging in...';
             loginForm.classList.add('loading');
@@ -141,7 +184,8 @@
                 console.error('Login error:', error);
                 showError('An error occurred. Please try again. Error: ' + error.message);
             } finally {
-                // Re-enable form
+                // Hide spinner and re-enable form
+                spinnerOverlay.classList.remove('show');
                 loginButton.disabled = false;
                 loginButton.textContent = 'Login';
                 loginForm.classList.remove('loading');

@@ -4,12 +4,11 @@ import "time"
 
 // User represents a user in the system
 type User struct {
-    Username         string    `json:"username" dynamodbav:"username"`
-    PasswordHash     string    `json:"-" dynamodbav:"passwordHash"`
-    ParticleToken    string    `json:"-" dynamodbav:"particleToken"`
-    ParticleUsername string    `json:"particleUsername,omitempty" dynamodbav:"particleUsername"`
-    CreatedAt        time.Time `json:"createdAt" dynamodbav:"createdAt"`
-    UpdatedAt        time.Time `json:"updatedAt" dynamodbav:"updatedAt"`
+    Username      string    `json:"username" dynamodbav:"username"`
+    PasswordHash  string    `json:"-" dynamodbav:"passwordHash"`
+    ParticleToken string    `json:"-" dynamodbav:"particleToken,omitempty"`
+    CreatedAt     time.Time `json:"createdAt" dynamodbav:"createdAt"`
+    UpdatedAt     time.Time `json:"updatedAt" dynamodbav:"updatedAt"`
 }
 
 // Pattern represents a light pattern/scheme

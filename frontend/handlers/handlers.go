@@ -115,6 +115,21 @@ func RefreshDevicesHandler(c *fiber.Ctx) error {
     return proxyRequest(c, "POST", "/particle/devices/refresh", body)
 }
 
+func UpdateParticleSettingsHandler(c *fiber.Ctx) error {
+    body := c.Body()
+    return proxyRequest(c, "POST", "/settings/particle", body)
+}
+
+func ValidateParticleTokenHandler(c *fiber.Ctx) error {
+    body := c.Body()
+    return proxyRequest(c, "POST", "/particle/validate-token", body)
+}
+
+func ParticleOAuthInitiateHandler(c *fiber.Ctx) error {
+    body := c.Body()
+    return proxyRequest(c, "POST", "/particle/oauth/initiate", body)
+}
+
 func proxyRequest(c *fiber.Ctx, method, path string, body []byte) error {
     token := c.Cookies("token")
     if token == "" {

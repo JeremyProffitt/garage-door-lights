@@ -26,6 +26,8 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
         return handleRegister(ctx, request)
     case path == "/api/auth/validate" && method == "POST":
         return handleValidate(ctx, request)
+    case path == "/api/settings/particle" && method == "POST":
+        return handleUpdateParticleSettings(ctx, request)
     default:
         return shared.CreateErrorResponse(404, "Not found"), nil
     }
@@ -73,10 +75,9 @@ func handleLogin(ctx context.Context, request events.APIGatewayProxyRequest) (ev
 
 func handleRegister(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
     var registerReq struct {
-        Username         string `json:"username"`
-        Password         string `json:"password"`
-        ParticleUsername string `json:"particleUsername,omitempty"`
-        ParticleToken    string `json:"particleToken,omitempty"`
+        Username string `json:"username"`
+        Password string `json:"password"`
+        Email    string `json:"email,omitempty"`
     }
 
     body := shared.GetRequestBody(request)
@@ -111,12 +112,10 @@ func handleRegister(ctx context.Context, request events.APIGatewayProxyRequest) 
 
     // Create user
     user := shared.User{
-        Username:         registerReq.Username,
-        PasswordHash:     passwordHash,
-        ParticleUsername: registerReq.ParticleUsername,
-        ParticleToken:    registerReq.ParticleToken,
-        CreatedAt:        time.Now(),
-        UpdatedAt:        time.Now(),
+        Username:     registerReq.Username,
+        PasswordHash: passwordHash,
+        CreatedAt:    time.Now(),
+        UpdatedAt:    time.Now(),
     }
 
     if err := shared.PutItem(ctx, usersTable, user); err != nil {
@@ -150,6 +149,53 @@ func handleValidate(ctx context.Context, request events.APIGatewayProxyRequest) 
     return shared.CreateSuccessResponse(200, map[string]string{
         "username": username,
         "valid":    "true",
+    }), nil
+}
+
+func handleUpdateParticleSettings(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+    // Validate authentication
+    username, err := shared.ValidateAuth(request)
+    if err != nil {
+        return shared.CreateErrorResponse(401, "Unauthorized"), nil
+    }
+
+    var updateReq struct {
+        ParticleToken string `json:"particleToken"`
+    }
+
+    body := shared.GetRequestBody(request)
+    if err := json.Unmarshal([]byte(body), &updateReq); err != nil {
+        return shared.CreateErrorResponse(400, "Invalid request body"), nil
+    }
+
+    if updateReq.ParticleToken == "" {
+        return shared.CreateErrorResponse(400, "Particle token is required"), nil
+    }
+
+    // Get user from database
+    key, _ := attributevalue.MarshalMap(map[string]string{
+        "username": username,
+    })
+
+    var user shared.User
+    if err := shared.GetItem(ctx, usersTable, key, &user); err != nil {
+        return shared.CreateErrorResponse(500, "Database error"), nil
+    }
+
+    if user.Username == "" {
+        return shared.CreateErrorResponse(404, "User not found"), nil
+    }
+
+    // Update particle token
+    user.ParticleToken = updateReq.ParticleToken
+    user.UpdatedAt = time.Now()
+
+    if err := shared.PutItem(ctx, usersTable, user); err != nil {
+        return shared.CreateErrorResponse(500, "Failed to update settings"), nil
+    }
+
+    return shared.CreateSuccessResponse(200, map[string]string{
+        "message": "Particle token updated successfully",
     }), nil
 }
 

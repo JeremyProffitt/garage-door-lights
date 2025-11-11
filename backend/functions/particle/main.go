@@ -52,6 +52,12 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	case path == "/api/particle/devices/refresh" && method == "POST":
 		log.Println("Routing to handleRefreshDevices")
 		return handleRefreshDevices(ctx, username)
+	case path == "/api/particle/validate-token" && method == "POST":
+		log.Println("Routing to handleValidateToken")
+		return handleValidateToken(ctx, username, request)
+	case path == "/api/particle/oauth/initiate" && method == "POST":
+		log.Println("Routing to handleOAuthInitiate")
+		return handleOAuthInitiate(ctx, username)
 	case deviceID != "" && method == "GET":
 		log.Printf("Routing to handleGetDeviceInfo for deviceID: %s", deviceID)
 		return handleGetDeviceInfo(ctx, username, deviceID)
@@ -493,6 +499,67 @@ func safeTokenDisplay(token string) string {
 		return strings.Repeat("*", len(token))
 	}
 	return token[:10]
+}
+
+func handleValidateToken(ctx context.Context, username string, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	log.Printf("=== handleValidateToken: Starting for user %s ===", username)
+
+	var req struct {
+		ParticleToken string `json:"particleToken"`
+	}
+
+	body := shared.GetRequestBody(request)
+	if err := json.Unmarshal([]byte(body), &req); err != nil {
+		log.Printf("Failed to parse request body: %v", err)
+		return shared.CreateErrorResponse(400, "Invalid request body"), nil
+	}
+
+	if req.ParticleToken == "" {
+		log.Println("No token provided in request")
+		return shared.CreateErrorResponse(400, "Particle token is required"), nil
+	}
+
+	log.Printf("Validating token (first 10 chars): %s...", safeTokenDisplay(req.ParticleToken))
+
+	// Try to get devices from Particle API to validate the token
+	devices, err := getParticleDevices(req.ParticleToken)
+	if err != nil {
+		log.Printf("Token validation failed: %v", err)
+		return shared.CreateErrorResponse(401, "Invalid Particle token"), nil
+	}
+
+	log.Printf("Token validation successful! Found %d devices", len(devices))
+
+	return shared.CreateSuccessResponse(200, map[string]interface{}{
+		"message": fmt.Sprintf("Token is valid! Found %d device(s)", len(devices)),
+		"devices": len(devices),
+	}), nil
+}
+
+func handleOAuthInitiate(ctx context.Context, username string) (events.APIGatewayProxyResponse, error) {
+	log.Printf("=== handleOAuthInitiate: Starting for user %s ===", username)
+
+	// Particle OAuth configuration
+	clientID := os.Getenv("PARTICLE_CLIENT_ID")
+	redirectURI := os.Getenv("PARTICLE_REDIRECT_URI")
+
+	if clientID == "" || redirectURI == "" {
+		log.Println("Particle OAuth not configured - missing CLIENT_ID or REDIRECT_URI")
+		return shared.CreateErrorResponse(500, "Particle OAuth is not configured. Please use the manual token entry method."), nil
+	}
+
+	// Build OAuth authorization URL
+	authURL := fmt.Sprintf(
+		"https://login.particle.io/oauth/authorize?client_id=%s&redirect_uri=%s&response_type=token&scope=*",
+		clientID,
+		redirectURI,
+	)
+
+	log.Printf("Generated OAuth URL (client_id=%s)", safeTokenDisplay(clientID))
+
+	return shared.CreateSuccessResponse(200, map[string]string{
+		"authUrl": authURL,
+	}), nil
 }
 
 func main() {

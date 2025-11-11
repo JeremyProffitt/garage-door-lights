@@ -23,15 +23,6 @@
                     <label for="password">Password</label>
                     <input type="password" id="password" name="password" required>
                 </div>
-                <div class="form-group">
-                    <label for="particleUsername">Particle Username (optional)</label>
-                    <input type="text" id="particleUsername" name="particleUsername">
-                </div>
-                <div class="form-group">
-                    <label for="particleToken">Particle Access Token (optional)</label>
-                    <input type="text" id="particleToken" name="particleToken">
-                    <small>You can add this later in settings</small>
-                </div>
                 <div id="error" class="error" style="display:none;"></div>
                 <button type="submit" class="btn btn-primary">Register</button>
                 <p>Already have an account? <a href="/login">Login</a></p>
@@ -45,9 +36,7 @@
             const formData = {
                 username: document.getElementById('username').value,
                 email: document.getElementById('email').value,
-                password: document.getElementById('password').value,
-                particleUsername: document.getElementById('particleUsername').value,
-                particleToken: document.getElementById('particleToken').value
+                password: document.getElementById('password').value
             };
             const errorEl = document.getElementById('error');
 
