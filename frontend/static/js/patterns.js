@@ -24,7 +24,9 @@ function patternsPage() {
         },
 
         async loadPatterns() {
-            const resp = await fetch('/api/patterns');
+            const resp = await fetch('/api/patterns', {
+                credentials: 'same-origin'
+            });
             const data = await resp.json();
             if (data.success) {
                 this.patterns = (data.data || []).map(p => {
@@ -161,6 +163,7 @@ function patternsPage() {
             const resp = await fetch(url, {
                 method,
                 headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
                 body: JSON.stringify(payload)
             });
 
@@ -180,7 +183,8 @@ function patternsPage() {
             if (!confirm('Are you sure you want to delete this pattern?')) return;
 
             const resp = await fetch(`/api/patterns/${patternId}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                credentials: 'same-origin'
             });
 
             const data = await resp.json();

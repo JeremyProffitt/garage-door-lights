@@ -18,7 +18,9 @@ function devicesPage() {
 
         async loadDevices() {
             this.isLoading = true;
-            const resp = await fetch('/api/devices');
+            const resp = await fetch('/api/devices', {
+                credentials: 'same-origin'
+            });
             const data = await resp.json();
             if (data.success) {
                 this.devices = data.data || [];
@@ -27,7 +29,9 @@ function devicesPage() {
         },
 
         async loadPatterns() {
-            const resp = await fetch('/api/patterns');
+            const resp = await fetch('/api/patterns', {
+                credentials: 'same-origin'
+            });
             const data = await resp.json();
             if (data.success) {
                 this.patterns = data.data || [];
@@ -39,7 +43,8 @@ function devicesPage() {
             try {
                 const resp = await fetch('/api/particle/devices/refresh', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'}
+                    headers: {'Content-Type': 'application/json'},
+                    credentials: 'same-origin'
                 });
 
                 const data = await resp.json();
@@ -61,6 +66,7 @@ function devicesPage() {
             const resp = await fetch('/api/devices', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
                 body: JSON.stringify(this.newDevice)
             });
 
@@ -79,7 +85,8 @@ function devicesPage() {
             if (!confirm('Are you sure you want to delete this device?')) return;
 
             const resp = await fetch(`/api/devices/${deviceId}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                credentials: 'same-origin'
             });
 
             const data = await resp.json();
@@ -100,6 +107,7 @@ function devicesPage() {
             const resp = await fetch(`/api/devices/${this.selectedDevice.deviceId}/pattern`, {
                 method: 'PUT',
                 headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
                 body: JSON.stringify({patternId})
             });
 
@@ -119,6 +127,7 @@ function devicesPage() {
             await fetch('/api/particle/command', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
                 body: JSON.stringify({deviceId, patternId})
             });
         },
@@ -128,6 +137,7 @@ function devicesPage() {
             const resp = await fetch('/api/particle/command', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
                 body: JSON.stringify({
                     deviceId: device.deviceId,
                     command: 'setPattern',
