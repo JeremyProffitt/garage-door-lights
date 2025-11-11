@@ -3,6 +3,8 @@ package main
 import (
     "context"
     "encoding/json"
+    "fmt"
+    "log"
     "os"
     "time"
 
@@ -156,21 +158,30 @@ func handleUpdateParticleSettings(ctx context.Context, request events.APIGateway
     // Validate authentication
     username, err := shared.ValidateAuth(request)
     if err != nil {
+        log.Printf("UpdateParticleSettings: Auth validation failed: %v", err)
         return shared.CreateErrorResponse(401, "Unauthorized"), nil
     }
+
+    log.Printf("UpdateParticleSettings: User %s updating particle token", username)
 
     var updateReq struct {
         ParticleToken string `json:"particleToken"`
     }
 
     body := shared.GetRequestBody(request)
+    log.Printf("UpdateParticleSettings: Request body: %s", body)
+
     if err := json.Unmarshal([]byte(body), &updateReq); err != nil {
+        log.Printf("UpdateParticleSettings: Failed to parse request: %v", err)
         return shared.CreateErrorResponse(400, "Invalid request body"), nil
     }
 
     if updateReq.ParticleToken == "" {
+        log.Println("UpdateParticleSettings: Token is empty")
         return shared.CreateErrorResponse(400, "Particle token is required"), nil
     }
+
+    log.Printf("UpdateParticleSettings: Token length: %d", len(updateReq.ParticleToken))
 
     // Get user from database
     key, _ := attributevalue.MarshalMap(map[string]string{
@@ -179,21 +190,28 @@ func handleUpdateParticleSettings(ctx context.Context, request events.APIGateway
 
     var user shared.User
     if err := shared.GetItem(ctx, usersTable, key, &user); err != nil {
-        return shared.CreateErrorResponse(500, "Database error"), nil
+        log.Printf("UpdateParticleSettings: Failed to get user: %v", err)
+        return shared.CreateErrorResponse(500, "Database error getting user"), nil
     }
 
     if user.Username == "" {
+        log.Printf("UpdateParticleSettings: User %s not found", username)
         return shared.CreateErrorResponse(404, "User not found"), nil
     }
+
+    log.Printf("UpdateParticleSettings: Found user %s, updating token", username)
 
     // Update particle token
     user.ParticleToken = updateReq.ParticleToken
     user.UpdatedAt = time.Now()
 
+    log.Printf("UpdateParticleSettings: Attempting to save user to DynamoDB")
     if err := shared.PutItem(ctx, usersTable, user); err != nil {
-        return shared.CreateErrorResponse(500, "Failed to update settings"), nil
+        log.Printf("UpdateParticleSettings: Failed to update user in DynamoDB: %v", err)
+        return shared.CreateErrorResponse(500, fmt.Sprintf("Failed to update settings: %v", err)), nil
     }
 
+    log.Printf("UpdateParticleSettings: Successfully updated token for user %s", username)
     return shared.CreateSuccessResponse(200, map[string]string{
         "message": "Particle token updated successfully",
     }), nil
