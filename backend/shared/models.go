@@ -36,6 +36,7 @@ type Device struct {
     ParticleID      string    `json:"particleId" dynamodbav:"particleId"`
     AssignedPattern string    `json:"assignedPattern,omitempty" dynamodbav:"assignedPattern"`
     IsOnline        bool      `json:"isOnline" dynamodbav:"isOnline"`
+    IsHidden        bool      `json:"isHidden" dynamodbav:"isHidden"`
     LastSeen        time.Time `json:"lastSeen" dynamodbav:"lastSeen"`
     CreatedAt       time.Time `json:"createdAt" dynamodbav:"createdAt"`
     UpdatedAt       time.Time `json:"updatedAt" dynamodbav:"updatedAt"`

@@ -157,6 +157,7 @@ func handleUpdateDevice(ctx context.Context, username string, deviceID string, r
     var updates struct {
         Name     string `json:"name,omitempty"`
         IsOnline *bool  `json:"isOnline,omitempty"`
+        IsHidden *bool  `json:"isHidden,omitempty"`
     }
 
     body := shared.GetRequestBody(request)
@@ -173,6 +174,9 @@ func handleUpdateDevice(ctx context.Context, username string, deviceID string, r
         if *updates.IsOnline {
             existingDevice.LastSeen = time.Now()
         }
+    }
+    if updates.IsHidden != nil {
+        existingDevice.IsHidden = *updates.IsHidden
     }
 
     existingDevice.UpdatedAt = time.Now()

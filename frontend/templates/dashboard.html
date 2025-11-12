@@ -9,7 +9,7 @@
 </head>
 <body>
     <nav class="navbar">
-        <div class="nav-brand">🕯️ Candle Lights</div>
+        <div class="nav-brand"><a href="/dashboard" style="color: inherit; text-decoration: none;">🕯️ Candle Lights</a></div>
         <div class="nav-menu">
             <a href="/dashboard" class="active">Dashboard</a>
             <a href="/patterns">Patterns</a>
@@ -30,6 +30,7 @@
                 </div>
                 <div x-show="particleStatus === 'connected'" style="color: #10b981;">
                     <p>✓ Connected to Particle.io</p>
+                    <p style="font-size: 0.9rem; opacity: 0.8;" x-text="`${visibleDeviceCount} device(s)${hiddenDeviceCount > 0 ? ' (' + hiddenDeviceCount + ' hidden)' : ''}`"></p>
                 </div>
                 <div x-show="particleStatus === 'error'" style="color: #ef4444;">
                     <p>✗ Not connected to Particle.io</p>
@@ -40,8 +41,8 @@
             <div class="card">
                 <h2>Quick Actions</h2>
                 <div class="buttons">
-                    <a href="/patterns" class="btn btn-primary">Create Pattern</a>
-                    <a href="/devices" class="btn btn-secondary">Add Device</a>
+                    <a href="/patterns" class="btn btn-primary">Manage Patterns</a>
+                    <a href="/devices" class="btn btn-secondary">Device Management</a>
                 </div>
             </div>
 
@@ -67,6 +68,27 @@
                 devices: [],
                 patterns: [],
                 particleStatus: 'checking',
+
+                get visibleDeviceCount() {
+                    return this.devices.filter(d => !d.isHidden).length;
+                },
+
+                get hiddenDeviceCount() {
+                    return this.devices.filter(d => d.isHidden).length;
+                },
+
+                get sortedDevices() {
+                    // Filter out hidden devices and sort: online first, then by name
+                    return this.devices
+                        .filter(d => !d.isHidden)
+                        .sort((a, b) => {
+                            if (a.isOnline !== b.isOnline) {
+                                return b.isOnline ? 1 : -1;
+                            }
+                            return a.name.localeCompare(b.name);
+                        });
+                },
+
                 init() {
                     this.checkParticleConnection();
                     this.loadDevices();
@@ -76,7 +98,8 @@
                     try {
                         const resp = await fetch('/api/particle/devices/refresh', {
                             method: 'POST',
-                            headers: {'Content-Type': 'application/json'}
+                            headers: {'Content-Type': 'application/json'},
+                            credentials: 'same-origin'
                         });
                         const data = await resp.json();
                         if (data.success) {
@@ -90,7 +113,9 @@
                 },
                 async loadDevices() {
                     try {
-                        const resp = await fetch('/api/devices');
+                        const resp = await fetch('/api/devices', {
+                            credentials: 'same-origin'
+                        });
                         const data = await resp.json();
                         if (data.success) {
                             this.devices = data.data || [];
@@ -103,7 +128,9 @@
                 },
                 async loadPatterns() {
                     try {
-                        const resp = await fetch('/api/patterns');
+                        const resp = await fetch('/api/patterns', {
+                            credentials: 'same-origin'
+                        });
                         const data = await resp.json();
                         if (data.success) {
                             this.patterns = data.data || [];
@@ -116,11 +143,11 @@
                 },
                 renderDevices() {
                     const el = document.getElementById('devicesList');
-                    if (this.devices.length === 0) {
+                    if (this.sortedDevices.length === 0) {
                         el.innerHTML = '<p style="color: #6b7280;">No devices registered yet. <a href="/devices" style="color: #7e22ce; font-weight: 600;">Go to Devices page</a> to add one!</p>';
                         return;
                     }
-                    el.innerHTML = this.devices.slice(0, 5).map(d => `
+                    el.innerHTML = this.sortedDevices.slice(0, 5).map(d => `
                         <div class="list-item">
                             <span>${d.name}</span>
                             <span class="badge ${d.isOnline ? 'badge-success' : 'badge-danger'}">

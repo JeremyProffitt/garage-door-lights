@@ -9,7 +9,7 @@
 </head>
 <body>
     <nav class="navbar">
-        <div class="nav-brand">🕯️ Candle Lights</div>
+        <div class="nav-brand"><a href="/dashboard" style="color: inherit; text-decoration: none;">🕯️ Candle Lights</a></div>
         <div class="nav-menu">
             <a href="/dashboard">Dashboard</a>
             <a href="/patterns">Patterns</a>
@@ -20,14 +20,25 @@
     </nav>
 
     <div class="container" x-data="devicesPage()">
-        <h1 style="color: white;">Your Devices</h1>
-
-        <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-            <button @click="showAddModal = true" class="btn btn-primary">Add New Device</button>
-            <button @click="refreshFromParticle()" class="btn btn-secondary">🔄 Refresh from Particle.io</button>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h1 style="color: white;">Your Devices (<span x-text="deviceCount"></span><span x-show="hiddenDeviceCount > 0" style="opacity: 0.7;"> + <span x-text="hiddenDeviceCount"></span> hidden</span>)</h1>
+            <label style="color: white; cursor: pointer;">
+                <input type="checkbox" x-model="showHidden"> Show Hidden Devices
+            </label>
         </div>
 
-        <div x-show="devices.length === 0 && !isLoading" style="color: white; margin-top: 2rem; font-size: 1.1rem;">
+        <div style="display: flex; gap: 1rem; margin-bottom: 1rem; flex-direction: column;">
+            <div style="display: flex; gap: 1rem;">
+                <button @click="showAddModal = true" class="btn btn-primary">Add New Device</button>
+                <button @click="refreshFromParticle()" class="btn btn-secondary" :disabled="isRefreshing">
+                    <span x-show="!isRefreshing">🔄 Refresh from Particle.io</span>
+                    <span x-show="isRefreshing">🔄 Refreshing...</span>
+                </button>
+            </div>
+            <div x-show="refreshMessage" style="color: white; padding: 0.5rem; background: rgba(255,255,255,0.1); border-radius: 4px;" x-text="refreshMessage"></div>
+        </div>
+
+        <div x-show="filteredDevices.length === 0 && !isLoading" style="color: white; margin-top: 2rem; font-size: 1.1rem;">
             <p>No devices registered yet. Click "Add New Device" to manually add a device, or "Refresh from Particle.io" to import your Particle devices!</p>
         </div>
 
@@ -36,8 +47,8 @@
         </div>
 
         <div class="devices-grid">
-            <template x-for="device in devices" :key="device.deviceId">
-                <div class="card device-card">
+            <template x-for="device in filteredDevices" :key="device.deviceId">
+                <div class="card device-card" :style="device.isHidden ? 'opacity: 0.6' : ''">
                     <div class="device-header">
                         <h3 x-text="device.name"></h3>
                         <span class="badge" :class="device.isOnline ? 'badge-success' : 'badge-danger'" x-text="device.isOnline ? 'Online' : 'Offline'"></span>
@@ -49,8 +60,10 @@
                     </div>
                     <div class="buttons">
                         <button @click="selectDeviceForPattern(device)" class="btn btn-sm btn-primary">Assign Pattern</button>
-                        <button @click="testDevice(device)" class="btn btn-sm btn-secondary">Test</button>
-                        <button @click="deleteDevice(device.deviceId)" class="btn btn-sm btn-danger">Delete</button>
+                        <button x-show="device.isOnline" @click="testDevice(device)" class="btn btn-sm btn-secondary">Test</button>
+                        <button @click="toggleHidden(device.deviceId, device.isHidden)" class="btn btn-sm" :class="device.isHidden ? 'btn-secondary' : 'btn-danger'">
+                            <span x-text="device.isHidden ? 'Unhide' : 'Hide'"></span>
+                        </button>
                     </div>
                 </div>
             </template>

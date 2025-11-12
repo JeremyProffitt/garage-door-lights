@@ -6,6 +6,9 @@ function devicesPage() {
         showPatternModal: false,
         selectedDevice: null,
         isLoading: true,
+        isRefreshing: false,
+        refreshMessage: '',
+        showHidden: false,
         newDevice: {
             name: '',
             particleId: ''
@@ -14,6 +17,25 @@ function devicesPage() {
         init() {
             this.loadDevices();
             this.loadPatterns();
+        },
+
+        get filteredDevices() {
+            let filtered = this.devices.filter(d => this.showHidden || !d.isHidden);
+            // Sort: online devices first, then by name
+            return filtered.sort((a, b) => {
+                if (a.isOnline !== b.isOnline) {
+                    return b.isOnline ? 1 : -1;
+                }
+                return a.name.localeCompare(b.name);
+            });
+        },
+
+        get deviceCount() {
+            return this.devices.filter(d => !d.isHidden).length;
+        },
+
+        get hiddenDeviceCount() {
+            return this.devices.filter(d => d.isHidden).length;
         },
 
         async loadDevices() {
@@ -39,7 +61,8 @@ function devicesPage() {
         },
 
         async refreshFromParticle() {
-            this.isLoading = true;
+            this.isRefreshing = true;
+            this.refreshMessage = '';
             try {
                 const resp = await fetch('/api/particle/devices/refresh', {
                     method: 'POST',
@@ -50,15 +73,20 @@ function devicesPage() {
                 const data = await resp.json();
 
                 if (data.success) {
-                    alert(`Successfully refreshed! Found ${data.count || 0} device(s) from Particle.io`);
+                    const count = data.count || 0;
+                    this.refreshMessage = `Successfully refreshed! Found ${count} device(s) from Particle.io`;
                     await this.loadDevices();
+                    // Clear message after 5 seconds
+                    setTimeout(() => {
+                        this.refreshMessage = '';
+                    }, 5000);
                 } else {
-                    alert('Error refreshing devices: ' + (data.error || 'Unknown error'));
+                    this.refreshMessage = 'Error refreshing devices: ' + (data.error || 'Unknown error');
                 }
             } catch (err) {
-                alert('Error refreshing devices: ' + err.message);
+                this.refreshMessage = 'Error refreshing devices: ' + err.message;
             } finally {
-                this.isLoading = false;
+                this.isRefreshing = false;
             }
         },
 
@@ -81,12 +109,12 @@ function devicesPage() {
             }
         },
 
-        async deleteDevice(deviceId) {
-            if (!confirm('Are you sure you want to delete this device?')) return;
-
+        async toggleHidden(deviceId, currentHidden) {
             const resp = await fetch(`/api/devices/${deviceId}`, {
-                method: 'DELETE',
-                credentials: 'same-origin'
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
+                body: JSON.stringify({isHidden: !currentHidden})
             });
 
             const data = await resp.json();
