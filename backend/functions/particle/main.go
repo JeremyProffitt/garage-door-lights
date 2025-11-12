@@ -10,10 +10,12 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/google/uuid"
 
 	"candle-lights/backend/shared"
 )
@@ -259,7 +261,7 @@ func handleRefreshDevices(ctx context.Context, username string) (events.APIGatew
 			continue
 		}
 
-		now := shared.GetCurrentTime()
+		now := time.Now()
 
 		if existingDevice != nil {
 			// Update existing device
@@ -284,7 +286,7 @@ func handleRefreshDevices(ctx context.Context, username string) (events.APIGatew
 			log.Printf("Successfully updated device: %s", existingDevice.DeviceID)
 		} else {
 			// Create new device
-			deviceID := shared.GenerateID()
+			deviceID := uuid.New().String()
 			log.Printf("Creating new device with ID: %s", deviceID)
 
 			device := shared.Device{
