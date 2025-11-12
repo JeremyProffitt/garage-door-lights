@@ -273,13 +273,7 @@ func handleRefreshDevices(ctx context.Context, username string) (events.APIGatew
 			}
 			existingDevice.UpdatedAt = now
 
-			deviceMap, err := attributevalue.MarshalMap(existingDevice)
-			if err != nil {
-				log.Printf("Failed to marshal device: %v", err)
-				continue
-			}
-
-			if err := shared.PutItem(ctx, devicesTable, deviceMap); err != nil {
+			if err := shared.PutItem(ctx, devicesTable, existingDevice); err != nil {
 				log.Printf("Failed to update device: %v", err)
 				continue
 			}
@@ -300,13 +294,7 @@ func handleRefreshDevices(ctx context.Context, username string) (events.APIGatew
 				UpdatedAt:  now,
 			}
 
-			deviceMap, err := attributevalue.MarshalMap(device)
-			if err != nil {
-				log.Printf("Failed to marshal new device: %v", err)
-				continue
-			}
-
-			if err := shared.PutItem(ctx, devicesTable, deviceMap); err != nil {
+			if err := shared.PutItem(ctx, devicesTable, device); err != nil {
 				log.Printf("Failed to save new device: %v", err)
 				continue
 			}
