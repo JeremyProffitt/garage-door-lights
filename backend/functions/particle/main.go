@@ -223,21 +223,101 @@ func handleRefreshDevices(ctx context.Context, username string) (events.APIGatew
 
 	// Get devices from Particle cloud
 	log.Println("Calling Particle API to get devices...")
-	devices, err := getParticleDevices(user.ParticleToken)
+	particleDevices, err := getParticleDevices(user.ParticleToken)
 	if err != nil {
 		log.Printf("Failed to get devices from Particle: %v", err)
 		return shared.CreateErrorResponse(500, fmt.Sprintf("Failed to get devices from Particle: %v", err)), nil
 	}
 
-	log.Printf("Successfully retrieved %d devices from Particle", len(devices))
-	for i, dev := range devices {
+	log.Printf("Successfully retrieved %d devices from Particle", len(particleDevices))
+	for i, dev := range particleDevices {
 		log.Printf("  Device %d: id=%v, name=%v, connected=%v",
 			i+1, dev["id"], dev["name"], dev["connected"])
 	}
 
+	// Save devices to DynamoDB
+	savedCount := 0
+	for _, particleDev := range particleDevices {
+		particleID, ok := particleDev["id"].(string)
+		if !ok || particleID == "" {
+			log.Printf("Skipping device with invalid ID: %v", particleDev)
+			continue
+		}
+
+		name, _ := particleDev["name"].(string)
+		if name == "" {
+			name = particleID // Use Particle ID as fallback name
+		}
+
+		connected, _ := particleDev["connected"].(bool)
+
+		// Check if device already exists for this user
+		log.Printf("Checking if device %s already exists for user %s", particleID, username)
+		existingDevice, err := findDeviceByParticleID(ctx, username, particleID)
+		if err != nil {
+			log.Printf("Error checking for existing device: %v", err)
+			continue
+		}
+
+		now := shared.GetCurrentTime()
+
+		if existingDevice != nil {
+			// Update existing device
+			log.Printf("Updating existing device: %s", existingDevice.DeviceID)
+			existingDevice.Name = name
+			existingDevice.IsOnline = connected
+			if connected {
+				existingDevice.LastSeen = now
+			}
+			existingDevice.UpdatedAt = now
+
+			deviceMap, err := attributevalue.MarshalMap(existingDevice)
+			if err != nil {
+				log.Printf("Failed to marshal device: %v", err)
+				continue
+			}
+
+			if err := shared.PutItem(ctx, devicesTable, deviceMap); err != nil {
+				log.Printf("Failed to update device: %v", err)
+				continue
+			}
+			log.Printf("Successfully updated device: %s", existingDevice.DeviceID)
+		} else {
+			// Create new device
+			deviceID := shared.GenerateID()
+			log.Printf("Creating new device with ID: %s", deviceID)
+
+			device := shared.Device{
+				DeviceID:   deviceID,
+				UserID:     username,
+				Name:       name,
+				ParticleID: particleID,
+				IsOnline:   connected,
+				LastSeen:   now,
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			}
+
+			deviceMap, err := attributevalue.MarshalMap(device)
+			if err != nil {
+				log.Printf("Failed to marshal new device: %v", err)
+				continue
+			}
+
+			if err := shared.PutItem(ctx, devicesTable, deviceMap); err != nil {
+				log.Printf("Failed to save new device: %v", err)
+				continue
+			}
+			log.Printf("Successfully created device: %s", deviceID)
+		}
+		savedCount++
+	}
+
+	log.Printf("Saved %d devices to database", savedCount)
+
 	return shared.CreateSuccessResponse(200, map[string]interface{}{
-		"count":   len(devices),
-		"devices": devices,
+		"count":   savedCount,
+		"devices": particleDevices,
 	}), nil
 }
 
@@ -560,6 +640,28 @@ func handleOAuthInitiate(ctx context.Context, username string) (events.APIGatewa
 	return shared.CreateSuccessResponse(200, map[string]string{
 		"authUrl": authURL,
 	}), nil
+}
+
+// findDeviceByParticleID searches for an existing device by Particle ID for a given user
+func findDeviceByParticleID(ctx context.Context, username, particleID string) (*shared.Device, error) {
+	log.Printf("=== findDeviceByParticleID: username=%s, particleID=%s ===", username, particleID)
+
+	// Scan the devices table for a device with this Particle ID and user ID
+	var devices []shared.Device
+	if err := shared.Scan(ctx, devicesTable, &devices); err != nil {
+		log.Printf("Failed to scan devices table: %v", err)
+		return nil, err
+	}
+
+	for _, device := range devices {
+		if device.UserID == username && device.ParticleID == particleID {
+			log.Printf("Found existing device: deviceID=%s, particleID=%s", device.DeviceID, device.ParticleID)
+			return &device, nil
+		}
+	}
+
+	log.Printf("No existing device found for particleID=%s", particleID)
+	return nil, nil
 }
 
 func main() {
