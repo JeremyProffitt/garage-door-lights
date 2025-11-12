@@ -292,7 +292,7 @@ Resources:
       CodeUri: backend/functions/particle/
       Handler: bootstrap
       Policies:
-        - DynamoDBReadPolicy:
+        - DynamoDBCrudPolicy:
             TableName: !Ref DevicesTable
         - DynamoDBReadPolicy:
             TableName: !Ref PatternsTable
