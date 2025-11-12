@@ -201,7 +201,7 @@ func handleSendCommand(ctx context.Context, username string, request events.APIG
 }
 
 func handleRefreshDevices(ctx context.Context, username string) (events.APIGatewayProxyResponse, error) {
-	log.Printf("=== handleRefreshDevices: Starting for user %s ===", username)
+	log.Printf("=== handleRefreshDevices V2 (Fixed Double-Marshal Bug): Starting for user %s ===", username)
 
 	// Get user's Particle token
 	log.Printf("Fetching user from DynamoDB: %s", username)
@@ -273,7 +273,10 @@ func handleRefreshDevices(ctx context.Context, username string) (events.APIGatew
 			}
 			existingDevice.UpdatedAt = now
 
-			if err := shared.PutItem(ctx, devicesTable, existingDevice); err != nil {
+			// Dereference pointer to pass value, not pointer
+			deviceValue := *existingDevice
+			log.Printf("About to PutItem - deviceValue type: %T, deviceId: %s", deviceValue, deviceValue.DeviceID)
+			if err := shared.PutItem(ctx, devicesTable, deviceValue); err != nil {
 				log.Printf("Failed to update device: %v", err)
 				continue
 			}
@@ -294,6 +297,7 @@ func handleRefreshDevices(ctx context.Context, username string) (events.APIGatew
 				UpdatedAt:  now,
 			}
 
+			log.Printf("About to PutItem - device type: %T, deviceId: %s", device, device.DeviceID)
 			if err := shared.PutItem(ctx, devicesTable, device); err != nil {
 				log.Printf("Failed to save new device: %v", err)
 				continue

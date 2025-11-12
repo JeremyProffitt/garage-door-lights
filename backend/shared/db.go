@@ -67,7 +67,8 @@ func GetItem(ctx context.Context, tableName string, key map[string]types.Attribu
 
 // PutItem puts an item into DynamoDB
 func PutItem(ctx context.Context, tableName string, item interface{}) error {
-    log.Printf("[DB] PutItem: table=%s, item=%+v", tableName, item)
+    log.Printf("[DB] PutItem: table=%s, item type=%T", tableName, item)
+    log.Printf("[DB] PutItem: item value=%+v", item)
 
     client, err := InitDynamoDB()
     if err != nil {
@@ -79,6 +80,12 @@ func PutItem(ctx context.Context, tableName string, item interface{}) error {
     if err != nil {
         log.Printf("[DB] PutItem ERROR: Failed to marshal item for %s: %v", tableName, err)
         return err
+    }
+
+    // Log the marshaled attributes to see what's being sent to DynamoDB
+    log.Printf("[DB] PutItem: marshaled AttributeValues count=%d", len(av))
+    for key, val := range av {
+        log.Printf("[DB] PutItem: marshaled field %s type=%T", key, val)
     }
 
     _, err = client.PutItem(ctx, &dynamodb.PutItemInput{
