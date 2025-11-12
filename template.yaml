@@ -13,10 +13,6 @@ Parameters:
   CertificateArn:
     Type: String
     Description: ACM Certificate ARN for the custom domain
-  JwtSecret:
-    Type: String
-    NoEcho: true
-    Description: Secret key for JWT token signing (should be a random 32+ character string)
 
 Globals:
   Function:
@@ -29,8 +25,8 @@ Globals:
         USERS_TABLE: !Ref UsersTable
         PATTERNS_TABLE: !Ref PatternsTable
         DEVICES_TABLE: !Ref DevicesTable
+        SESSIONS_TABLE: !Ref SessionsTable
         DOMAIN_NAME: !Ref DomainName
-        JWT_SECRET: !Ref JwtSecret
 
 Resources:
   # DynamoDB Tables
@@ -90,6 +86,30 @@ Resources:
           Projection:
             ProjectionType: ALL
 
+  SessionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${AWS::StackName}-sessions
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: sessionId
+          AttributeType: S
+        - AttributeName: username
+          AttributeType: S
+      KeySchema:
+        - AttributeName: sessionId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: username-index
+          KeySchema:
+            - AttributeName: username
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+
   # CloudWatch Log Groups with retention
   AuthFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -133,6 +153,8 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref UsersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SessionsTable
       Events:
         Login:
           Type: Api
@@ -172,6 +194,8 @@ Resources:
             TableName: !Ref PatternsTable
         - DynamoDBReadPolicy:
             TableName: !Ref UsersTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref SessionsTable
       Events:
         List:
           Type: Api
@@ -219,6 +243,8 @@ Resources:
             TableName: !Ref UsersTable
         - DynamoDBReadPolicy:
             TableName: !Ref PatternsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref SessionsTable
       Events:
         List:
           Type: Api
@@ -272,6 +298,8 @@ Resources:
             TableName: !Ref PatternsTable
         - DynamoDBReadPolicy:
             TableName: !Ref UsersTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref SessionsTable
       Events:
         SendCommand:
           Type: Api
@@ -326,6 +354,7 @@ Resources:
                 - dynamodb:Query
               Resource:
                 - !GetAtt UsersTable.Arn
+                - !GetAtt SessionsTable.Arn
       Events:
         Root:
           Type: Api
@@ -373,3 +402,6 @@ Outputs:
   DevicesTableName:
     Description: Devices DynamoDB table name
     Value: !Ref DevicesTable
+  SessionsTableName:
+    Description: Sessions DynamoDB table name
+    Value: !Ref SessionsTable

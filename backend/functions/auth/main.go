@@ -61,14 +61,16 @@ func handleLogin(ctx context.Context, request events.APIGatewayProxyRequest) (ev
         return shared.CreateErrorResponse(401, "Invalid credentials"), nil
     }
 
-    // Generate JWT token
-    token, err := shared.GenerateToken(user.Username)
+    // Create session
+    userAgent := request.Headers["User-Agent"]
+    ipAddress := request.RequestContext.Identity.SourceIP
+    session, err := shared.CreateSession(ctx, user.Username, userAgent, ipAddress)
     if err != nil {
-        return shared.CreateErrorResponse(500, "Failed to generate token"), nil
+        return shared.CreateErrorResponse(500, "Failed to create session"), nil
     }
 
     response := shared.LoginResponse{
-        Token:    token,
+        Token:    session.SessionID,
         Username: user.Username,
     }
 
@@ -124,14 +126,16 @@ func handleRegister(ctx context.Context, request events.APIGatewayProxyRequest) 
         return shared.CreateErrorResponse(500, "Failed to create user"), nil
     }
 
-    // Generate token
-    token, err := shared.GenerateToken(user.Username)
+    // Create session
+    userAgent := request.Headers["User-Agent"]
+    ipAddress := request.RequestContext.Identity.SourceIP
+    session, err := shared.CreateSession(ctx, user.Username, userAgent, ipAddress)
     if err != nil {
-        return shared.CreateErrorResponse(500, "Failed to generate token"), nil
+        return shared.CreateErrorResponse(500, "Failed to create session"), nil
     }
 
     response := shared.LoginResponse{
-        Token:    token,
+        Token:    session.SessionID,
         Username: user.Username,
     }
 
@@ -139,13 +143,13 @@ func handleRegister(ctx context.Context, request events.APIGatewayProxyRequest) 
 }
 
 func handleValidate(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-    username, err := shared.ValidateAuth(request)
+    username, err := shared.ValidateAuth(ctx, request)
     if err != nil {
-        return shared.CreateErrorResponse(401, "Invalid token"), nil
+        return shared.CreateErrorResponse(401, "Invalid session"), nil
     }
 
     if username == "" {
-        return shared.CreateErrorResponse(401, "No token provided"), nil
+        return shared.CreateErrorResponse(401, "No session provided"), nil
     }
 
     return shared.CreateSuccessResponse(200, map[string]string{
@@ -156,7 +160,7 @@ func handleValidate(ctx context.Context, request events.APIGatewayProxyRequest) 
 
 func handleUpdateParticleSettings(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
     // Validate authentication
-    username, err := shared.ValidateAuth(request)
+    username, err := shared.ValidateAuth(ctx, request)
     if err != nil {
         log.Printf("UpdateParticleSettings: Auth validation failed: %v", err)
         return shared.CreateErrorResponse(401, "Unauthorized"), nil

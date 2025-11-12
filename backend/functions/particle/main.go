@@ -33,7 +33,7 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	log.Printf("PathParameters: %+v", request.PathParameters)
 
 	// Validate authentication
-	username, err := shared.ValidateAuth(request)
+	username, err := shared.ValidateAuth(ctx, request)
 	if err != nil || username == "" {
 		log.Printf("Authentication failed: err=%v, username=%s", err, username)
 		return shared.CreateErrorResponse(401, "Unauthorized"), nil

@@ -14,17 +14,17 @@ import (
 
 var apiEndpoint = os.Getenv("API_ENDPOINT")
 
-// AuthMiddleware validates the JWT token
+// AuthMiddleware validates the session
 func AuthMiddleware(c *fiber.Ctx) error {
-    log.Printf("AuthMiddleware: Validating token for path: %s", c.Path())
+    log.Printf("AuthMiddleware: Validating session for path: %s", c.Path())
 
-    token := c.Cookies("token")
-    if token == "" {
-        log.Println("AuthMiddleware: No token cookie found, redirecting to login")
+    sessionID := c.Cookies("session_id")
+    if sessionID == "" {
+        log.Println("AuthMiddleware: No session cookie found, redirecting to login")
         return c.Redirect("/login")
     }
 
-    // Validate token with backend API
+    // Validate session with backend API
     apiURL := apiEndpoint + "/api/auth/validate"
     log.Printf("AuthMiddleware: Calling validation API at: %s", apiURL)
 
@@ -33,7 +33,7 @@ func AuthMiddleware(c *fiber.Ctx) error {
         log.Printf("AuthMiddleware: Failed to create request: %v", err)
         return c.Redirect("/login")
     }
-    req.Header.Set("Authorization", "Bearer "+token)
+    req.Header.Set("Authorization", "Bearer "+sessionID)
 
     client := &http.Client{
         Timeout: 10 * time.Second,
@@ -71,11 +71,11 @@ func AuthMiddleware(c *fiber.Ctx) error {
     }
 
     if !result.Success {
-        log.Println("AuthMiddleware: Token validation failed")
+        log.Println("AuthMiddleware: Session validation failed")
         return c.Redirect("/login")
     }
 
-    log.Printf("AuthMiddleware: Token validated successfully for user: %s", result.Data.Username)
+    log.Printf("AuthMiddleware: Session validated successfully for user: %s", result.Data.Username)
 
     // Store username in context
     c.Locals("username", result.Data.Username)
@@ -83,20 +83,20 @@ func AuthMiddleware(c *fiber.Ctx) error {
     return c.Next()
 }
 
-// APIAuthMiddleware validates JWT for API requests
+// APIAuthMiddleware validates session for API requests
 func APIAuthMiddleware(c *fiber.Ctx) error {
-    log.Printf("APIAuthMiddleware: Validating token for API path: %s", c.Path())
+    log.Printf("APIAuthMiddleware: Validating session for API path: %s", c.Path())
 
-    token := c.Cookies("token")
-    if token == "" {
-        log.Println("APIAuthMiddleware: No token cookie found")
+    sessionID := c.Cookies("session_id")
+    if sessionID == "" {
+        log.Println("APIAuthMiddleware: No session cookie found")
         return c.Status(401).JSON(fiber.Map{
             "success": false,
-            "error":   "Unauthorized",
+            "error":   "Unauthorized - No session",
         })
     }
 
-    // Validate token with backend API
+    // Validate session with backend API
     apiURL := apiEndpoint + "/api/auth/validate"
     log.Printf("APIAuthMiddleware: Calling validation API at: %s", apiURL)
 
@@ -108,7 +108,7 @@ func APIAuthMiddleware(c *fiber.Ctx) error {
             "error":   "Unauthorized",
         })
     }
-    req.Header.Set("Authorization", "Bearer "+token)
+    req.Header.Set("Authorization", "Bearer "+sessionID)
 
     client := &http.Client{
         Timeout: 10 * time.Second,
@@ -158,14 +158,14 @@ func APIAuthMiddleware(c *fiber.Ctx) error {
     }
 
     if !result.Success {
-        log.Println("APIAuthMiddleware: Token validation failed")
+        log.Println("APIAuthMiddleware: Session validation failed")
         return c.Status(401).JSON(fiber.Map{
             "success": false,
             "error":   "Unauthorized",
         })
     }
 
-    log.Printf("APIAuthMiddleware: Token validated successfully for user: %s", result.Data.Username)
+    log.Printf("APIAuthMiddleware: Session validated successfully for user: %s", result.Data.Username)
 
     // Store username in context
     c.Locals("username", result.Data.Username)

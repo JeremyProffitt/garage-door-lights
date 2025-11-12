@@ -131,11 +131,11 @@ func ParticleOAuthInitiateHandler(c *fiber.Ctx) error {
 }
 
 func proxyRequest(c *fiber.Ctx, method, path string, body []byte) error {
-    token := c.Cookies("token")
-    if token == "" {
+    sessionID := c.Cookies("session_id")
+    if sessionID == "" {
         return c.Status(401).JSON(fiber.Map{
             "success": false,
-            "error":   "Unauthorized",
+            "error":   "Unauthorized - No session",
         })
     }
 
@@ -157,7 +157,8 @@ func proxyRequest(c *fiber.Ctx, method, path string, body []byte) error {
         })
     }
 
-    req.Header.Set("Authorization", "Bearer "+token)
+    // Pass session ID as Bearer token in Authorization header
+    req.Header.Set("Authorization", "Bearer "+sessionID)
     req.Header.Set("Content-Type", "application/json")
 
     client := &http.Client{}

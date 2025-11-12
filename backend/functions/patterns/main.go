@@ -19,7 +19,7 @@ var patternsTable = os.Getenv("PATTERNS_TABLE")
 
 func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
     // Validate authentication
-    username, err := shared.ValidateAuth(request)
+    username, err := shared.ValidateAuth(ctx, request)
     if err != nil || username == "" {
         return shared.CreateErrorResponse(401, "Unauthorized"), nil
     }

@@ -94,13 +94,6 @@ jobs:
             cp -r backend/shared backend/functions/$func/
           done
 
-      - name: Generate JWT Secret
-        id: jwt
-        run: |
-          JWT_SECRET=$(openssl rand -base64 32)
-          echo "::add-mask::$JWT_SECRET"
-          echo "secret=$JWT_SECRET" >> $GITHUB_OUTPUT
-
       - name: Clean previous builds
         run: rm -rf .aws-sam
 
@@ -117,7 +110,6 @@ jobs:
               "DomainName=${{ vars.DOMAIN_NAME }}" \
               "HostedZoneId=${{ vars.HOSTED_ZONE_ID }}" \
               "CertificateArn=${{ vars.CERTIFICATE_ARN }}" \
-              "JwtSecret=${{ steps.jwt.outputs.secret }}" \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
             --s3-bucket ${{ vars.CLOUDFORMATION_S3_BUCKET }} \

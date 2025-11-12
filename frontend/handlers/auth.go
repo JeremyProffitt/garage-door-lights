@@ -135,10 +135,10 @@ func LoginHandler(c *fiber.Ctx) error {
 
 	log.Printf("LoginHandler: Login successful for user: %s", authResp.Data.Username)
 
-	// Set secure HTTP-only cookie for token
+	// Set session ID cookie (HTTP-only, secure)
 	c.Cookie(&fiber.Cookie{
-		Name:     "token",
-		Value:    authResp.Data.Token,
+		Name:     "session_id",
+		Value:    authResp.Data.Token, // Token field now contains session ID
 		Expires:  time.Now().Add(24 * time.Hour),
 		HTTPOnly: true,
 		Secure:   false, // Allow both HTTP and HTTPS for better compatibility
@@ -157,7 +157,7 @@ func LoginHandler(c *fiber.Ctx) error {
 		Path:     "/",
 	})
 
-	log.Printf("LoginHandler: Cookies set, returning success response")
+	log.Printf("LoginHandler: Session cookie set, returning success response")
 
 	return c.JSON(fiber.Map{
 		"success":  true,
@@ -257,10 +257,10 @@ func RegisterHandler(c *fiber.Ctx) error {
 
 	log.Printf("RegisterHandler: Registration successful for user: %s", authResp.Data.Username)
 
-	// Set secure HTTP-only cookie for token
+	// Set session ID cookie (HTTP-only, secure)
 	c.Cookie(&fiber.Cookie{
-		Name:     "token",
-		Value:    authResp.Data.Token,
+		Name:     "session_id",
+		Value:    authResp.Data.Token, // Token field now contains session ID
 		Expires:  time.Now().Add(24 * time.Hour),
 		HTTPOnly: true,
 		Secure:   false, // Allow both HTTP and HTTPS for better compatibility
@@ -279,7 +279,7 @@ func RegisterHandler(c *fiber.Ctx) error {
 		Path:     "/",
 	})
 
-	log.Printf("RegisterHandler: Cookies set, returning success response")
+	log.Printf("RegisterHandler: Session cookie set, returning success response")
 
 	return c.JSON(fiber.Map{
 		"success":  true,
@@ -290,9 +290,9 @@ func RegisterHandler(c *fiber.Ctx) error {
 func LogoutHandler(c *fiber.Ctx) error {
 	log.Println("LogoutHandler: Logging out user")
 
-	// Clear token cookie
+	// Clear session ID cookie
 	c.Cookie(&fiber.Cookie{
-		Name:     "token",
+		Name:     "session_id",
 		Value:    "",
 		Expires:  time.Now().Add(-1 * time.Hour),
 		HTTPOnly: true,
@@ -308,7 +308,7 @@ func LogoutHandler(c *fiber.Ctx) error {
 		Path:     "/",
 	})
 
-	log.Println("LogoutHandler: Cookies cleared, redirecting to home")
+	log.Println("LogoutHandler: Session cookie cleared, redirecting to home")
 
 	return c.Redirect("/")
 }
