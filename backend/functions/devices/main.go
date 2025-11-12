@@ -3,6 +3,7 @@ package main
 import (
     "context"
     "encoding/json"
+    "log"
     "os"
     "time"
 
@@ -19,11 +20,18 @@ var devicesTable = os.Getenv("DEVICES_TABLE")
 var patternsTable = os.Getenv("PATTERNS_TABLE")
 
 func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+    log.Printf("=== Devices Handler Called ===")
+    log.Printf("Path: %s", request.Path)
+    log.Printf("Method: %s", request.HTTPMethod)
+
     // Validate authentication
     username, err := shared.ValidateAuth(ctx, request)
     if err != nil || username == "" {
+        log.Printf("Authentication failed: err=%v, username=%s", err, username)
         return shared.CreateErrorResponse(401, "Unauthorized"), nil
     }
+
+    log.Printf("Authenticated user: %s", username)
 
     path := request.Path
     method := request.HTTPMethod
@@ -31,18 +39,25 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
     switch {
     case path == "/api/devices" && method == "GET":
+        log.Println("Routing to handleListDevices")
         return handleListDevices(ctx, username)
     case path == "/api/devices" && method == "POST":
+        log.Println("Routing to handleRegisterDevice")
         return handleRegisterDevice(ctx, username, request)
     case deviceID != "" && method == "GET":
+        log.Printf("Routing to handleGetDevice for deviceID: %s", deviceID)
         return handleGetDevice(ctx, username, deviceID)
     case deviceID != "" && method == "PUT":
+        log.Printf("Routing to handleUpdateDevice for deviceID: %s", deviceID)
         return handleUpdateDevice(ctx, username, deviceID, request)
     case deviceID != "" && method == "DELETE":
+        log.Printf("Routing to handleDeleteDevice for deviceID: %s", deviceID)
         return handleDeleteDevice(ctx, username, deviceID)
     case deviceID != "" && path == "/api/devices/"+deviceID+"/pattern" && method == "PUT":
+        log.Printf("Routing to handleAssignPattern for deviceID: %s", deviceID)
         return handleAssignPattern(ctx, username, deviceID, request)
     default:
+        log.Printf("No matching route for path: %s, method: %s", path, method)
         return shared.CreateErrorResponse(404, "Not found"), nil
     }
 }

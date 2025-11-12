@@ -163,11 +163,15 @@ func DeleteUserSessions(ctx context.Context, username string) error {
 
 // generateSessionID generates a secure random session ID
 func generateSessionID() (string, error) {
+	log.Println("[SESSION] Generating new session ID")
 	b := make([]byte, 32) // 32 bytes = 256 bits
 	if _, err := rand.Read(b); err != nil {
+		log.Printf("[SESSION] ERROR: Failed to generate random bytes: %v", err)
 		return "", err
 	}
-	return base64.URLEncoding.EncodeToString(b), nil
+	sessionID := base64.URLEncoding.EncodeToString(b)
+	log.Printf("[SESSION] Generated session ID: %s (first 10 chars)", safeDisplay(sessionID, 10))
+	return sessionID, nil
 }
 
 // safeDisplay returns a safe-to-log portion of a string

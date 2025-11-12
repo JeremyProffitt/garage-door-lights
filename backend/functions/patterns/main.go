@@ -3,6 +3,7 @@ package main
 import (
     "context"
     "encoding/json"
+    "log"
     "os"
     "time"
 
@@ -18,11 +19,18 @@ import (
 var patternsTable = os.Getenv("PATTERNS_TABLE")
 
 func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+    log.Printf("=== Patterns Handler Called ===")
+    log.Printf("Path: %s", request.Path)
+    log.Printf("Method: %s", request.HTTPMethod)
+
     // Validate authentication
     username, err := shared.ValidateAuth(ctx, request)
     if err != nil || username == "" {
+        log.Printf("Authentication failed: err=%v, username=%s", err, username)
         return shared.CreateErrorResponse(401, "Unauthorized"), nil
     }
+
+    log.Printf("Authenticated user: %s", username)
 
     path := request.Path
     method := request.HTTPMethod
@@ -30,16 +38,22 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 
     switch {
     case path == "/api/patterns" && method == "GET":
+        log.Println("Routing to handleListPatterns")
         return handleListPatterns(ctx, username)
     case path == "/api/patterns" && method == "POST":
+        log.Println("Routing to handleCreatePattern")
         return handleCreatePattern(ctx, username, request)
     case patternID != "" && method == "GET":
+        log.Printf("Routing to handleGetPattern for patternID: %s", patternID)
         return handleGetPattern(ctx, username, patternID)
     case patternID != "" && method == "PUT":
+        log.Printf("Routing to handleUpdatePattern for patternID: %s", patternID)
         return handleUpdatePattern(ctx, username, patternID, request)
     case patternID != "" && method == "DELETE":
+        log.Printf("Routing to handleDeletePattern for patternID: %s", patternID)
         return handleDeletePattern(ctx, username, patternID)
     default:
+        log.Printf("No matching route for path: %s, method: %s", path, method)
         return shared.CreateErrorResponse(404, "Not found"), nil
     }
 }

@@ -115,6 +115,10 @@ func setupRoutes(app *fiber.App) {
 }
 
 func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+    log.Printf("=== Frontend Handler Called ===")
+    log.Printf("Path: %s", req.Path)
+    log.Printf("Method: %s", req.HTTPMethod)
+    log.Printf("Source IP: %s", req.RequestContext.Identity.SourceIP)
     return fiberLambda.ProxyWithContext(ctx, req)
 }
 
