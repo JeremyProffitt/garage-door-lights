@@ -47,15 +47,15 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
     case deviceID != "" && method == "GET":
         log.Printf("Routing to handleGetDevice for deviceID: %s", deviceID)
         return handleGetDevice(ctx, username, deviceID)
+    case deviceID != "" && path == "/api/devices/"+deviceID+"/pattern" && method == "PUT":
+        log.Printf("Routing to handleAssignPattern for deviceID: %s", deviceID)
+        return handleAssignPattern(ctx, username, deviceID, request)
     case deviceID != "" && method == "PUT":
         log.Printf("Routing to handleUpdateDevice for deviceID: %s", deviceID)
         return handleUpdateDevice(ctx, username, deviceID, request)
     case deviceID != "" && method == "DELETE":
         log.Printf("Routing to handleDeleteDevice for deviceID: %s", deviceID)
-        return handleDeleteDevice(ctx, username, deviceID)
-    case deviceID != "" && path == "/api/devices/"+deviceID+"/pattern" && method == "PUT":
-        log.Printf("Routing to handleAssignPattern for deviceID: %s", deviceID)
-        return handleAssignPattern(ctx, username, deviceID, request)
+        return handleDeleteDevice(ctx, username, deviceID, request)
     default:
         log.Printf("No matching route for path: %s, method: %s", path, method)
         return shared.CreateErrorResponse(404, "Not found"), nil

@@ -2,17 +2,13 @@ function devicesPage() {
     return {
         devices: [],
         patterns: [],
-        showAddModal: false,
         showPatternModal: false,
         selectedDevice: null,
+        simulatingPatternId: null,
         isLoading: true,
         isRefreshing: false,
         refreshMessage: '',
         showHidden: false,
-        newDevice: {
-            name: '',
-            particleId: ''
-        },
 
         init() {
             this.loadDevices();
@@ -90,25 +86,6 @@ function devicesPage() {
             }
         },
 
-        async addDevice() {
-            const resp = await fetch('/api/devices', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                credentials: 'same-origin',
-                body: JSON.stringify(this.newDevice)
-            });
-
-            const data = await resp.json();
-
-            if (data.success) {
-                this.showAddModal = false;
-                this.newDevice = {name: '', particleId: ''};
-                this.loadDevices();
-            } else {
-                alert('Error: ' + data.error);
-            }
-        },
-
         async toggleHidden(deviceId, currentHidden) {
             const resp = await fetch(`/api/devices/${deviceId}`, {
                 method: 'PUT',
@@ -128,10 +105,31 @@ function devicesPage() {
 
         selectDeviceForPattern(device) {
             this.selectedDevice = device;
+            this.simulatingPatternId = null;
             this.showPatternModal = true;
         },
 
+        simulatePatternInAssign(pattern) {
+            this.simulatingPatternId = pattern.patternId;
+            setTimeout(() => {
+                const container = document.getElementById('assignPatternLedsContainer');
+                if (container) {
+                    const simPattern = {
+                        type: pattern.type,
+                        red: pattern.red || 0,
+                        green: pattern.green || 0,
+                        blue: pattern.blue || 0,
+                        brightness: pattern.brightness || 128,
+                        speed: pattern.speed || 50
+                    };
+                    LEDSimulator.render(container, simPattern, 8);
+                }
+            }, 100);
+        },
+
         async assignPattern(patternId) {
+            console.log('Assigning pattern:', patternId, 'to device:', this.selectedDevice.deviceId);
+
             const resp = await fetch(`/api/devices/${this.selectedDevice.deviceId}/pattern`, {
                 method: 'PUT',
                 headers: {'Content-Type': 'application/json'},
@@ -140,11 +138,13 @@ function devicesPage() {
             });
 
             const data = await resp.json();
+            console.log('Assign pattern response:', data);
 
             if (data.success) {
                 // Send pattern to device
                 await this.sendPatternToDevice(this.selectedDevice.deviceId, patternId);
                 this.showPatternModal = false;
+                this.simulatingPatternId = null;
                 this.loadDevices();
             } else {
                 alert('Error: ' + data.error);
@@ -158,28 +158,6 @@ function devicesPage() {
                 credentials: 'same-origin',
                 body: JSON.stringify({deviceId, patternId})
             });
-        },
-
-        async testDevice(device) {
-            // Send a test pattern (rainbow) to the device
-            const resp = await fetch('/api/particle/command', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                credentials: 'same-origin',
-                body: JSON.stringify({
-                    deviceId: device.deviceId,
-                    command: 'setPattern',
-                    argument: '4:50'
-                })
-            });
-
-            const data = await resp.json();
-
-            if (data.success) {
-                alert('Test pattern sent to ' + device.name);
-            } else {
-                alert('Error: ' + data.error);
-            }
         },
 
         getPatternName(patternId) {

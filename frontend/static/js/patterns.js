@@ -4,7 +4,9 @@ function patternsPage() {
         showCreateModal: false,
         showColorPicker: false,
         showRGBHelp: false,
+        showSimulateModal: false,
         editingPattern: null,
+        simulatingPattern: null,
         currentColorIndex: null,
         activeColorTab: 0,
         tempColor: '#ff6400',
@@ -22,6 +24,12 @@ function patternsPage() {
 
         init() {
             this.loadPatterns();
+            // Watch for form changes to update live preview
+            this.$watch('form', () => {
+                if (this.showCreateModal) {
+                    this.updateLivePreview();
+                }
+            }, { deep: true });
         },
 
         async loadPatterns() {
@@ -38,6 +46,42 @@ function patternsPage() {
                     return p;
                 });
             }
+        },
+
+        simulatePattern(pattern) {
+            this.simulatingPattern = pattern;
+            this.showSimulateModal = true;
+            setTimeout(() => {
+                const container = document.getElementById('simulateLedsContainer');
+                if (container) {
+                    const simPattern = {
+                        type: pattern.type,
+                        red: pattern.colors ? pattern.colors[0].r : pattern.red,
+                        green: pattern.colors ? pattern.colors[0].g : pattern.green,
+                        blue: pattern.colors ? pattern.colors[0].b : pattern.blue,
+                        brightness: pattern.brightness,
+                        speed: pattern.speed
+                    };
+                    LEDSimulator.render(container, simPattern, 8);
+                }
+            }, 100);
+        },
+
+        updateLivePreview() {
+            setTimeout(() => {
+                const container = document.getElementById('editLedsContainer');
+                if (container) {
+                    const simPattern = {
+                        type: this.form.type,
+                        red: this.form.colors[0].r,
+                        green: this.form.colors[0].g,
+                        blue: this.form.colors[0].b,
+                        brightness: this.form.brightness,
+                        speed: this.form.speed
+                    };
+                    LEDSimulator.render(container, simPattern, 9);
+                }
+            }, 50);
         },
 
         addColor() {
@@ -145,6 +189,7 @@ function patternsPage() {
                 speed: pattern.speed
             };
             this.showCreateModal = true;
+            setTimeout(() => this.updateLivePreview(), 200);
         },
 
         cancelEdit() {
