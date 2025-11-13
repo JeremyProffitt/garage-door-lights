@@ -55,7 +55,7 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
         return handleUpdateDevice(ctx, username, deviceID, request)
     case deviceID != "" && method == "DELETE":
         log.Printf("Routing to handleDeleteDevice for deviceID: %s", deviceID)
-        return handleDeleteDevice(ctx, username, deviceID, request)
+        return handleDeleteDevice(ctx, username, deviceID)
     default:
         log.Printf("No matching route for path: %s, method: %s", path, method)
         return shared.CreateErrorResponse(404, "Not found"), nil
