@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -60,6 +61,9 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	case path == "/api/particle/oauth/initiate" && method == "POST":
 		log.Println("Routing to handleOAuthInitiate")
 		return handleOAuthInitiate(ctx, username)
+	case deviceID != "" && method == "GET" && strings.HasSuffix(path, "/variables"):
+		log.Printf("Routing to handleGetDeviceVariables for deviceID: %s", deviceID)
+		return handleGetDeviceVariables(ctx, username, deviceID)
 	case deviceID != "" && method == "GET":
 		log.Printf("Routing to handleGetDeviceInfo for deviceID: %s", deviceID)
 		return handleGetDeviceInfo(ctx, username, deviceID)
@@ -326,6 +330,114 @@ func handleRefreshDevices(ctx context.Context, username string) (events.APIGatew
 		"count":   savedCount,
 		"devices": particleDevices,
 	}), nil
+}
+
+func handleGetDeviceVariables(ctx context.Context, username string, deviceID string) (events.APIGatewayProxyResponse, error) {
+	log.Printf("=== handleGetDeviceVariables: Starting for user %s, deviceID %s ===", username, deviceID)
+
+	// Get device
+	deviceKey, _ := attributevalue.MarshalMap(map[string]string{
+		"deviceId": deviceID,
+	})
+
+	var device shared.Device
+	if err := shared.GetItem(ctx, devicesTable, deviceKey, &device); err != nil {
+		log.Printf("Database error fetching device: %v", err)
+		return shared.CreateErrorResponse(500, "Database error"), nil
+	}
+
+	if device.DeviceID == "" {
+		return shared.CreateErrorResponse(404, "Device not found"), nil
+	}
+
+	if device.UserID != username {
+		return shared.CreateErrorResponse(403, "Access denied"), nil
+	}
+
+	// Get user's Particle token
+	userKey, _ := attributevalue.MarshalMap(map[string]string{
+		"username": username,
+	})
+
+	var user shared.User
+	if err := shared.GetItem(ctx, usersTable, userKey, &user); err != nil {
+		return shared.CreateErrorResponse(500, "Database error"), nil
+	}
+
+	if user.ParticleToken == "" {
+		return shared.CreateErrorResponse(400, "Particle token not configured"), nil
+	}
+
+	// Read all firmware variables
+	result := map[string]interface{}{
+		"deviceId":   deviceID,
+		"particleId": device.ParticleID,
+		"name":       device.Name,
+	}
+
+	// Read deviceInfo variable: "version|platform|maxStrips|maxLeds"
+	if deviceInfo, err := getParticleVariable(device.ParticleID, "deviceInfo", user.ParticleToken); err == nil {
+		result["deviceInfo"] = deviceInfo
+		parts := strings.Split(deviceInfo, "|")
+		if len(parts) >= 4 {
+			result["firmwareVersion"] = parts[0]
+			result["platform"] = parts[1]
+			if maxStrips, err := strconv.Atoi(parts[2]); err == nil {
+				result["maxStrips"] = maxStrips
+			}
+			if maxLeds, err := strconv.Atoi(parts[3]); err == nil {
+				result["maxLedsPerStrip"] = maxLeds
+			}
+		}
+	} else {
+		log.Printf("Failed to read deviceInfo: %v", err)
+	}
+
+	// Read numStrips variable
+	if numStrips, err := getParticleVariable(device.ParticleID, "numStrips", user.ParticleToken); err == nil {
+		if n, err := strconv.Atoi(numStrips); err == nil {
+			result["numStrips"] = n
+		}
+	} else {
+		log.Printf("Failed to read numStrips: %v", err)
+	}
+
+	// Read strips variable: "D6:8:1;D2:12:2" (pin:ledCount:pattern)
+	if stripsStr, err := getParticleVariable(device.ParticleID, "strips", user.ParticleToken); err == nil {
+		result["stripsRaw"] = stripsStr
+		var strips []map[string]interface{}
+		if stripsStr != "" {
+			stripParts := strings.Split(stripsStr, ";")
+			for _, sp := range stripParts {
+				parts := strings.Split(sp, ":")
+				if len(parts) >= 3 {
+					strip := map[string]interface{}{}
+					// Parse pin (e.g., "D6" -> 6)
+					pinStr := parts[0]
+					if strings.HasPrefix(pinStr, "D") {
+						pinStr = pinStr[1:]
+					}
+					if pin, err := strconv.Atoi(pinStr); err == nil {
+						strip["pin"] = pin
+					}
+					if ledCount, err := strconv.Atoi(parts[1]); err == nil {
+						strip["ledCount"] = ledCount
+					}
+					if pattern, err := strconv.Atoi(parts[2]); err == nil {
+						strip["pattern"] = pattern
+					}
+					strips = append(strips, strip)
+				}
+			}
+		}
+		result["strips"] = strips
+	} else {
+		log.Printf("Failed to read strips: %v", err)
+		result["strips"] = []map[string]interface{}{}
+	}
+
+	log.Printf("Device variables retrieved successfully")
+	return shared.CreateSuccessResponse(200, result), nil
 }
 
 func handleGetDeviceInfo(ctx context.Context, username string, deviceID string) (events.APIGatewayProxyResponse, error) {

@@ -171,6 +171,33 @@
         <div x-show="showStripModal" class="modal" style="display: none;" @click.self="showStripModal = false">
             <div class="modal-content">
                 <h2>Configure LED Strips - <span x-text="stripConfigDevice?.name"></span></h2>
+
+                <!-- Device Info Panel -->
+                <div x-show="isLoadingVariables" style="padding: 1rem; text-align: center; color: #6b7280;">
+                    Loading device information...
+                </div>
+
+                <div x-show="!isLoadingVariables && deviceVariables" style="margin-bottom: 1rem; padding: 0.75rem; background: #e0f2fe; border-radius: 8px; border: 1px solid #0ea5e9;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <span style="font-weight: 600; color: #0369a1;">Device Status</span>
+                        <button type="button" @click="syncFromDevice()" class="btn btn-sm" style="background: #0ea5e9; color: white;">
+                            Sync from Device
+                        </button>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; font-size: 0.85rem; color: #0c4a6e;">
+                        <div><strong>Firmware:</strong> <span x-text="deviceVariables?.firmwareVersion || 'Unknown'"></span></div>
+                        <div><strong>Platform:</strong> <span x-text="deviceVariables?.platform || 'Unknown'"></span></div>
+                        <div><strong>Max Strips:</strong> <span x-text="deviceVariables?.maxStrips || 4"></span></div>
+                        <div><strong>Max LEDs/Strip:</strong> <span x-text="deviceVariables?.maxLedsPerStrip || 60"></span></div>
+                        <div><strong>Current Strips:</strong> <span x-text="deviceVariables?.numStrips || 0"></span></div>
+                        <div x-show="deviceVariables?.stripsRaw"><strong>Config:</strong> <span x-text="deviceVariables?.stripsRaw" style="font-family: monospace;"></span></div>
+                    </div>
+                </div>
+
+                <div x-show="!isLoadingVariables && !deviceVariables && stripConfigDevice?.isReady" style="margin-bottom: 1rem; padding: 0.75rem; background: #fef3c7; border-radius: 8px; border: 1px solid #f59e0b; color: #92400e; font-size: 0.9rem;">
+                    Could not fetch device variables. Device may be offline or busy.
+                </div>
+
                 <p style="color: #6b7280; margin-bottom: 1rem;">Configure which pins have RGB LED strips and how many LEDs on each.</p>
 
                 <div style="margin-bottom: 1rem;">
@@ -190,8 +217,8 @@
                                 </select>
                             </div>
                             <div style="flex: 1;">
-                                <label style="display: block; font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem;">LED Count</label>
-                                <input type="number" x-model.number="strip.ledCount" min="1" max="60" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;">
+                                <label style="display: block; font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem;">LED Count (max <span x-text="getMaxLedsPerStrip()"></span>)</label>
+                                <input type="number" x-model.number="strip.ledCount" min="1" :max="getMaxLedsPerStrip()" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;">
                             </div>
                             <button type="button" @click="removeStrip(index)" class="btn btn-sm btn-danger" style="margin-top: 1.25rem;">Remove</button>
                         </div>
@@ -203,16 +230,16 @@
                 </div>
 
                 <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
-                    <button type="button" @click="addStrip()" class="btn btn-secondary" :disabled="stripConfig.length >= 4">
+                    <button type="button" @click="addStrip()" class="btn btn-secondary" :disabled="stripConfig.length >= getMaxStrips()">
                         + Add Strip
                     </button>
-                    <span x-show="stripConfig.length >= 4" style="color: #6b7280; font-size: 0.85rem; align-self: center;">(Max 4 strips)</span>
+                    <span x-show="stripConfig.length >= getMaxStrips()" style="color: #6b7280; font-size: 0.85rem; align-self: center;">(Max <span x-text="getMaxStrips()"></span> strips)</span>
                 </div>
 
                 <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
                     <button type="button" @click="showStripModal = false" class="btn btn-secondary">Cancel</button>
                     <button type="button" @click="saveStripConfig()" class="btn btn-primary" :disabled="isSavingStrips">
-                        <span x-show="!isSavingStrips">Save Configuration</span>
+                        <span x-show="!isSavingStrips">Save & Apply to Device</span>
                         <span x-show="isSavingStrips">Saving...</span>
                     </button>
                 </div>

@@ -7,7 +7,9 @@ function devicesPage() {
         selectedDevice: null,
         stripConfigDevice: null,
         stripConfig: [],
+        deviceVariables: null,
         isSavingStrips: false,
+        isLoadingVariables: false,
         simulatingPatternId: null,
         isLoading: true,
         isRefreshing: false,
@@ -180,17 +182,57 @@ function devicesPage() {
             return pattern ? pattern.name : 'Unknown';
         },
 
-        openStripConfig(device) {
+        async openStripConfig(device) {
             this.stripConfigDevice = device;
-            // Deep clone the existing strips or start with empty array
+            this.deviceVariables = null;
+            this.isLoadingVariables = true;
+            this.showStripModal = true;
+
+            // Load strip configuration from database first
             this.stripConfig = device.ledStrips
                 ? JSON.parse(JSON.stringify(device.ledStrips))
                 : [];
-            this.showStripModal = true;
+
+            // If device is ready, fetch current config from device
+            if (device.isReady) {
+                try {
+                    const vars = await this.fetchDeviceVariables(device.deviceId);
+                    this.deviceVariables = vars;
+                } catch (err) {
+                    console.error('Failed to fetch device variables:', err);
+                }
+            }
+            this.isLoadingVariables = false;
+        },
+
+        async fetchDeviceVariables(deviceId) {
+            const resp = await fetch(`/api/particle/devices/${deviceId}/variables`, {
+                credentials: 'same-origin'
+            });
+            const data = await resp.json();
+            if (data.success) {
+                return data.data;
+            }
+            throw new Error(data.error || 'Failed to fetch device variables');
+        },
+
+        async syncFromDevice() {
+            if (!this.stripConfigDevice || !this.deviceVariables) return;
+
+            // Use the strips from device variables
+            if (this.deviceVariables.strips && this.deviceVariables.strips.length > 0) {
+                this.stripConfig = this.deviceVariables.strips.map(s => ({
+                    pin: s.pin,
+                    ledCount: s.ledCount
+                }));
+            } else {
+                this.stripConfig = [];
+            }
         },
 
         addStrip() {
-            if (this.stripConfig.length < 4) {
+            const maxStrips = this.deviceVariables?.maxStrips || 4;
+            if (this.stripConfig.length < maxStrips) {
                 // Find first unused pin
                 const usedPins = this.stripConfig.map(s => s.pin);
                 let nextPin = 0;
@@ -200,8 +242,17 @@ function devicesPage() {
                         break;
                     }
                 }
-                this.stripConfig.push({ pin: nextPin, ledCount: 8 });
+                const defaultLeds = this.deviceVariables?.maxLedsPerStrip ? Math.min(8, this.deviceVariables.maxLedsPerStrip) : 8;
+                this.stripConfig.push({ pin: nextPin, ledCount: defaultLeds });
             }
+        },
+
+        getMaxStrips() {
+            return this.deviceVariables?.maxStrips || 4;
+        },
+
+        getMaxLedsPerStrip() {
+            return this.deviceVariables?.maxLedsPerStrip || 60;
         },
 
         removeStrip(index) {
