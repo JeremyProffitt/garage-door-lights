@@ -141,11 +141,35 @@ jobs:
           ALEXA_VENDOR_ID: ${{ vars.ALEXA_VENDOR_ID }}
           ALEXA_CUSTOMER_ID: ${{ vars.ALEXA_CUSTOMER_ID }}
           ALEXA_SKILL_ID: ${{ secrets.ALEXA_SKILL_ID }}
-          DOMAIN_NAME: lights.jeremy.ninja
+          DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
           LAMBDA_ARN: ${{ needs.deploy-infrastructure.outputs.lambda_arn }}
           ALEXA_OAUTH_CLIENT_ID: ${{ vars.ALEXA_OAUTH_CLIENT_ID || 'garage-lights-alexa' }}
           ALEXA_OAUTH_CLIENT_SECRET: ${{ secrets.ALEXA_OAUTH_CLIENT_SECRET }}
         run: |
+          # Check for required secrets
+          MISSING=""
+          [ -z "$ALEXA_CLIENT_ID" ] && MISSING="$MISSING ALEXA_CLIENT_ID"
+          [ -z "$ALEXA_SECRET_KEY" ] && MISSING="$MISSING ALEXA_SECRET_KEY"
+          [ -z "$ALEXA_LWA_TOKEN" ] && MISSING="$MISSING ALEXA_LWA_TOKEN"
+          [ -z "$ALEXA_VENDOR_ID" ] && MISSING="$MISSING ALEXA_VENDOR_ID"
+          [ -z "$ALEXA_OAUTH_CLIENT_SECRET" ] && MISSING="$MISSING ALEXA_OAUTH_CLIENT_SECRET"
+
+          if [ -n "$MISSING" ]; then
+            echo "::warning::Skipping Alexa skill creation - missing secrets:$MISSING"
+            echo "To create the Alexa skill, please configure the following GitHub secrets:"
+            echo "$MISSING" | tr ' ' '\n' | grep -v '^$' | while read secret; do
+              echo "  - $secret"
+            done
+            exit 0
+          fi
+
+          # Check if Lambda ARN is available
+          if [ -z "$LAMBDA_ARN" ] || [ "$LAMBDA_ARN" = "None" ]; then
+            echo "::warning::Lambda ARN not available. Set ALEXA_SKILL_ID secret first to deploy AlexaFunction."
+            echo "Run this workflow again after setting ALEXA_SKILL_ID."
+            exit 0
+          fi
+
           chmod +x scripts/create-alexa-skill.sh
           ./scripts/create-alexa-skill.sh
 
