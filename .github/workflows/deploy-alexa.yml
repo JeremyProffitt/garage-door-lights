@@ -62,15 +62,23 @@ jobs:
         run: sam build --parallel
 
       - name: SAM Deploy
+        env:
+          ALEXA_SKILL_ID: ${{ secrets.ALEXA_SKILL_ID }}
+          ALEXA_OAUTH_CLIENT_ID: ${{ vars.ALEXA_OAUTH_CLIENT_ID }}
+          ALEXA_OAUTH_CLIENT_SECRET: ${{ secrets.ALEXA_OAUTH_CLIENT_SECRET }}
         run: |
+          # Use placeholder if ALEXA_SKILL_ID is not set
+          SKILL_ID="${ALEXA_SKILL_ID:-amzn1.ask.skill.placeholder}"
+          CLIENT_ID="${ALEXA_OAUTH_CLIENT_ID:-garage-lights-alexa}"
+
           sam deploy \
             --stack-name ${{ env.STACK_NAME }} \
             --region ${{ env.AWS_REGION }} \
             --capabilities CAPABILITY_IAM \
             --parameter-overrides \
-              AlexaSkillId="${{ secrets.ALEXA_SKILL_ID }}" \
-              AlexaClientId="${{ vars.ALEXA_OAUTH_CLIENT_ID || 'garage-lights-alexa' }}" \
-              AlexaClientSecret="${{ secrets.ALEXA_OAUTH_CLIENT_SECRET }}" \
+              "AlexaSkillId=${SKILL_ID}" \
+              "AlexaClientId=${CLIENT_ID}" \
+              "AlexaClientSecret=${ALEXA_OAUTH_CLIENT_SECRET}" \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset
 
