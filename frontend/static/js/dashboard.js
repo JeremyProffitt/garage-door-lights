@@ -79,6 +79,10 @@ function dashboard() {
                         }
                         return p;
                     });
+                    // Auto-select the first pattern
+                    if (this.patterns.length > 0) {
+                        this.selectedPatternId = this.patterns[0].patternId;
+                    }
                 }
             } catch (err) {
                 console.error('Failed to load patterns:', err);
