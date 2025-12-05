@@ -120,6 +120,20 @@ function devicesPage() {
             }
         },
 
+        async checkDeviceReadiness(device) {
+            // Fetch device variables to check current firmware status
+            try {
+                const vars = await this.fetchDeviceVariables(device.deviceId);
+                if (vars && vars.firmwareVersion) {
+                    alert(`Device Status:\n\nFirmware: ${vars.firmwareVersion}\nPlatform: ${vars.platform || 'Unknown'}\nStrips: ${vars.numStrips || 0}\n\nClick "Refresh from Particle.io" to update the device list.`);
+                } else {
+                    alert('Could not read firmware info from device. The device may be offline or not running the LED controller firmware.');
+                }
+            } catch (err) {
+                alert('Error checking device: ' + err.message);
+            }
+        },
+
         selectDeviceForPattern(device) {
             this.selectedDevice = device;
             this.simulatingPatternId = null;
@@ -180,6 +194,116 @@ function devicesPage() {
         getPatternName(patternId) {
             const pattern = this.patterns.find(p => p.patternId === patternId);
             return pattern ? pattern.name : 'Unknown';
+        },
+
+        getStripPatternId(device, pin) {
+            const strip = device.ledStrips?.find(s => s.pin === pin);
+            return strip?.patternId || '';
+        },
+
+        setStripPattern(device, stripIndex, patternId) {
+            // Update the pattern ID in the local device state
+            if (device.ledStrips && device.ledStrips[stripIndex]) {
+                device.ledStrips[stripIndex].patternId = patternId;
+            }
+        },
+
+        async applyStripPattern(device, pin) {
+            const strip = device.ledStrips?.find(s => s.pin === pin);
+            if (!strip || !strip.patternId) {
+                alert('Please select a pattern first');
+                return;
+            }
+
+            const pattern = this.patterns.find(p => p.patternId === strip.patternId);
+            if (!pattern) {
+                alert('Pattern not found');
+                return;
+            }
+
+            try {
+                // First save the strip pattern assignment to the database
+                const saveResp = await fetch(`/api/devices/${device.deviceId}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ ledStrips: device.ledStrips })
+                });
+
+                const saveData = await saveResp.json();
+                if (!saveData.success) {
+                    alert('Error saving strip pattern: ' + saveData.error);
+                    return;
+                }
+
+                // Then send the pattern to the device for this specific strip
+                await this.sendPatternToStrip(device.deviceId, pin, pattern);
+                alert(`Pattern "${pattern.name}" applied to strip D${pin}`);
+            } catch (err) {
+                alert('Error applying pattern: ' + err.message);
+            }
+        },
+
+        async sendPatternToStrip(deviceId, pin, pattern) {
+            // Map pattern type to firmware number
+            const patternMap = {
+                'candle': 1,
+                'solid': 2,
+                'pulse': 3,
+                'wave': 4,
+                'rainbow': 5,
+                'fire': 6
+            };
+            const patternNum = patternMap[pattern.type] || 2;
+
+            // Send pattern command: "pin,pattern,speed"
+            await fetch('/api/particle/command', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    deviceId,
+                    command: 'setPattern',
+                    argument: `${pin},${patternNum},${pattern.speed || 50}`
+                })
+            });
+
+            // Send color command: "pin,R,G,B"
+            const color = pattern.colors?.[0] || { r: pattern.red || 255, g: pattern.green || 100, b: pattern.blue || 0 };
+            await fetch('/api/particle/command', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    deviceId,
+                    command: 'setColor',
+                    argument: `${pin},${color.r},${color.g},${color.b}`
+                })
+            });
+
+            // Send brightness command: "pin,brightness"
+            await fetch('/api/particle/command', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    deviceId,
+                    command: 'setBright',
+                    argument: `${pin},${pattern.brightness || 128}`
+                })
+            });
+
+            // Save to device EEPROM
+            await fetch('/api/particle/command', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    deviceId,
+                    command: 'saveConfig',
+                    argument: '1'
+                })
+            });
         },
 
         async openStripConfig(device) {

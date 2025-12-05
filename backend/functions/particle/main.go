@@ -262,6 +262,10 @@ func handleRefreshDevices(ctx context.Context, username string) (events.APIGatew
 		var firmwareVersion, platform string
 		if connected {
 			isReady, firmwareVersion, platform = checkDeviceReadiness(particleID, user.ParticleToken)
+			log.Printf("Device %s readiness check: isReady=%v, firmware=%s, platform=%s",
+				particleID, isReady, firmwareVersion, platform)
+		} else {
+			log.Printf("Device %s is offline, skipping readiness check", particleID)
 		}
 
 		// Check if device already exists for this user
@@ -280,8 +284,13 @@ func handleRefreshDevices(ctx context.Context, username string) (events.APIGatew
 			existingDevice.Name = name
 			existingDevice.IsOnline = connected
 			existingDevice.IsReady = isReady
-			existingDevice.FirmwareVersion = firmwareVersion
-			existingDevice.Platform = platform
+			// Only update firmware info if we got valid data (don't clear on transient errors)
+			if firmwareVersion != "" {
+				existingDevice.FirmwareVersion = firmwareVersion
+			}
+			if platform != "" {
+				existingDevice.Platform = platform
+			}
 			if connected {
 				existingDevice.LastSeen = now
 			}
@@ -375,18 +384,27 @@ func handleGetDeviceVariables(ctx context.Context, username string, deviceID str
 		"name":       device.Name,
 	}
 
-	// Read deviceInfo variable: "version|platform|maxStrips|maxLeds"
+	// Read deviceInfo variable: "version|platform|maxStrips|maxLeds|maxColors"
 	if deviceInfo, err := getParticleVariable(device.ParticleID, "deviceInfo", user.ParticleToken); err == nil {
 		result["deviceInfo"] = deviceInfo
 		parts := strings.Split(deviceInfo, "|")
-		if len(parts) >= 4 {
+		if len(parts) >= 2 {
 			result["firmwareVersion"] = parts[0]
 			result["platform"] = parts[1]
+		}
+		if len(parts) >= 3 {
 			if maxStrips, err := strconv.Atoi(parts[2]); err == nil {
 				result["maxStrips"] = maxStrips
 			}
+		}
+		if len(parts) >= 4 {
 			if maxLeds, err := strconv.Atoi(parts[3]); err == nil {
 				result["maxLedsPerStrip"] = maxLeds
+			}
+		}
+		if len(parts) >= 5 {
+			if maxColors, err := strconv.Atoi(parts[4]); err == nil {
+				result["maxColorsPerStrip"] = maxColors
 			}
 		}
 	} else {
@@ -402,13 +420,17 @@ func handleGetDeviceVariables(ctx context.Context, username string, deviceID str
 		log.Printf("Failed to read numStrips: %v", err)
 	}
 
-	// Read strips variable: "D6:8:1;D2:12:2" (pin:ledCount:pattern)
+	// Read strips variable: "D6:8:1:128:50:2;D2:12:5:255:30:1"
+	// Format: D{pin}:{ledCount}:{pattern}:{brightness}:{speed}:{colorCount}
 	if stripsStr, err := getParticleVariable(device.ParticleID, "strips", user.ParticleToken); err == nil {
 		result["stripsRaw"] = stripsStr
 		var strips []map[string]interface{}
 		if stripsStr != "" {
 			stripParts := strings.Split(stripsStr, ";")
 			for _, sp := range stripParts {
+				if sp == "" {
+					continue
+				}
 				parts := strings.Split(sp, ":")
 				if len(parts) >= 3 {
 					strip := map[string]interface{}{}
@@ -425,6 +447,22 @@ func handleGetDeviceVariables(ctx context.Context, username string, deviceID str
 					}
 					if pattern, err := strconv.Atoi(parts[2]); err == nil {
 						strip["pattern"] = pattern
+					}
+					// Parse additional fields if present (firmware v2.2.0+)
+					if len(parts) >= 4 {
+						if brightness, err := strconv.Atoi(parts[3]); err == nil {
+							strip["brightness"] = brightness
+						}
+					}
+					if len(parts) >= 5 {
+						if speed, err := strconv.Atoi(parts[4]); err == nil {
+							strip["speed"] = speed
+						}
+					}
+					if len(parts) >= 6 {
+						if colorCount, err := strconv.Atoi(parts[5]); err == nil {
+							strip["colorCount"] = colorCount
+						}
 					}
 					strips = append(strips, strip)
 				}

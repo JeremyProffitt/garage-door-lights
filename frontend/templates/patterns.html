@@ -230,6 +230,39 @@
                 </div>
             </div>
         </div>
+
+        <!-- Update Devices Modal -->
+        <div x-show="showUpdateDevicesModal" class="modal" style="display: none;">
+            <div class="modal-content" style="max-width: 500px;">
+                <h3>Update Devices?</h3>
+                <p style="color: #374151; margin: 1rem 0;">
+                    This pattern is assigned to one or more devices. Would you like to send the updated pattern to all devices using it?
+                </p>
+                <div style="margin: 1rem 0; padding: 0.75rem; background: #f3f4f6; border-radius: 8px;">
+                    <p style="font-weight: 600; margin-bottom: 0.5rem;">Devices using this pattern:</p>
+                    <template x-for="item in getDevicesUsingPattern(updatedPatternId)" :key="item.device.deviceId">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0;">
+                            <span :style="item.device.isOnline && item.device.isReady ? 'color: #10b981;' : 'color: #6b7280;'">
+                                <span x-show="item.device.isOnline && item.device.isReady">&#x2713;</span>
+                                <span x-show="!item.device.isOnline || !item.device.isReady">&#x2717;</span>
+                            </span>
+                            <span x-text="item.device.name"></span>
+                            <span x-show="item.strips" style="color: #6b7280; font-size: 0.85rem;">
+                                (strips: <template x-for="s in item.strips"><span>D<span x-text="s.pin"></span> </span></template>)
+                            </span>
+                            <span x-show="!item.device.isOnline || !item.device.isReady" style="color: #f59e0b; font-size: 0.85rem;">(offline/not ready - will be skipped)</span>
+                        </div>
+                    </template>
+                </div>
+                <div class="buttons" style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                    <button type="button" @click="skipUpdateDevices()" class="btn btn-secondary">Skip</button>
+                    <button type="button" @click="updateAllDevicesWithPattern()" class="btn btn-primary" :disabled="isUpdatingDevices">
+                        <span x-show="!isUpdatingDevices">Update All Devices</span>
+                        <span x-show="isUpdatingDevices">Updating...</span>
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="/static/js/patterns.js"></script>

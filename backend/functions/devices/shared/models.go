@@ -30,8 +30,9 @@ type Pattern struct {
 
 // LEDStrip represents configuration for a single LED strip on a device pin
 type LEDStrip struct {
-    Pin      int `json:"pin" dynamodbav:"pin"`           // Pin number (0-7 for D0-D7)
-    LEDCount int `json:"ledCount" dynamodbav:"ledCount"` // Number of LEDs on this strip
+    Pin       int    `json:"pin" dynamodbav:"pin"`                                 // Pin number (0-7 for D0-D7)
+    LEDCount  int    `json:"ledCount" dynamodbav:"ledCount"`                       // Number of LEDs on this strip
+    PatternID string `json:"patternId,omitempty" dynamodbav:"patternId,omitempty"` // Assigned pattern ID for this strip
 }
 
 // Device represents a Particle Argon device

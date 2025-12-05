@@ -64,11 +64,29 @@
                             <p><strong>Assigned Pattern:</strong> <span x-text="device.assignedPattern ? getPatternName(device.assignedPattern) : 'None'"></span></p>
                         </div>
                         <div class="device-strips" x-show="device.ledStrips && device.ledStrips.length > 0" style="margin: 0.5rem 0; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px;">
-                            <p style="font-size: 0.85rem; margin-bottom: 0.25rem;"><strong>LED Strips:</strong></p>
-                            <template x-for="strip in device.ledStrips" :key="strip.pin">
-                                <span style="display: inline-block; margin-right: 0.5rem; padding: 0.2rem 0.5rem; background: rgba(255,255,255,0.1); border-radius: 4px; font-size: 0.8rem;">
-                                    D<span x-text="strip.pin"></span>: <span x-text="strip.ledCount"></span> LEDs
-                                </span>
+                            <p style="font-size: 0.85rem; margin-bottom: 0.5rem;"><strong>LED Strips:</strong></p>
+                            <template x-for="(strip, stripIndex) in device.ledStrips" :key="strip.pin">
+                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.1); border-radius: 4px;">
+                                    <span style="font-size: 0.8rem; min-width: 80px;">
+                                        D<span x-text="strip.pin"></span>: <span x-text="strip.ledCount"></span> LEDs
+                                    </span>
+                                    <select
+                                        @change="setStripPattern(device, stripIndex, $event.target.value)"
+                                        style="flex: 1; padding: 0.25rem; font-size: 0.8rem; border-radius: 4px;"
+                                        :value="getStripPatternId(device, strip.pin)">
+                                        <option value="">-- Select Pattern --</option>
+                                        <template x-for="pattern in patterns" :key="pattern.patternId">
+                                            <option :value="pattern.patternId" x-text="pattern.name" :selected="getStripPatternId(device, strip.pin) === pattern.patternId"></option>
+                                        </template>
+                                    </select>
+                                    <button
+                                        @click="applyStripPattern(device, strip.pin)"
+                                        class="btn btn-sm btn-primary"
+                                        style="padding: 0.25rem 0.5rem; font-size: 0.75rem;"
+                                        :disabled="!getStripPatternId(device, strip.pin)">
+                                        Apply
+                                    </button>
+                                </div>
                             </template>
                         </div>
                         <div class="buttons">
@@ -99,9 +117,14 @@
                         <div class="device-info">
                             <p><strong>Particle ID:</strong> <span x-text="device.particleId"></span></p>
                             <p><strong>Last Seen:</strong> <span x-text="new Date(device.lastSeen).toLocaleString()"></span></p>
-                            <p style="color: #f59e0b; font-size: 0.9rem;">Flash the LED controller firmware to enable configuration.</p>
+                            <p x-show="device.firmwareVersion" style="color: #6b7280; font-size: 0.9rem;"><strong>Detected Firmware:</strong> <span x-text="device.firmwareVersion"></span></p>
+                            <p style="color: #f59e0b; font-size: 0.9rem;">
+                                <span x-show="!device.firmwareVersion">Flash the LED controller firmware to enable configuration.</span>
+                                <span x-show="device.firmwareVersion">Device has firmware but may need refresh. Click "Refresh from Particle.io" above.</span>
+                            </p>
                         </div>
                         <div class="buttons">
+                            <button @click="checkDeviceReadiness(device)" class="btn btn-sm btn-primary">Check Status</button>
                             <button @click="toggleHidden(device.deviceId, device.isHidden)" class="btn btn-sm" :class="device.isHidden ? 'btn-secondary' : 'btn-danger'">
                                 <span x-text="device.isHidden ? 'Unhide' : 'Hide'"></span>
                             </button>

@@ -1,16 +1,20 @@
 function patternsPage() {
     return {
         patterns: [],
+        devices: [],
         showCreateModal: false,
         showColorPicker: false,
         showRGBHelp: false,
         showSimulateModal: false,
+        showUpdateDevicesModal: false,
         editingPattern: null,
         simulatingPattern: null,
         currentColorIndex: null,
         activeColorTab: 0,
         tempColor: '#ff6400',
         tempColorRGB: { r: 255, g: 100, b: 0 },
+        updatedPatternId: null,
+        isUpdatingDevices: false,
         form: {
             name: '',
             description: '',
@@ -24,12 +28,23 @@ function patternsPage() {
 
         init() {
             this.loadPatterns();
+            this.loadDevices();
             // Watch for form changes to update live preview
             this.$watch('form', () => {
                 if (this.showCreateModal) {
                     this.updateLivePreview();
                 }
             }, { deep: true });
+        },
+
+        async loadDevices() {
+            const resp = await fetch('/api/devices', {
+                credentials: 'same-origin'
+            });
+            const data = await resp.json();
+            if (data.success) {
+                this.devices = data.data || [];
+            }
         },
 
         async loadPatterns() {
@@ -199,8 +214,9 @@ function patternsPage() {
         },
 
         async savePattern() {
-            const method = this.editingPattern ? 'PUT' : 'POST';
-            const url = this.editingPattern
+            const isEditing = !!this.editingPattern;
+            const method = isEditing ? 'PUT' : 'POST';
+            const url = isEditing
                 ? `/api/patterns/${this.editingPattern.patternId}`
                 : '/api/patterns';
 
@@ -223,13 +239,150 @@ function patternsPage() {
             const data = await resp.json();
 
             if (data.success) {
+                const patternId = isEditing ? this.editingPattern.patternId : data.data?.patternId;
                 this.showCreateModal = false;
                 this.editingPattern = null;
                 this.resetForm();
-                this.loadPatterns();
+                await this.loadPatterns();
+
+                // If editing an existing pattern, check if any devices use it and offer to update them
+                if (isEditing && patternId) {
+                    const devicesUsingPattern = this.getDevicesUsingPattern(patternId);
+                    if (devicesUsingPattern.length > 0) {
+                        this.updatedPatternId = patternId;
+                        this.showUpdateDevicesModal = true;
+                    }
+                }
             } else {
                 alert('Error: ' + data.error);
             }
+        },
+
+        getDevicesUsingPattern(patternId) {
+            const devicesUsingPattern = [];
+            for (const device of this.devices) {
+                // Check device-level assignment
+                if (device.assignedPattern === patternId) {
+                    devicesUsingPattern.push({ device, strips: null });
+                    continue;
+                }
+                // Check strip-level assignments
+                if (device.ledStrips) {
+                    const stripsWithPattern = device.ledStrips.filter(s => s.patternId === patternId);
+                    if (stripsWithPattern.length > 0) {
+                        devicesUsingPattern.push({ device, strips: stripsWithPattern });
+                    }
+                }
+            }
+            return devicesUsingPattern;
+        },
+
+        async updateAllDevicesWithPattern() {
+            if (!this.updatedPatternId) return;
+
+            this.isUpdatingDevices = true;
+            const pattern = this.patterns.find(p => p.patternId === this.updatedPatternId);
+            if (!pattern) {
+                alert('Pattern not found');
+                this.isUpdatingDevices = false;
+                return;
+            }
+
+            const devicesToUpdate = this.getDevicesUsingPattern(this.updatedPatternId);
+
+            try {
+                for (const { device, strips } of devicesToUpdate) {
+                    if (!device.isOnline || !device.isReady) continue;
+
+                    if (strips) {
+                        // Update specific strips
+                        for (const strip of strips) {
+                            await this.sendPatternToStrip(device.deviceId, strip.pin, pattern);
+                        }
+                    } else {
+                        // Update all strips on the device
+                        if (device.ledStrips && device.ledStrips.length > 0) {
+                            for (const strip of device.ledStrips) {
+                                await this.sendPatternToStrip(device.deviceId, strip.pin, pattern);
+                            }
+                        }
+                    }
+                }
+                alert('All devices updated successfully!');
+            } catch (err) {
+                alert('Error updating devices: ' + err.message);
+            } finally {
+                this.isUpdatingDevices = false;
+                this.showUpdateDevicesModal = false;
+                this.updatedPatternId = null;
+            }
+        },
+
+        async sendPatternToStrip(deviceId, pin, pattern) {
+            // Map pattern type to firmware number
+            const patternMap = {
+                'candle': 1,
+                'solid': 2,
+                'pulse': 3,
+                'wave': 4,
+                'rainbow': 5,
+                'fire': 6
+            };
+            const patternNum = patternMap[pattern.type] || 2;
+
+            // Send pattern command
+            await fetch('/api/particle/command', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    deviceId,
+                    command: 'setPattern',
+                    argument: `${pin},${patternNum},${pattern.speed || 50}`
+                })
+            });
+
+            // Send color command
+            const color = pattern.colors?.[0] || { r: pattern.red || 255, g: pattern.green || 100, b: pattern.blue || 0 };
+            await fetch('/api/particle/command', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    deviceId,
+                    command: 'setColor',
+                    argument: `${pin},${color.r},${color.g},${color.b}`
+                })
+            });
+
+            // Send brightness command
+            await fetch('/api/particle/command', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    deviceId,
+                    command: 'setBright',
+                    argument: `${pin},${pattern.brightness || 128}`
+                })
+            });
+
+            // Save to device EEPROM
+            await fetch('/api/particle/command', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    deviceId,
+                    command: 'saveConfig',
+                    argument: '1'
+                })
+            });
+        },
+
+        skipUpdateDevices() {
+            this.showUpdateDevicesModal = false;
+            this.updatedPatternId = null;
         },
 
         async deletePattern(patternId) {
