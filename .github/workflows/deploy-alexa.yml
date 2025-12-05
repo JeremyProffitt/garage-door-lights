@@ -163,11 +163,20 @@ jobs:
             exit 0
           fi
 
-          # Check if Lambda ARN is available
+          # Check if Lambda ARN is available - use OAuthFunction ARN as placeholder if Alexa not deployed
           if [ -z "$LAMBDA_ARN" ] || [ "$LAMBDA_ARN" = "None" ]; then
-            echo "::warning::Lambda ARN not available. Set ALEXA_SKILL_ID secret first to deploy AlexaFunction."
-            echo "Run this workflow again after setting ALEXA_SKILL_ID."
-            exit 0
+            echo "::notice::AlexaFunction not deployed yet. Using OAuthFunction ARN as placeholder."
+            echo "After skill is created, set ALEXA_SKILL_ID and re-run to deploy AlexaFunction with correct ARN."
+            # Get OAuthFunction ARN as temporary placeholder (find function name dynamically)
+            OAUTH_FUNC=$(aws lambda list-functions --region ${{ env.AWS_REGION }} \
+              --query "Functions[?contains(FunctionName, '${{ env.STACK_NAME }}-OAuthFunction')].FunctionArn | [0]" \
+              --output text 2>/dev/null || echo "")
+            if [ -z "$OAUTH_FUNC" ] || [ "$OAUTH_FUNC" = "None" ] || [ "$OAUTH_FUNC" = "null" ]; then
+              echo "::error::No Lambda ARN available. Deploy infrastructure first."
+              exit 1
+            fi
+            export LAMBDA_ARN="$OAUTH_FUNC"
+            echo "Using placeholder Lambda ARN: $LAMBDA_ARN"
           fi
 
           chmod +x scripts/create-alexa-skill.sh
