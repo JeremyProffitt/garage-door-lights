@@ -6,6 +6,7 @@
     <title>Devices - Candle Lights Controller</title>
     <link rel="stylesheet" href="/static/css/style.css">
     <script src="/static/js/led-simulator.js"></script>
+    <script src="/static/js/notifications.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 </head>
 <body>
@@ -56,12 +57,13 @@
                 <template x-for="device in readyDevices" :key="device.deviceId">
                     <div class="card device-card" :style="device.isHidden ? 'opacity: 0.6' : ''" style="border-left: 3px solid #10b981;">
                         <div class="device-header">
-                            <h3 x-text="device.name"></h3>
+                            <div>
+                                <h3 x-text="device.name"></h3>
+                                <p style="font-size: 0.85rem; color: #6b7280; margin: 0;">
+                                    <span x-text="device.platform || 'Unknown'"></span> <span x-text="device.firmwareVersion || ''"></span>
+                                </p>
+                            </div>
                             <span class="badge badge-success">Ready</span>
-                        </div>
-                        <div class="device-info">
-                            <p><strong>Firmware:</strong> <span x-text="device.firmwareVersion || 'Unknown'"></span> (<span x-text="device.platform || 'Unknown'"></span>)</p>
-                            <p><strong>Assigned Pattern:</strong> <span x-text="device.assignedPattern ? getPatternName(device.assignedPattern) : 'None'"></span></p>
                         </div>
                         <div class="device-strips" x-show="device.ledStrips && device.ledStrips.length > 0" style="margin: 0.5rem 0; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px;">
                             <p style="font-size: 0.85rem; margin-bottom: 0.5rem;"><strong>LED Strips:</strong></p>
@@ -90,7 +92,6 @@
                             </template>
                         </div>
                         <div class="buttons">
-                            <button @click="selectDeviceForPattern(device)" class="btn btn-sm btn-primary">Assign Pattern</button>
                             <button @click="openStripConfig(device)" class="btn btn-sm btn-secondary">Configure LEDs</button>
                             <button @click="toggleHidden(device.deviceId, device.isHidden)" class="btn btn-sm" :class="device.isHidden ? 'btn-secondary' : 'btn-danger'">
                                 <span x-text="device.isHidden ? 'Unhide' : 'Hide'"></span>
@@ -158,35 +159,6 @@
                         </div>
                     </div>
                 </template>
-            </div>
-        </div>
-
-        <!-- Assign Pattern Modal -->
-        <div x-show="showPatternModal" class="modal" style="display: none;" @click.self="showPatternModal = false">
-            <div class="modal-content">
-                <h2>Assign Pattern to <span x-text="selectedDevice?.name"></span></h2>
-
-                <!-- Pattern Simulation -->
-                <div x-show="simulatingPatternId" style="margin: 1rem 0;">
-                    <h3 style="font-size: 0.9rem; margin-bottom: 0.5rem; color: #6b7280; text-align: center;">Pattern Preview</h3>
-                    <div id="assignPatternLedsContainer"></div>
-                </div>
-
-                <div class="patterns-list">
-                    <template x-for="pattern in patterns" :key="pattern.patternId">
-                        <div style="display: flex; flex-direction: column; gap: 0.5rem; padding: 1rem; border: 2px solid #e0e0e0; border-radius: 8px; margin-bottom: 0.5rem;">
-                            <div style="display: flex; align-items: center; gap: 1rem; cursor: pointer;" @click="assignPattern(pattern.patternId)">
-                                <span x-text="pattern.name" style="flex: 1;"></span>
-                                <span class="badge" x-text="pattern.type"></span>
-                                <div class="color-preview" :style="`background: rgb(${pattern.red}, ${pattern.green}, ${pattern.blue})`"></div>
-                            </div>
-                            <div style="text-align: right;">
-                                <button type="button" @click="simulatePatternInAssign(pattern)" class="btn btn-sm btn-secondary">Simulate</button>
-                            </div>
-                        </div>
-                    </template>
-                </div>
-                <button type="button" @click="showPatternModal = false" class="btn btn-secondary">Cancel</button>
             </div>
         </div>
 

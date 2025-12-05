@@ -2,15 +2,12 @@ function devicesPage() {
     return {
         devices: [],
         patterns: [],
-        showPatternModal: false,
         showStripModal: false,
-        selectedDevice: null,
         stripConfigDevice: null,
         stripConfig: [],
         deviceVariables: null,
         isSavingStrips: false,
         isLoadingVariables: false,
-        simulatingPatternId: null,
         isLoading: true,
         isRefreshing: false,
         refreshMessage: '',
@@ -116,7 +113,7 @@ function devicesPage() {
             if (data.success) {
                 this.loadDevices();
             } else {
-                alert('Error: ' + data.error);
+                NotificationBanner.error('Error: ' + data.error);
             }
         },
 
@@ -125,70 +122,13 @@ function devicesPage() {
             try {
                 const vars = await this.fetchDeviceVariables(device.deviceId);
                 if (vars && vars.firmwareVersion) {
-                    alert(`Device Status:\n\nFirmware: ${vars.firmwareVersion}\nPlatform: ${vars.platform || 'Unknown'}\nStrips: ${vars.numStrips || 0}\n\nClick "Refresh from Particle.io" to update the device list.`);
+                    NotificationBanner.info(`Device ${device.name}: Firmware ${vars.firmwareVersion}, Platform ${vars.platform || 'Unknown'}, Strips: ${vars.numStrips || 0}. Click "Refresh from Particle.io" to update.`);
                 } else {
-                    alert('Could not read firmware info from device. The device may be offline or not running the LED controller firmware.');
+                    NotificationBanner.warning('Could not read firmware info from device. The device may be offline or not running the LED controller firmware.');
                 }
             } catch (err) {
-                alert('Error checking device: ' + err.message);
+                NotificationBanner.error('Error checking device: ' + err.message);
             }
-        },
-
-        selectDeviceForPattern(device) {
-            this.selectedDevice = device;
-            this.simulatingPatternId = null;
-            this.showPatternModal = true;
-        },
-
-        simulatePatternInAssign(pattern) {
-            this.simulatingPatternId = pattern.patternId;
-            setTimeout(() => {
-                const container = document.getElementById('assignPatternLedsContainer');
-                if (container) {
-                    const simPattern = {
-                        type: pattern.type,
-                        red: pattern.red || 0,
-                        green: pattern.green || 0,
-                        blue: pattern.blue || 0,
-                        brightness: pattern.brightness || 128,
-                        speed: pattern.speed || 50
-                    };
-                    LEDSimulator.render(container, simPattern, 8);
-                }
-            }, 100);
-        },
-
-        async assignPattern(patternId) {
-            console.log('Assigning pattern:', patternId, 'to device:', this.selectedDevice.deviceId);
-
-            const resp = await fetch(`/api/devices/${this.selectedDevice.deviceId}/pattern`, {
-                method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
-                credentials: 'same-origin',
-                body: JSON.stringify({patternId})
-            });
-
-            const data = await resp.json();
-            console.log('Assign pattern response:', data);
-
-            if (data.success) {
-                // Send pattern to device
-                await this.sendPatternToDevice(this.selectedDevice.deviceId, patternId);
-                this.showPatternModal = false;
-                this.simulatingPatternId = null;
-                this.loadDevices();
-            } else {
-                alert('Error: ' + data.error);
-            }
-        },
-
-        async sendPatternToDevice(deviceId, patternId) {
-            await fetch('/api/particle/command', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                credentials: 'same-origin',
-                body: JSON.stringify({deviceId, patternId})
-            });
         },
 
         getPatternName(patternId) {
@@ -211,13 +151,13 @@ function devicesPage() {
         async applyStripPattern(device, pin) {
             const strip = device.ledStrips?.find(s => s.pin === pin);
             if (!strip || !strip.patternId) {
-                alert('Please select a pattern first');
+                NotificationBanner.warning('Please select a pattern first');
                 return;
             }
 
             const pattern = this.patterns.find(p => p.patternId === strip.patternId);
             if (!pattern) {
-                alert('Pattern not found');
+                NotificationBanner.error('Pattern not found');
                 return;
             }
 
@@ -232,15 +172,15 @@ function devicesPage() {
 
                 const saveData = await saveResp.json();
                 if (!saveData.success) {
-                    alert('Error saving strip pattern: ' + saveData.error);
+                    NotificationBanner.error('Error saving strip pattern: ' + saveData.error);
                     return;
                 }
 
                 // Then send the pattern to the device for this specific strip
                 await this.sendPatternToStrip(device.deviceId, pin, pattern);
-                alert(`Pattern "${pattern.name}" applied to strip D${pin}`);
+                NotificationBanner.success(`Pattern "${pattern.name}" applied to strip D${pin}`);
             } catch (err) {
-                alert('Error applying pattern: ' + err.message);
+                NotificationBanner.error('Error applying pattern: ' + err.message);
             }
         },
 
@@ -391,7 +331,7 @@ function devicesPage() {
                 const pins = this.stripConfig.map(s => s.pin);
                 const uniquePins = new Set(pins);
                 if (pins.length !== uniquePins.size) {
-                    alert('Error: Each strip must use a different pin.');
+                    NotificationBanner.error('Each strip must use a different pin.');
                     this.isSavingStrips = false;
                     return;
                 }
@@ -410,11 +350,12 @@ function devicesPage() {
                     await this.syncStripsToDevice(this.stripConfigDevice.deviceId, this.stripConfig);
                     this.showStripModal = false;
                     this.loadDevices();
+                    NotificationBanner.success('LED strip configuration saved and applied to device');
                 } else {
-                    alert('Error: ' + data.error);
+                    NotificationBanner.error('Error: ' + data.error);
                 }
             } catch (err) {
-                alert('Error saving configuration: ' + err.message);
+                NotificationBanner.error('Error saving configuration: ' + err.message);
             } finally {
                 this.isSavingStrips = false;
             }

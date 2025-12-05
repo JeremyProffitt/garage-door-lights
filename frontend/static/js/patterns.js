@@ -251,10 +251,14 @@ function patternsPage() {
                     if (devicesUsingPattern.length > 0) {
                         this.updatedPatternId = patternId;
                         this.showUpdateDevicesModal = true;
+                    } else {
+                        NotificationBanner.success('Pattern saved successfully');
                     }
+                } else {
+                    NotificationBanner.success('Pattern created successfully');
                 }
             } else {
-                alert('Error: ' + data.error);
+                NotificationBanner.error('Error: ' + data.error);
             }
         },
 
@@ -283,7 +287,7 @@ function patternsPage() {
             this.isUpdatingDevices = true;
             const pattern = this.patterns.find(p => p.patternId === this.updatedPatternId);
             if (!pattern) {
-                alert('Pattern not found');
+                NotificationBanner.error('Pattern not found');
                 this.isUpdatingDevices = false;
                 return;
             }
@@ -308,9 +312,9 @@ function patternsPage() {
                         }
                     }
                 }
-                alert('All devices updated successfully!');
+                NotificationBanner.success('All devices updated successfully!');
             } catch (err) {
-                alert('Error updating devices: ' + err.message);
+                NotificationBanner.error('Error updating devices: ' + err.message);
             } finally {
                 this.isUpdatingDevices = false;
                 this.showUpdateDevicesModal = false;
@@ -383,6 +387,7 @@ function patternsPage() {
         skipUpdateDevices() {
             this.showUpdateDevicesModal = false;
             this.updatedPatternId = null;
+            NotificationBanner.success('Pattern saved successfully');
         },
 
         async deletePattern(patternId) {
@@ -397,8 +402,9 @@ function patternsPage() {
 
             if (data.success) {
                 this.loadPatterns();
+                NotificationBanner.success('Pattern deleted successfully');
             } else {
-                alert('Error: ' + data.error);
+                NotificationBanner.error('Error: ' + data.error);
             }
         },
 
