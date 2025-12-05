@@ -1,0 +1,5 @@
+# Local skill ID (contains sensitive info)
+.skill-id
+
+# Temporary files
+*.tmp

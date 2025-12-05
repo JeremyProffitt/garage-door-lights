@@ -13,6 +13,19 @@ Parameters:
   CertificateArn:
     Type: String
     Description: ACM Certificate ARN for the custom domain
+  AlexaSkillId:
+    Type: String
+    Default: ""
+    Description: Alexa Smart Home Skill ID (leave empty to disable Alexa integration)
+  AlexaClientId:
+    Type: String
+    Default: "garage-lights-alexa"
+    Description: OAuth Client ID for Alexa account linking
+  AlexaClientSecret:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: OAuth Client Secret for Alexa account linking
 
 Globals:
   Function:
@@ -27,6 +40,12 @@ Globals:
         DEVICES_TABLE: !Ref DevicesTable
         SESSIONS_TABLE: !Ref SessionsTable
         DOMAIN_NAME: !Ref DomainName
+        ALEXA_TOKENS_TABLE: !Ref AlexaTokensTable
+        ALEXA_CODES_TABLE: !Ref AlexaCodesTable
+        ALEXA_STATE_TABLE: !Ref AlexaStateTable
+        ALEXA_SKILL_ID: !Ref AlexaSkillId
+        ALEXA_CLIENT_ID: !Ref AlexaClientId
+        ALEXA_CLIENT_SECRET: !Ref AlexaClientSecret
 
 Resources:
   # DynamoDB Tables
@@ -110,6 +129,67 @@ Resources:
         AttributeName: expiresAt
         Enabled: true
 
+  # Alexa Integration DynamoDB Tables
+  AlexaTokensTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${AWS::StackName}-alexa-tokens
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: tokenHash
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tokenHash
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: userId-index
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+
+  AlexaCodesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${AWS::StackName}-alexa-codes
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: code
+          AttributeType: S
+      KeySchema:
+        - AttributeName: code
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+
+  AlexaStateTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${AWS::StackName}-alexa-state
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: endpointId
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: endpointId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: userId-index
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
   # CloudWatch Log Groups with retention
   AuthFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -139,6 +219,18 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-FrontendFunction'
+      RetentionInDays: 7
+
+  OAuthFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-OAuthFunction'
+      RetentionInDays: 7
+
+  AlexaFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-AlexaFunction'
       RetentionInDays: 7
 
   # Lambda Functions
@@ -332,6 +424,68 @@ Resources:
             Path: /api/particle/oauth/initiate
             Method: POST
 
+  # OAuth Lambda for Alexa Account Linking
+  OAuthFunction:
+    DependsOn: OAuthFunctionLogGroup
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      CodeUri: backend/functions/oauth/
+      Handler: bootstrap
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AlexaTokensTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AlexaCodesTable
+      Events:
+        AuthorizeGet:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WebsiteGateway
+            Path: /oauth/authorize
+            Method: GET
+        AuthorizePost:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WebsiteGateway
+            Path: /oauth/authorize
+            Method: POST
+        Token:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WebsiteGateway
+            Path: /oauth/token
+            Method: POST
+
+  # Alexa Smart Home Skill Handler
+  AlexaFunction:
+    DependsOn: AlexaFunctionLogGroup
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      CodeUri: backend/functions/alexa/
+      Handler: bootstrap
+      MemorySize: 256
+      Timeout: 10
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref DevicesTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref AlexaTokensTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AlexaStateTable
+      Events:
+        AlexaSmartHome:
+          Type: AlexaSkill
+          Properties:
+            SkillId: !Ref AlexaSkillId
+
   # Frontend Lambda (Go Fiber)
   FrontendFunction:
     DependsOn: FrontendFunctionLogGroup
@@ -405,3 +559,21 @@ Outputs:
   SessionsTableName:
     Description: Sessions DynamoDB table name
     Value: !Ref SessionsTable
+  AlexaTokensTableName:
+    Description: Alexa Tokens DynamoDB table name
+    Value: !Ref AlexaTokensTable
+  AlexaCodesTableName:
+    Description: Alexa Auth Codes DynamoDB table name
+    Value: !Ref AlexaCodesTable
+  AlexaStateTableName:
+    Description: Alexa Device State DynamoDB table name
+    Value: !Ref AlexaStateTable
+  AlexaFunctionArn:
+    Description: ARN of the Alexa Smart Home Lambda function
+    Value: !GetAtt AlexaFunction.Arn
+  OAuthAuthorizeUrl:
+    Description: OAuth Authorization URL for Alexa account linking
+    Value: !Sub https://${DomainName}/oauth/authorize
+  OAuthTokenUrl:
+    Description: OAuth Token URL for Alexa account linking
+    Value: !Sub https://${DomainName}/oauth/token

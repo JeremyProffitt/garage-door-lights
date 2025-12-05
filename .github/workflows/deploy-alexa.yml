@@ -1,0 +1,174 @@
+name: Deploy Alexa Integration
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+      create_skill:
+        description: 'Create/Update Alexa skill'
+        required: true
+        default: true
+        type: boolean
+
+env:
+  AWS_REGION: us-east-1
+  STACK_NAME: garage-lights
+
+jobs:
+  deploy-infrastructure:
+    name: Deploy AWS Infrastructure
+    runs-on: ubuntu-latest
+    outputs:
+      lambda_arn: ${{ steps.get-outputs.outputs.lambda_arn }}
+      oauth_authorize_url: ${{ steps.get-outputs.outputs.oauth_authorize_url }}
+      oauth_token_url: ${{ steps.get-outputs.outputs.oauth_token_url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Setup SAM CLI
+        uses: aws-actions/setup-sam@v2
+
+      - name: Sync shared files to all functions
+        run: |
+          for dir in backend/functions/*/shared; do
+            if [ -d "$dir" ]; then
+              cp backend/shared/*.go "$dir/" 2>/dev/null || true
+              echo "Updated: $dir"
+            fi
+          done
+
+      - name: SAM Build
+        run: sam build --parallel
+
+      - name: SAM Deploy
+        run: |
+          sam deploy \
+            --stack-name ${{ env.STACK_NAME }} \
+            --region ${{ env.AWS_REGION }} \
+            --capabilities CAPABILITY_IAM \
+            --parameter-overrides \
+              AlexaSkillId="${{ secrets.ALEXA_SKILL_ID }}" \
+              AlexaClientId="${{ vars.ALEXA_OAUTH_CLIENT_ID || 'garage-lights-alexa' }}" \
+              AlexaClientSecret="${{ secrets.ALEXA_OAUTH_CLIENT_SECRET }}" \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset
+
+      - name: Get Stack Outputs
+        id: get-outputs
+        run: |
+          LAMBDA_ARN=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`AlexaFunctionArn`].OutputValue' \
+            --output text)
+          echo "lambda_arn=$LAMBDA_ARN" >> $GITHUB_OUTPUT
+
+          OAUTH_AUTHORIZE=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`OAuthAuthorizeUrl`].OutputValue' \
+            --output text)
+          echo "oauth_authorize_url=$OAUTH_AUTHORIZE" >> $GITHUB_OUTPUT
+
+          OAUTH_TOKEN=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.STACK_NAME }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`OAuthTokenUrl`].OutputValue' \
+            --output text)
+          echo "oauth_token_url=$OAUTH_TOKEN" >> $GITHUB_OUTPUT
+
+          echo "Lambda ARN: $LAMBDA_ARN"
+          echo "OAuth Authorize URL: $OAUTH_AUTHORIZE"
+          echo "OAuth Token URL: $OAUTH_TOKEN"
+
+  create-alexa-skill:
+    name: Create/Update Alexa Skill
+    runs-on: ubuntu-latest
+    needs: deploy-infrastructure
+    if: ${{ inputs.create_skill }}
+    outputs:
+      skill_id: ${{ steps.create-skill.outputs.skill_id }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Create/Update Alexa Skill
+        id: create-skill
+        env:
+          ALEXA_CLIENT_ID: ${{ secrets.ALEXA_CLIENT_ID }}
+          ALEXA_SECRET_KEY: ${{ secrets.ALEXA_SECRET_KEY }}
+          ALEXA_LWA_TOKEN: ${{ secrets.ALEXA_LWA_TOKEN }}
+          ALEXA_VENDOR_ID: ${{ vars.ALEXA_VENDOR_ID }}
+          ALEXA_CUSTOMER_ID: ${{ vars.ALEXA_CUSTOMER_ID }}
+          ALEXA_SKILL_ID: ${{ secrets.ALEXA_SKILL_ID }}
+          DOMAIN_NAME: lights.jeremy.ninja
+          LAMBDA_ARN: ${{ needs.deploy-infrastructure.outputs.lambda_arn }}
+          ALEXA_OAUTH_CLIENT_ID: ${{ vars.ALEXA_OAUTH_CLIENT_ID || 'garage-lights-alexa' }}
+          ALEXA_OAUTH_CLIENT_SECRET: ${{ secrets.ALEXA_OAUTH_CLIENT_SECRET }}
+        run: |
+          chmod +x scripts/create-alexa-skill.sh
+          ./scripts/create-alexa-skill.sh
+
+      - name: Update Skill ID Secret (if new skill)
+        if: ${{ steps.create-skill.outputs.skill_id && !secrets.ALEXA_SKILL_ID }}
+        run: |
+          echo "::notice::New skill created! Please add the following secret to your repository:"
+          echo "::notice::ALEXA_SKILL_ID=${{ steps.create-skill.outputs.skill_id }}"
+          echo ""
+          echo "To save the skill ID as a secret, run:"
+          echo "  gh secret set ALEXA_SKILL_ID --body '${{ steps.create-skill.outputs.skill_id }}'"
+
+  summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [deploy-infrastructure, create-alexa-skill]
+    if: always()
+
+    steps:
+      - name: Print Summary
+        run: |
+          echo "## Alexa Integration Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### AWS Infrastructure" >> $GITHUB_STEP_SUMMARY
+          echo "- **Lambda ARN:** \`${{ needs.deploy-infrastructure.outputs.lambda_arn }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **OAuth Authorize URL:** ${{ needs.deploy-infrastructure.outputs.oauth_authorize_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **OAuth Token URL:** ${{ needs.deploy-infrastructure.outputs.oauth_token_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -n "${{ needs.create-alexa-skill.outputs.skill_id }}" ]; then
+            echo "### Alexa Skill" >> $GITHUB_STEP_SUMMARY
+            echo "- **Skill ID:** \`${{ needs.create-alexa-skill.outputs.skill_id }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. Open the Alexa app on your phone" >> $GITHUB_STEP_SUMMARY
+          echo "2. Go to **Skills & Games** > **Your Skills** > **Dev**" >> $GITHUB_STEP_SUMMARY
+          echo "3. Enable the **Garage Lights** skill and link your account" >> $GITHUB_STEP_SUMMARY
+          echo "4. Say **\"Alexa, discover devices\"**" >> $GITHUB_STEP_SUMMARY

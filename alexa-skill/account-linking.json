@@ -1,0 +1,16 @@
+{
+  "accountLinkingRequest": {
+    "skipOnEnablement": false,
+    "type": "AUTH_CODE",
+    "authorizationUrl": "https://${DOMAIN_NAME}/oauth/authorize",
+    "accessTokenUrl": "https://${DOMAIN_NAME}/oauth/token",
+    "clientId": "${ALEXA_CLIENT_ID}",
+    "clientSecret": "${ALEXA_CLIENT_SECRET}",
+    "accessTokenScheme": "HTTP_BASIC",
+    "scopes": [
+      "control_lights"
+    ],
+    "domains": [],
+    "defaultTokenExpirationInSeconds": 3600
+  }
+}
