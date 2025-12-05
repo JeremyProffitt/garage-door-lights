@@ -15,8 +15,8 @@ Parameters:
     Description: ACM Certificate ARN for the custom domain
   AlexaSkillId:
     Type: String
-    Default: ""
-    Description: Alexa Smart Home Skill ID (leave empty to disable Alexa integration)
+    Default: "amzn1.ask.skill.placeholder"
+    Description: Alexa Smart Home Skill ID (required for Alexa integration)
   AlexaClientId:
     Type: String
     Default: "garage-lights-alexa"
@@ -26,6 +26,9 @@ Parameters:
     Default: ""
     NoEcho: true
     Description: OAuth Client Secret for Alexa account linking
+
+Conditions:
+  HasAlexaSkillId: !Not [!Equals [!Ref AlexaSkillId, "amzn1.ask.skill.placeholder"]]
 
 Globals:
   Function:
@@ -228,6 +231,7 @@ Resources:
       RetentionInDays: 7
 
   AlexaFunctionLogGroup:
+    Condition: HasAlexaSkillId
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-AlexaFunction'
@@ -462,6 +466,7 @@ Resources:
 
   # Alexa Smart Home Skill Handler
   AlexaFunction:
+    Condition: HasAlexaSkillId
     DependsOn: AlexaFunctionLogGroup
     Type: AWS::Serverless::Function
     Metadata:
@@ -569,6 +574,7 @@ Outputs:
     Description: Alexa Device State DynamoDB table name
     Value: !Ref AlexaStateTable
   AlexaFunctionArn:
+    Condition: HasAlexaSkillId
     Description: ARN of the Alexa Smart Home Lambda function
     Value: !GetAtt AlexaFunction.Arn
   OAuthAuthorizeUrl:

@@ -90,7 +90,7 @@ jobs:
 
       - name: Copy shared module to function directories
         run: |
-          for func in auth patterns devices particle; do
+          for func in auth patterns devices particle oauth alexa; do
             cp -r backend/shared backend/functions/$func/
           done
 
