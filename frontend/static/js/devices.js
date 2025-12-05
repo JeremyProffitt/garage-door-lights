@@ -3,7 +3,11 @@ function devicesPage() {
         devices: [],
         patterns: [],
         showPatternModal: false,
+        showStripModal: false,
         selectedDevice: null,
+        stripConfigDevice: null,
+        stripConfig: [],
+        isSavingStrips: false,
         simulatingPatternId: null,
         isLoading: true,
         isRefreshing: false,
@@ -16,14 +20,25 @@ function devicesPage() {
         },
 
         get filteredDevices() {
-            let filtered = this.devices.filter(d => this.showHidden || !d.isHidden);
-            // Sort: online devices first, then by name
-            return filtered.sort((a, b) => {
-                if (a.isOnline !== b.isOnline) {
-                    return b.isOnline ? 1 : -1;
-                }
-                return a.name.localeCompare(b.name);
-            });
+            return this.devices.filter(d => this.showHidden || !d.isHidden);
+        },
+
+        get readyDevices() {
+            return this.filteredDevices
+                .filter(d => d.isOnline && d.isReady)
+                .sort((a, b) => a.name.localeCompare(b.name));
+        },
+
+        get onlineDevices() {
+            return this.filteredDevices
+                .filter(d => d.isOnline && !d.isReady)
+                .sort((a, b) => a.name.localeCompare(b.name));
+        },
+
+        get offlineDevices() {
+            return this.filteredDevices
+                .filter(d => !d.isOnline)
+                .sort((a, b) => a.name.localeCompare(b.name));
         },
 
         get deviceCount() {
@@ -163,6 +178,111 @@ function devicesPage() {
         getPatternName(patternId) {
             const pattern = this.patterns.find(p => p.patternId === patternId);
             return pattern ? pattern.name : 'Unknown';
+        },
+
+        openStripConfig(device) {
+            this.stripConfigDevice = device;
+            // Deep clone the existing strips or start with empty array
+            this.stripConfig = device.ledStrips
+                ? JSON.parse(JSON.stringify(device.ledStrips))
+                : [];
+            this.showStripModal = true;
+        },
+
+        addStrip() {
+            if (this.stripConfig.length < 4) {
+                // Find first unused pin
+                const usedPins = this.stripConfig.map(s => s.pin);
+                let nextPin = 0;
+                for (let i = 0; i <= 7; i++) {
+                    if (!usedPins.includes(i)) {
+                        nextPin = i;
+                        break;
+                    }
+                }
+                this.stripConfig.push({ pin: nextPin, ledCount: 8 });
+            }
+        },
+
+        removeStrip(index) {
+            this.stripConfig.splice(index, 1);
+        },
+
+        async saveStripConfig() {
+            this.isSavingStrips = true;
+
+            try {
+                // Validate for duplicate pins
+                const pins = this.stripConfig.map(s => s.pin);
+                const uniquePins = new Set(pins);
+                if (pins.length !== uniquePins.size) {
+                    alert('Error: Each strip must use a different pin.');
+                    this.isSavingStrips = false;
+                    return;
+                }
+
+                const resp = await fetch(`/api/devices/${this.stripConfigDevice.deviceId}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ ledStrips: this.stripConfig })
+                });
+
+                const data = await resp.json();
+
+                if (data.success) {
+                    // Send strip configuration to device via Particle
+                    await this.syncStripsToDevice(this.stripConfigDevice.deviceId, this.stripConfig);
+                    this.showStripModal = false;
+                    this.loadDevices();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (err) {
+                alert('Error saving configuration: ' + err.message);
+            } finally {
+                this.isSavingStrips = false;
+            }
+        },
+
+        async syncStripsToDevice(deviceId, strips) {
+            // First clear all existing strips on the device
+            await fetch('/api/particle/command', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    deviceId,
+                    command: 'clearAll',
+                    argument: '1'
+                })
+            });
+
+            // Add each configured strip
+            for (const strip of strips) {
+                await fetch('/api/particle/command', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        deviceId,
+                        command: 'addStrip',
+                        argument: `${strip.pin},${strip.ledCount}`
+                    })
+                });
+            }
+
+            // Save config to device EEPROM
+            await fetch('/api/particle/command', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    deviceId,
+                    command: 'saveConfig',
+                    argument: '1'
+                })
+            });
         }
     }
 }

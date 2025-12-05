@@ -168,7 +168,7 @@ func handleSendCommand(ctx context.Context, username string, request events.APIG
 
 		// Apply pattern to device
 		log.Printf("Applying pattern to device...")
-		if err := applyPatternToDevice(device.ParticleID, pattern, user.ParticleToken); err != nil {
+		if err := applyPatternToDevice(device, pattern, user.ParticleToken); err != nil {
 			log.Printf("Failed to apply pattern: %v", err)
 			return shared.CreateErrorResponse(500, fmt.Sprintf("Failed to apply pattern: %v", err)), nil
 		}
@@ -184,9 +184,9 @@ func handleSendCommand(ctx context.Context, username string, request events.APIG
 	// Otherwise, send custom command
 	log.Printf("No pattern ID, sending custom command: %s with argument: %s", cmdReq.Command, cmdReq.Argument)
 
-	if cmdReq.Command == "" || cmdReq.Argument == "" {
-		log.Println("Command or argument missing")
-		return shared.CreateErrorResponse(400, "command and argument are required"), nil
+	if cmdReq.Command == "" {
+		log.Println("Command missing")
+		return shared.CreateErrorResponse(400, "command is required"), nil
 	}
 
 	if err := callParticleFunction(device.ParticleID, cmdReq.Command, cmdReq.Argument, user.ParticleToken); err != nil {
@@ -253,6 +253,13 @@ func handleRefreshDevices(ctx context.Context, username string) (events.APIGatew
 
 		connected, _ := particleDev["connected"].(bool)
 
+		// Check device readiness if online
+		var isReady bool
+		var firmwareVersion, platform string
+		if connected {
+			isReady, firmwareVersion, platform = checkDeviceReadiness(particleID, user.ParticleToken)
+		}
+
 		// Check if device already exists for this user
 		log.Printf("Checking if device %s already exists for user %s", particleID, username)
 		existingDevice, err := findDeviceByParticleID(ctx, username, particleID)
@@ -268,6 +275,9 @@ func handleRefreshDevices(ctx context.Context, username string) (events.APIGatew
 			log.Printf("Updating existing device: %s", existingDevice.DeviceID)
 			existingDevice.Name = name
 			existingDevice.IsOnline = connected
+			existingDevice.IsReady = isReady
+			existingDevice.FirmwareVersion = firmwareVersion
+			existingDevice.Platform = platform
 			if connected {
 				existingDevice.LastSeen = now
 			}
@@ -275,7 +285,7 @@ func handleRefreshDevices(ctx context.Context, username string) (events.APIGatew
 
 			// Dereference pointer to pass value, not pointer
 			deviceValue := *existingDevice
-			log.Printf("About to PutItem - deviceValue type: %T, deviceId: %s", deviceValue, deviceValue.DeviceID)
+			log.Printf("About to PutItem - deviceValue type: %T, deviceId: %s, isReady: %v", deviceValue, deviceValue.DeviceID, deviceValue.IsReady)
 			if err := shared.PutItem(ctx, devicesTable, deviceValue); err != nil {
 				log.Printf("Failed to update device: %v", err)
 				continue
@@ -287,17 +297,20 @@ func handleRefreshDevices(ctx context.Context, username string) (events.APIGatew
 			log.Printf("Creating new device with ID: %s", deviceID)
 
 			device := shared.Device{
-				DeviceID:   deviceID,
-				UserID:     username,
-				Name:       name,
-				ParticleID: particleID,
-				IsOnline:   connected,
-				LastSeen:   now,
-				CreatedAt:  now,
-				UpdatedAt:  now,
+				DeviceID:        deviceID,
+				UserID:          username,
+				Name:            name,
+				ParticleID:      particleID,
+				IsOnline:        connected,
+				IsReady:         isReady,
+				FirmwareVersion: firmwareVersion,
+				Platform:        platform,
+				LastSeen:        now,
+				CreatedAt:       now,
+				UpdatedAt:       now,
 			}
 
-			log.Printf("About to PutItem - device type: %T, deviceId: %s", device, device.DeviceID)
+			log.Printf("About to PutItem - device type: %T, deviceId: %s, isReady: %v", device, device.DeviceID, device.IsReady)
 			if err := shared.PutItem(ctx, devicesTable, device); err != nil {
 				log.Printf("Failed to save new device: %v", err)
 				continue
@@ -374,49 +387,84 @@ func handleGetDeviceInfo(ctx context.Context, username string, deviceID string) 
 	return shared.CreateSuccessResponse(200, info), nil
 }
 
-func applyPatternToDevice(particleID string, pattern shared.Pattern, token string) error {
-	log.Printf("=== applyPatternToDevice: particleID=%s, pattern=%s ===", particleID, pattern.Name)
+func applyPatternToDevice(device shared.Device, pattern shared.Pattern, token string) error {
+	log.Printf("=== applyPatternToDevice: device=%s, pattern=%s ===", device.Name, pattern.Name)
 
 	// Convert pattern type to firmware pattern number
-	patternMap := map[string]string{
-		shared.PatternCandle:  "0",
-		shared.PatternSolid:   "1",
-		shared.PatternPulse:   "2",
-		shared.PatternWave:    "3",
-		shared.PatternRainbow: "4",
-		shared.PatternFire:    "5",
+	patternMap := map[string]int{
+		shared.PatternCandle:  1,
+		shared.PatternSolid:   2,
+		shared.PatternPulse:   3,
+		shared.PatternWave:    4,
+		shared.PatternRainbow: 5,
+		shared.PatternFire:    6,
 	}
 
 	patternNum := patternMap[pattern.Type]
-	log.Printf("Pattern type %s mapped to number %s", pattern.Type, patternNum)
+	log.Printf("Pattern type %s mapped to number %d", pattern.Type, patternNum)
 
-	// Send pattern command
-	patternArg := fmt.Sprintf("%s:%d", patternNum, pattern.Speed)
-	log.Printf("Sending setPattern command with arg: %s", patternArg)
-	if err := callParticleFunction(particleID, "setPattern", patternArg, token); err != nil {
-		log.Printf("setPattern failed: %v", err)
-		return err
-	}
+	// If device has configured LED strips, apply pattern to each strip
+	if len(device.LEDStrips) > 0 {
+		log.Printf("Device has %d configured LED strips", len(device.LEDStrips))
 
-	// Send color command
-	colorArg := fmt.Sprintf("%d,%d,%d", pattern.Red, pattern.Green, pattern.Blue)
-	log.Printf("Sending setColor command with arg: %s", colorArg)
-	if err := callParticleFunction(particleID, "setColor", colorArg, token); err != nil {
-		log.Printf("setColor failed: %v", err)
-		return err
-	}
+		for _, strip := range device.LEDStrips {
+			pin := strip.Pin
+			log.Printf("Applying pattern to strip on pin D%d", pin)
 
-	// Send brightness command
-	brightnessArg := fmt.Sprintf("%d", pattern.Brightness)
-	log.Printf("Sending setBright command with arg: %s", brightnessArg)
-	if err := callParticleFunction(particleID, "setBright", brightnessArg, token); err != nil {
-		log.Printf("setBright failed: %v", err)
-		return err
+			// Send pattern command: "pin,pattern,speed"
+			patternArg := fmt.Sprintf("%d,%d,%d", pin, patternNum, pattern.Speed)
+			log.Printf("Sending setPattern command with arg: %s", patternArg)
+			if err := callParticleFunction(device.ParticleID, "setPattern", patternArg, token); err != nil {
+				log.Printf("setPattern failed for pin D%d: %v", pin, err)
+				return err
+			}
+
+			// Send color command: "pin,R,G,B"
+			colorArg := fmt.Sprintf("%d,%d,%d,%d", pin, pattern.Red, pattern.Green, pattern.Blue)
+			log.Printf("Sending setColor command with arg: %s", colorArg)
+			if err := callParticleFunction(device.ParticleID, "setColor", colorArg, token); err != nil {
+				log.Printf("setColor failed for pin D%d: %v", pin, err)
+				return err
+			}
+
+			// Send brightness command: "pin,brightness"
+			brightnessArg := fmt.Sprintf("%d,%d", pin, pattern.Brightness)
+			log.Printf("Sending setBright command with arg: %s", brightnessArg)
+			if err := callParticleFunction(device.ParticleID, "setBright", brightnessArg, token); err != nil {
+				log.Printf("setBright failed for pin D%d: %v", pin, err)
+				return err
+			}
+		}
+	} else {
+		// Fallback for devices without configured strips - apply to default pin 6
+		log.Printf("No LED strips configured, using default pin D6")
+		pin := 6
+
+		// Send pattern command
+		patternArg := fmt.Sprintf("%d,%d,%d", pin, patternNum, pattern.Speed)
+		if err := callParticleFunction(device.ParticleID, "setPattern", patternArg, token); err != nil {
+			log.Printf("setPattern failed: %v", err)
+			return err
+		}
+
+		// Send color command
+		colorArg := fmt.Sprintf("%d,%d,%d,%d", pin, pattern.Red, pattern.Green, pattern.Blue)
+		if err := callParticleFunction(device.ParticleID, "setColor", colorArg, token); err != nil {
+			log.Printf("setColor failed: %v", err)
+			return err
+		}
+
+		// Send brightness command
+		brightnessArg := fmt.Sprintf("%d,%d", pin, pattern.Brightness)
+		if err := callParticleFunction(device.ParticleID, "setBright", brightnessArg, token); err != nil {
+			log.Printf("setBright failed: %v", err)
+			return err
+		}
 	}
 
 	// Save configuration to flash
 	log.Println("Sending saveConfig command")
-	if err := callParticleFunction(particleID, "saveConfig", "1", token); err != nil {
+	if err := callParticleFunction(device.ParticleID, "saveConfig", "1", token); err != nil {
 		log.Printf("saveConfig failed: %v", err)
 		return err
 	}
@@ -565,6 +613,69 @@ func getParticleDeviceInfo(deviceID, token string) (map[string]interface{}, erro
 
 	log.Println("Successfully parsed device info from response")
 	return result, nil
+}
+
+// getParticleVariable gets a specific variable from a Particle device
+func getParticleVariable(deviceID, variableName, token string) (string, error) {
+	url := fmt.Sprintf("%s/devices/%s/%s", particleAPIBase, deviceID, variableName)
+
+	log.Printf("Getting variable %s from device %s", variableName, deviceID)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to get variable: status %d", resp.StatusCode)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	var result map[string]interface{}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "", err
+	}
+
+	// Variable value is in "result" field
+	if val, ok := result["result"]; ok {
+		switch v := val.(type) {
+		case string:
+			return v, nil
+		case float64:
+			return fmt.Sprintf("%.0f", v), nil
+		default:
+			return fmt.Sprintf("%v", v), nil
+		}
+	}
+
+	return "", fmt.Errorf("no result in response")
+}
+
+// checkDeviceReadiness checks if a device has valid firmware by reading deviceInfo variable
+func checkDeviceReadiness(particleID, token string) (isReady bool, firmwareVersion, platform string) {
+	deviceInfo, err := getParticleVariable(particleID, "deviceInfo", token)
+	if err != nil {
+		log.Printf("Device %s: could not read deviceInfo variable: %v", particleID, err)
+		return false, "", ""
+	}
+
+	// deviceInfo format: "version|platform|maxStrips|maxLeds"
+	parts := strings.Split(deviceInfo, "|")
+	if len(parts) >= 2 {
+		log.Printf("Device %s: firmware=%s, platform=%s", particleID, parts[0], parts[1])
+		return true, parts[0], parts[1]
+	}
+
+	return false, "", ""
 }
 
 // safeTokenDisplay returns the first N characters of a token for logging

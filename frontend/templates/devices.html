@@ -46,26 +46,96 @@
             <p>Loading devices...</p>
         </div>
 
-        <div class="devices-grid">
-            <template x-for="device in filteredDevices" :key="device.deviceId">
-                <div class="card device-card" :style="device.isHidden ? 'opacity: 0.6' : ''">
-                    <div class="device-header">
-                        <h3 x-text="device.name"></h3>
-                        <span class="badge" :class="device.isOnline ? 'badge-success' : 'badge-danger'" x-text="device.isOnline ? 'Online' : 'Offline'"></span>
+        <!-- Ready to Configure Section -->
+        <div x-show="readyDevices.length > 0 && !isLoading">
+            <h2 style="color: #10b981; margin: 1.5rem 0 1rem; font-size: 1.2rem; display: flex; align-items: center; gap: 0.5rem;">
+                <span style="width: 10px; height: 10px; background: #10b981; border-radius: 50%; display: inline-block;"></span>
+                Ready to Configure (<span x-text="readyDevices.length"></span>)
+            </h2>
+            <div class="devices-grid">
+                <template x-for="device in readyDevices" :key="device.deviceId">
+                    <div class="card device-card" :style="device.isHidden ? 'opacity: 0.6' : ''" style="border-left: 3px solid #10b981;">
+                        <div class="device-header">
+                            <h3 x-text="device.name"></h3>
+                            <span class="badge badge-success">Ready</span>
+                        </div>
+                        <div class="device-info">
+                            <p><strong>Firmware:</strong> <span x-text="device.firmwareVersion || 'Unknown'"></span> (<span x-text="device.platform || 'Unknown'"></span>)</p>
+                            <p><strong>Assigned Pattern:</strong> <span x-text="device.assignedPattern ? getPatternName(device.assignedPattern) : 'None'"></span></p>
+                        </div>
+                        <div class="device-strips" x-show="device.ledStrips && device.ledStrips.length > 0" style="margin: 0.5rem 0; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px;">
+                            <p style="font-size: 0.85rem; margin-bottom: 0.25rem;"><strong>LED Strips:</strong></p>
+                            <template x-for="strip in device.ledStrips" :key="strip.pin">
+                                <span style="display: inline-block; margin-right: 0.5rem; padding: 0.2rem 0.5rem; background: rgba(255,255,255,0.1); border-radius: 4px; font-size: 0.8rem;">
+                                    D<span x-text="strip.pin"></span>: <span x-text="strip.ledCount"></span> LEDs
+                                </span>
+                            </template>
+                        </div>
+                        <div class="buttons">
+                            <button @click="selectDeviceForPattern(device)" class="btn btn-sm btn-primary">Assign Pattern</button>
+                            <button @click="openStripConfig(device)" class="btn btn-sm btn-secondary">Configure LEDs</button>
+                            <button @click="toggleHidden(device.deviceId, device.isHidden)" class="btn btn-sm" :class="device.isHidden ? 'btn-secondary' : 'btn-danger'">
+                                <span x-text="device.isHidden ? 'Unhide' : 'Hide'"></span>
+                            </button>
+                        </div>
                     </div>
-                    <div class="device-info">
-                        <p><strong>Particle ID:</strong> <span x-text="device.particleId"></span></p>
-                        <p><strong>Last Seen:</strong> <span x-text="new Date(device.lastSeen).toLocaleString()"></span></p>
-                        <p><strong>Assigned Pattern:</strong> <span x-text="device.assignedPattern ? getPatternName(device.assignedPattern) : 'None'"></span></p>
+                </template>
+            </div>
+        </div>
+
+        <!-- Online (Not Ready) Section -->
+        <div x-show="onlineDevices.length > 0 && !isLoading">
+            <h2 style="color: #f59e0b; margin: 1.5rem 0 1rem; font-size: 1.2rem; display: flex; align-items: center; gap: 0.5rem;">
+                <span style="width: 10px; height: 10px; background: #f59e0b; border-radius: 50%; display: inline-block;"></span>
+                Online - Needs Firmware (<span x-text="onlineDevices.length"></span>)
+            </h2>
+            <div class="devices-grid">
+                <template x-for="device in onlineDevices" :key="device.deviceId">
+                    <div class="card device-card" :style="device.isHidden ? 'opacity: 0.6' : ''" style="border-left: 3px solid #f59e0b;">
+                        <div class="device-header">
+                            <h3 x-text="device.name"></h3>
+                            <span class="badge" style="background: #f59e0b;">Online</span>
+                        </div>
+                        <div class="device-info">
+                            <p><strong>Particle ID:</strong> <span x-text="device.particleId"></span></p>
+                            <p><strong>Last Seen:</strong> <span x-text="new Date(device.lastSeen).toLocaleString()"></span></p>
+                            <p style="color: #f59e0b; font-size: 0.9rem;">Flash the LED controller firmware to enable configuration.</p>
+                        </div>
+                        <div class="buttons">
+                            <button @click="toggleHidden(device.deviceId, device.isHidden)" class="btn btn-sm" :class="device.isHidden ? 'btn-secondary' : 'btn-danger'">
+                                <span x-text="device.isHidden ? 'Unhide' : 'Hide'"></span>
+                            </button>
+                        </div>
                     </div>
-                    <div class="buttons">
-                        <button @click="selectDeviceForPattern(device)" class="btn btn-sm btn-primary">Assign Pattern</button>
-                        <button @click="toggleHidden(device.deviceId, device.isHidden)" class="btn btn-sm" :class="device.isHidden ? 'btn-secondary' : 'btn-danger'">
-                            <span x-text="device.isHidden ? 'Unhide' : 'Hide'"></span>
-                        </button>
+                </template>
+            </div>
+        </div>
+
+        <!-- Offline Section -->
+        <div x-show="offlineDevices.length > 0 && !isLoading">
+            <h2 style="color: #6b7280; margin: 1.5rem 0 1rem; font-size: 1.2rem; display: flex; align-items: center; gap: 0.5rem;">
+                <span style="width: 10px; height: 10px; background: #6b7280; border-radius: 50%; display: inline-block;"></span>
+                Offline (<span x-text="offlineDevices.length"></span>)
+            </h2>
+            <div class="devices-grid">
+                <template x-for="device in offlineDevices" :key="device.deviceId">
+                    <div class="card device-card" :style="device.isHidden ? 'opacity: 0.6' : ''" style="border-left: 3px solid #6b7280; opacity: 0.7;">
+                        <div class="device-header">
+                            <h3 x-text="device.name"></h3>
+                            <span class="badge badge-danger">Offline</span>
+                        </div>
+                        <div class="device-info">
+                            <p><strong>Particle ID:</strong> <span x-text="device.particleId"></span></p>
+                            <p><strong>Last Seen:</strong> <span x-text="new Date(device.lastSeen).toLocaleString()"></span></p>
+                        </div>
+                        <div class="buttons">
+                            <button @click="toggleHidden(device.deviceId, device.isHidden)" class="btn btn-sm" :class="device.isHidden ? 'btn-secondary' : 'btn-danger'">
+                                <span x-text="device.isHidden ? 'Unhide' : 'Hide'"></span>
+                            </button>
+                        </div>
                     </div>
-                </div>
-            </template>
+                </template>
+            </div>
         </div>
 
         <!-- Assign Pattern Modal -->
@@ -94,6 +164,58 @@
                     </template>
                 </div>
                 <button type="button" @click="showPatternModal = false" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+
+        <!-- LED Strip Configuration Modal -->
+        <div x-show="showStripModal" class="modal" style="display: none;" @click.self="showStripModal = false">
+            <div class="modal-content">
+                <h2>Configure LED Strips - <span x-text="stripConfigDevice?.name"></span></h2>
+                <p style="color: #6b7280; margin-bottom: 1rem;">Configure which pins have RGB LED strips and how many LEDs on each.</p>
+
+                <div style="margin-bottom: 1rem;">
+                    <template x-for="(strip, index) in stripConfig" :key="index">
+                        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; padding: 0.75rem; background: #f3f4f6; border-radius: 8px;">
+                            <div style="flex: 1;">
+                                <label style="display: block; font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem;">Pin</label>
+                                <select x-model.number="strip.pin" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;">
+                                    <option value="0">D0</option>
+                                    <option value="1">D1</option>
+                                    <option value="2">D2</option>
+                                    <option value="3">D3</option>
+                                    <option value="4">D4</option>
+                                    <option value="5">D5</option>
+                                    <option value="6">D6</option>
+                                    <option value="7">D7</option>
+                                </select>
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="display: block; font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem;">LED Count</label>
+                                <input type="number" x-model.number="strip.ledCount" min="1" max="60" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;">
+                            </div>
+                            <button type="button" @click="removeStrip(index)" class="btn btn-sm btn-danger" style="margin-top: 1.25rem;">Remove</button>
+                        </div>
+                    </template>
+                </div>
+
+                <div x-show="stripConfig.length === 0" style="text-align: center; padding: 1rem; color: #6b7280;">
+                    No LED strips configured. Click "Add Strip" to add one.
+                </div>
+
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                    <button type="button" @click="addStrip()" class="btn btn-secondary" :disabled="stripConfig.length >= 4">
+                        + Add Strip
+                    </button>
+                    <span x-show="stripConfig.length >= 4" style="color: #6b7280; font-size: 0.85rem; align-self: center;">(Max 4 strips)</span>
+                </div>
+
+                <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                    <button type="button" @click="showStripModal = false" class="btn btn-secondary">Cancel</button>
+                    <button type="button" @click="saveStripConfig()" class="btn btn-primary" :disabled="isSavingStrips">
+                        <span x-show="!isSavingStrips">Save Configuration</span>
+                        <span x-show="isSavingStrips">Saving...</span>
+                    </button>
+                </div>
             </div>
         </div>
     </div>

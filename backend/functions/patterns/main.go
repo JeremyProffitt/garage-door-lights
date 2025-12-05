@@ -99,11 +99,23 @@ func handleCreatePattern(ctx context.Context, username string, request events.AP
         return shared.CreateErrorResponse(400, "Invalid pattern type"), nil
     }
 
-    // Validate RGB values
+    // Validate RGB values (for backward compatibility)
     if pattern.Red < 0 || pattern.Red > 255 ||
         pattern.Green < 0 || pattern.Green > 255 ||
         pattern.Blue < 0 || pattern.Blue > 255 {
         return shared.CreateErrorResponse(400, "RGB values must be between 0 and 255"), nil
+    }
+
+    // Validate colors array if provided
+    for _, color := range pattern.Colors {
+        if color.R < 0 || color.R > 255 ||
+            color.G < 0 || color.G > 255 ||
+            color.B < 0 || color.B > 255 {
+            return shared.CreateErrorResponse(400, "Color RGB values must be between 0 and 255"), nil
+        }
+        if color.Percentage < 0 || color.Percentage > 100 {
+            return shared.CreateErrorResponse(400, "Color percentage must be between 0 and 100"), nil
+        }
     }
 
     // Set defaults
@@ -194,6 +206,18 @@ func handleUpdatePattern(ctx context.Context, username string, patternID string,
     }
     if updates.Blue >= 0 && updates.Blue <= 255 {
         existingPattern.Blue = updates.Blue
+    }
+    // Update colors array if provided
+    if len(updates.Colors) > 0 {
+        // Validate colors
+        for _, color := range updates.Colors {
+            if color.R < 0 || color.R > 255 ||
+                color.G < 0 || color.G > 255 ||
+                color.B < 0 || color.B > 255 {
+                return shared.CreateErrorResponse(400, "Color RGB values must be between 0 and 255"), nil
+            }
+        }
+        existingPattern.Colors = updates.Colors
     }
     if updates.Brightness > 0 {
         existingPattern.Brightness = updates.Brightness

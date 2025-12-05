@@ -155,9 +155,10 @@ func handleUpdateDevice(ctx context.Context, username string, deviceID string, r
 
     // Parse updates
     var updates struct {
-        Name     string `json:"name,omitempty"`
-        IsOnline *bool  `json:"isOnline,omitempty"`
-        IsHidden *bool  `json:"isHidden,omitempty"`
+        Name      string            `json:"name,omitempty"`
+        IsOnline  *bool             `json:"isOnline,omitempty"`
+        IsHidden  *bool             `json:"isHidden,omitempty"`
+        LEDStrips []shared.LEDStrip `json:"ledStrips,omitempty"`
     }
 
     body := shared.GetRequestBody(request)
@@ -177,6 +178,19 @@ func handleUpdateDevice(ctx context.Context, username string, deviceID string, r
     }
     if updates.IsHidden != nil {
         existingDevice.IsHidden = *updates.IsHidden
+    }
+    // Update LED strips if provided (allow empty array to clear strips)
+    if updates.LEDStrips != nil {
+        // Validate LED strips
+        for _, strip := range updates.LEDStrips {
+            if strip.Pin < 0 || strip.Pin > 7 {
+                return shared.CreateErrorResponse(400, "Pin must be between 0 and 7 (D0-D7)"), nil
+            }
+            if strip.LEDCount < 1 || strip.LEDCount > 60 {
+                return shared.CreateErrorResponse(400, "LED count must be between 1 and 60"), nil
+            }
+        }
+        existingDevice.LEDStrips = updates.LEDStrips
     }
 
     existingDevice.UpdatedAt = time.Now()

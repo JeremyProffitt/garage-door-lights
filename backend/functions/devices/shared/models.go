@@ -28,17 +28,28 @@ type Pattern struct {
     UpdatedAt   time.Time         `json:"updatedAt" dynamodbav:"updatedAt"`
 }
 
+// LEDStrip represents configuration for a single LED strip on a device pin
+type LEDStrip struct {
+    Pin      int `json:"pin" dynamodbav:"pin"`           // Pin number (0-7 for D0-D7)
+    LEDCount int `json:"ledCount" dynamodbav:"ledCount"` // Number of LEDs on this strip
+}
+
 // Device represents a Particle Argon device
 type Device struct {
-    DeviceID        string    `json:"deviceId" dynamodbav:"deviceId"`
-    UserID          string    `json:"userId" dynamodbav:"userId"`
-    Name            string    `json:"name" dynamodbav:"name"`
-    ParticleID      string    `json:"particleId" dynamodbav:"particleId"`
-    AssignedPattern string    `json:"assignedPattern,omitempty" dynamodbav:"assignedPattern"`
-    IsOnline        bool      `json:"isOnline" dynamodbav:"isOnline"`
-    LastSeen        time.Time `json:"lastSeen" dynamodbav:"lastSeen"`
-    CreatedAt       time.Time `json:"createdAt" dynamodbav:"createdAt"`
-    UpdatedAt       time.Time `json:"updatedAt" dynamodbav:"updatedAt"`
+    DeviceID        string     `json:"deviceId" dynamodbav:"deviceId"`
+    UserID          string     `json:"userId" dynamodbav:"userId"`
+    Name            string     `json:"name" dynamodbav:"name"`
+    ParticleID      string     `json:"particleId" dynamodbav:"particleId"`
+    AssignedPattern string     `json:"assignedPattern,omitempty" dynamodbav:"assignedPattern"`
+    LEDStrips       []LEDStrip `json:"ledStrips,omitempty" dynamodbav:"ledStrips,omitempty"`
+    IsOnline        bool       `json:"isOnline" dynamodbav:"isOnline"`
+    IsReady         bool       `json:"isReady" dynamodbav:"isReady"`
+    FirmwareVersion string     `json:"firmwareVersion,omitempty" dynamodbav:"firmwareVersion"`
+    Platform        string     `json:"platform,omitempty" dynamodbav:"platform"`
+    IsHidden        bool       `json:"isHidden" dynamodbav:"isHidden"`
+    LastSeen        time.Time  `json:"lastSeen" dynamodbav:"lastSeen"`
+    CreatedAt       time.Time  `json:"createdAt" dynamodbav:"createdAt"`
+    UpdatedAt       time.Time  `json:"updatedAt" dynamodbav:"updatedAt"`
 }
 
 // APIResponse is a standard API response
