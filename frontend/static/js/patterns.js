@@ -27,7 +27,19 @@ function patternsPage() {
         },
 
         init() {
-            this.loadPatterns();
+            this.loadPatterns().then(() => {
+                // Check for edit query parameter
+                const urlParams = new URLSearchParams(window.location.search);
+                const editId = urlParams.get('edit');
+                if (editId) {
+                    const pattern = this.patterns.find(p => p.patternId === editId);
+                    if (pattern) {
+                        this.editPattern(pattern);
+                    }
+                    // Clean up URL
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }
+            });
             this.loadDevices();
             // Watch for form changes to update live preview
             this.$watch('form', () => {

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Candle Lights Controller</title>
     <link rel="stylesheet" href="/static/css/style.css">
+    <script src="/static/js/notifications.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 </head>
 <body>
@@ -19,158 +20,146 @@
         </div>
     </nav>
 
-    <div class="container">
-        <h1 style="color: white;">Welcome, {{.Username}}!</h1>
+    <div class="container" x-data="dashboard()">
+        <!-- Header with welcome and Particle.io status -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+            <h1 style="color: white; margin: 0;">Welcome, {{.Username}}!</h1>
 
-        <div class="dashboard-grid" x-data="dashboard()">
-            <div class="card">
-                <h2>Particle.io Connection</h2>
-                <div x-show="particleStatus === 'checking'" style="color: #6b7280;">
-                    <p>Checking connection...</p>
+            <!-- Particle.io Status Box -->
+            <div class="particle-status-box">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="font-weight: 600;">Particle.io</span>
+                    <template x-if="particleStatus === 'checking'">
+                        <span style="color: #6b7280; font-size: 0.85rem;">checking...</span>
+                    </template>
+                    <template x-if="particleStatus === 'connected'">
+                        <span style="color: #10b981; font-size: 0.85rem;">● Connected</span>
+                    </template>
+                    <template x-if="particleStatus === 'error'">
+                        <span style="color: #ef4444; font-size: 0.85rem;">● Disconnected</span>
+                    </template>
                 </div>
-                <div x-show="particleStatus === 'connected'" style="color: #10b981;">
-                    <p>✓ Connected to Particle.io</p>
-                    <p style="font-size: 0.9rem; opacity: 0.8;" x-text="`${visibleDeviceCount} device(s)${hiddenDeviceCount > 0 ? ' (' + hiddenDeviceCount + ' hidden)' : ''}`"></p>
-                </div>
-                <div x-show="particleStatus === 'error'" style="color: #ef4444;">
-                    <p>✗ Not connected to Particle.io</p>
-                    <a href="/settings" class="btn btn-secondary" style="margin-top: 10px;">Go to Settings</a>
+                <div style="font-size: 0.85rem; color: #6b7280;">
+                    <template x-if="particleStatus === 'connected'">
+                        <span x-text="`${deviceCount} device${deviceCount !== 1 ? 's' : ''}`"></span>
+                    </template>
+                    <template x-if="particleStatus === 'error'">
+                        <a href="/settings" class="btn btn-sm btn-primary" style="margin-top: 0.5rem;">Update Token</a>
+                    </template>
                 </div>
             </div>
+        </div>
 
-            <div class="card">
-                <h2>Quick Actions</h2>
-                <div class="buttons">
-                    <a href="/patterns" class="btn btn-primary">Manage Patterns</a>
-                    <a href="/devices" class="btn btn-secondary">Device Management</a>
-                </div>
+        <!-- Patterns Section -->
+        <div class="card" style="margin-bottom: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h2 style="margin: 0;">Patterns</h2>
+                <a href="/patterns" class="btn btn-sm btn-secondary">Manage All</a>
             </div>
 
-            <div class="card">
-                <h2>Your Devices</h2>
-                <div id="devicesList">
-                    <p style="color: #6b7280;">Loading devices...</p>
-                </div>
+            <div x-show="patterns.length === 0" style="color: #6b7280;">
+                <p>No patterns created yet. <a href="/patterns" style="color: #7e22ce; font-weight: 600;">Create your first pattern</a></p>
             </div>
 
-            <div class="card">
-                <h2>Recent Patterns</h2>
-                <div id="patternsList">
-                    <p style="color: #6b7280;">Loading patterns...</p>
+            <div x-show="patterns.length > 0" style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                <select x-model="selectedPatternId" style="flex: 1; min-width: 200px; padding: 0.5rem; border-radius: 6px; border: 1px solid #d1d5db;">
+                    <option value="">-- Select a Pattern --</option>
+                    <template x-for="pattern in patterns" :key="pattern.patternId">
+                        <option :value="pattern.patternId" x-text="pattern.name + ' (' + pattern.type + ')'"></option>
+                    </template>
+                </select>
+                <button @click="editSelectedPattern()" class="btn btn-primary" :disabled="!selectedPatternId">Edit Pattern</button>
+            </div>
+
+            <!-- Pattern Preview -->
+            <div x-show="selectedPatternId && getSelectedPattern()" style="margin-top: 1rem; padding: 1rem; background: rgba(255,255,255,0.05); border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                    <div class="color-preview-multi" style="width: 100px; height: 24px;">
+                        <template x-if="getSelectedPattern()?.colors?.length > 0">
+                            <template x-for="(color, idx) in getSelectedPattern().colors" :key="idx">
+                                <div class="color-swatch" :style="`background: rgb(${color.r}, ${color.g}, ${color.b}); width: ${color.percentage}%`"></div>
+                            </template>
+                        </template>
+                    </div>
+                    <span style="color: #6b7280; font-size: 0.9rem;">
+                        Brightness: <span x-text="getSelectedPattern()?.brightness || 0"></span> |
+                        Speed: <span x-text="getSelectedPattern()?.speed || 0"></span>ms
+                    </span>
                 </div>
+            </div>
+        </div>
+
+        <!-- Ready Devices Section -->
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h2 style="margin: 0;">Ready Devices</h2>
+                <a href="/devices" class="btn btn-sm btn-secondary">Manage All</a>
+            </div>
+
+            <div x-show="isLoading" style="color: #6b7280;">
+                <p>Loading devices...</p>
+            </div>
+
+            <div x-show="!isLoading && readyDevices.length === 0" style="color: #6b7280;">
+                <p>No devices ready to configure. <a href="/devices" style="color: #7e22ce; font-weight: 600;">Go to Devices page</a> to set up your devices.</p>
+            </div>
+
+            <div class="devices-grid" x-show="!isLoading && readyDevices.length > 0">
+                <template x-for="device in readyDevices" :key="device.deviceId">
+                    <div class="card device-card" style="border-left: 3px solid #10b981; margin-bottom: 0;">
+                        <div class="device-header">
+                            <div>
+                                <h3 x-text="device.name" style="margin: 0;"></h3>
+                                <p style="font-size: 0.85rem; color: #6b7280; margin: 0;">
+                                    <span x-text="device.platform || 'Unknown'"></span> <span x-text="device.firmwareVersion || ''"></span>
+                                </p>
+                            </div>
+                            <span class="badge badge-success">Ready</span>
+                        </div>
+
+                        <!-- LED Strips -->
+                        <div x-show="device.ledStrips && device.ledStrips.length > 0" style="margin-top: 0.75rem;">
+                            <template x-for="(strip, stripIndex) in device.ledStrips" :key="strip.pin">
+                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.1); border-radius: 4px;">
+                                    <span style="font-size: 0.8rem; min-width: 80px;">
+                                        D<span x-text="strip.pin"></span>: <span x-text="strip.ledCount"></span> LEDs
+                                    </span>
+                                    <select
+                                        @change="setStripPattern(device, stripIndex, $event.target.value)"
+                                        style="flex: 1; padding: 0.25rem; font-size: 0.8rem; border-radius: 4px;"
+                                        :value="getStripPatternId(device, strip.pin)">
+                                        <option value="">-- Select Pattern --</option>
+                                        <template x-for="pattern in patterns" :key="pattern.patternId">
+                                            <option :value="pattern.patternId" x-text="pattern.name" :selected="getStripPatternId(device, strip.pin) === pattern.patternId"></option>
+                                        </template>
+                                    </select>
+                                    <button
+                                        @click="applyStripPattern(device, strip.pin)"
+                                        class="btn btn-sm btn-primary"
+                                        style="padding: 0.25rem 0.5rem; font-size: 0.75rem;"
+                                        :disabled="!getStripPatternId(device, strip.pin)">
+                                        Apply
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+
+                        <div x-show="!device.ledStrips || device.ledStrips.length === 0" style="margin-top: 0.75rem; color: #6b7280; font-size: 0.85rem;">
+                            <a :href="'/devices'" style="color: #7e22ce;">Configure LED strips</a> to assign patterns.
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Show count of other devices -->
+            <div x-show="!isLoading && (onlineNotReadyCount > 0 || offlineCount > 0)" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1); color: #6b7280; font-size: 0.9rem;">
+                <span x-show="onlineNotReadyCount > 0" x-text="`${onlineNotReadyCount} device${onlineNotReadyCount !== 1 ? 's' : ''} online but needs firmware`"></span>
+                <span x-show="onlineNotReadyCount > 0 && offlineCount > 0"> · </span>
+                <span x-show="offlineCount > 0" x-text="`${offlineCount} device${offlineCount !== 1 ? 's' : ''} offline`"></span>
             </div>
         </div>
     </div>
 
-    <script>
-        function dashboard() {
-            return {
-                devices: [],
-                patterns: [],
-                particleStatus: 'checking',
-
-                get visibleDeviceCount() {
-                    return this.devices.filter(d => !d.isHidden).length;
-                },
-
-                get hiddenDeviceCount() {
-                    return this.devices.filter(d => d.isHidden).length;
-                },
-
-                get sortedDevices() {
-                    // Filter out hidden devices and sort: online first, then by name
-                    return this.devices
-                        .filter(d => !d.isHidden)
-                        .sort((a, b) => {
-                            if (a.isOnline !== b.isOnline) {
-                                return b.isOnline ? 1 : -1;
-                            }
-                            return a.name.localeCompare(b.name);
-                        });
-                },
-
-                init() {
-                    this.checkParticleConnection();
-                    this.loadDevices();
-                    this.loadPatterns();
-                },
-                async checkParticleConnection() {
-                    try {
-                        const resp = await fetch('/api/particle/devices/refresh', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            credentials: 'same-origin'
-                        });
-                        const data = await resp.json();
-                        if (data.success) {
-                            this.particleStatus = 'connected';
-                        } else {
-                            this.particleStatus = 'error';
-                        }
-                    } catch (err) {
-                        this.particleStatus = 'error';
-                    }
-                },
-                async loadDevices() {
-                    try {
-                        const resp = await fetch('/api/devices', {
-                            credentials: 'same-origin'
-                        });
-                        const data = await resp.json();
-                        if (data.success) {
-                            this.devices = data.data || [];
-                        }
-                    } catch (err) {
-                        console.error('Failed to load devices:', err);
-                        this.devices = [];
-                    }
-                    this.renderDevices();
-                },
-                async loadPatterns() {
-                    try {
-                        const resp = await fetch('/api/patterns', {
-                            credentials: 'same-origin'
-                        });
-                        const data = await resp.json();
-                        if (data.success) {
-                            this.patterns = data.data || [];
-                        }
-                    } catch (err) {
-                        console.error('Failed to load patterns:', err);
-                        this.patterns = [];
-                    }
-                    this.renderPatterns();
-                },
-                renderDevices() {
-                    const el = document.getElementById('devicesList');
-                    if (this.sortedDevices.length === 0) {
-                        el.innerHTML = '<p style="color: #6b7280;">No devices registered yet. <a href="/devices" style="color: #7e22ce; font-weight: 600;">Go to Devices page</a> to add one!</p>';
-                        return;
-                    }
-                    el.innerHTML = this.sortedDevices.slice(0, 5).map(d => `
-                        <div class="list-item">
-                            <span>${d.name}</span>
-                            <span class="badge ${d.isOnline ? 'badge-success' : 'badge-danger'}">
-                                ${d.isOnline ? 'Online' : 'Offline'}
-                            </span>
-                        </div>
-                    `).join('');
-                },
-                renderPatterns() {
-                    const el = document.getElementById('patternsList');
-                    if (this.patterns.length === 0) {
-                        el.innerHTML = '<p style="color: #6b7280;">No patterns created yet. <a href="/patterns" style="color: #7e22ce; font-weight: 600;">Go to Patterns page</a> to create one!</p>';
-                        return;
-                    }
-                    el.innerHTML = this.patterns.slice(0, 5).map(p => `
-                        <div class="list-item">
-                            <span>${p.name}</span>
-                            <span class="badge">${p.type}</span>
-                        </div>
-                    `).join('');
-                }
-            }
-        }
-    </script>
+    <script src="/static/js/dashboard.js"></script>
 </body>
 </html>
