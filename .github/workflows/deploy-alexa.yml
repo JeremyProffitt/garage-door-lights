@@ -67,9 +67,10 @@ jobs:
           ALEXA_OAUTH_CLIENT_ID: ${{ vars.ALEXA_OAUTH_CLIENT_ID }}
           ALEXA_OAUTH_CLIENT_SECRET: ${{ secrets.ALEXA_OAUTH_CLIENT_SECRET }}
         run: |
-          # Use placeholder if ALEXA_SKILL_ID is not set
+          # Use placeholder/defaults if secrets not set
           SKILL_ID="${ALEXA_SKILL_ID:-amzn1.ask.skill.placeholder}"
           CLIENT_ID="${ALEXA_OAUTH_CLIENT_ID:-garage-lights-alexa}"
+          CLIENT_SECRET="${ALEXA_OAUTH_CLIENT_SECRET:-placeholder-secret}"
 
           sam deploy \
             --stack-name ${{ env.STACK_NAME }} \
@@ -78,7 +79,7 @@ jobs:
             --parameter-overrides \
               "AlexaSkillId=${SKILL_ID}" \
               "AlexaClientId=${CLIENT_ID}" \
-              "AlexaClientSecret=${ALEXA_OAUTH_CLIENT_SECRET}" \
+              "AlexaClientSecret=${CLIENT_SECRET}" \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset
 
