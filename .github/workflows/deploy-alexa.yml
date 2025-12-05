@@ -135,13 +135,12 @@ jobs:
           chmod +x scripts/create-alexa-skill.sh
           ./scripts/create-alexa-skill.sh
 
-      - name: Update Skill ID Secret (if new skill)
-        if: ${{ steps.create-skill.outputs.skill_id && !secrets.ALEXA_SKILL_ID }}
+      - name: Output Skill ID
+        if: ${{ steps.create-skill.outputs.skill_id }}
         run: |
-          echo "::notice::New skill created! Please add the following secret to your repository:"
-          echo "::notice::ALEXA_SKILL_ID=${{ steps.create-skill.outputs.skill_id }}"
+          echo "::notice::Skill ID: ${{ steps.create-skill.outputs.skill_id }}"
           echo ""
-          echo "To save the skill ID as a secret, run:"
+          echo "If this is a new skill, save the skill ID as a secret:"
           echo "  gh secret set ALEXA_SKILL_ID --body '${{ steps.create-skill.outputs.skill_id }}'"
 
   summary:
