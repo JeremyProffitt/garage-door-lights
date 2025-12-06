@@ -1,19 +1,17 @@
 #!/bin/bash
 #
-# Create and configure Alexa Smart Home Skill using SMAPI
+# Create and configure Alexa Smart Home Skill using ASK CLI
 #
 # Required environment variables:
-#   ALEXA_CLIENT_ID      - LWA Client ID
-#   ALEXA_SECRET_KEY     - LWA Client Secret (for refreshing token)
-#   ALEXA_LWA_TOKEN      - Login with Amazon refresh token
-#   ALEXA_VENDOR_ID      - Amazon Developer Vendor ID
-#   DOMAIN_NAME          - Your domain (e.g., lights.jeremy.ninja)
-#   LAMBDA_ARN           - ARN of the Alexa Lambda function
+#   ALEXA_LWA_TOKEN           - Login with Amazon refresh token (from ASK CLI config)
+#   ALEXA_VENDOR_ID           - Amazon Developer Vendor ID
+#   DOMAIN_NAME               - Your domain (e.g., lights.jeremy.ninja)
+#   LAMBDA_ARN                - ARN of the Alexa Lambda function
 #   ALEXA_OAUTH_CLIENT_ID     - OAuth Client ID for account linking
 #   ALEXA_OAUTH_CLIENT_SECRET - OAuth Client Secret for account linking
 #
 # Optional:
-#   ALEXA_SKILL_ID       - Existing skill ID to update (if not provided, creates new)
+#   ALEXA_SKILL_ID            - Existing skill ID to update (if not provided, creates new)
 #
 
 set -e
@@ -31,9 +29,6 @@ NC='\033[0m' # No Color
 log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
-
-# SMAPI base URL
-SMAPI_BASE="https://api.amazonalexa.com/v1"
 
 # Check required environment variables
 check_env() {
@@ -57,27 +52,30 @@ check_env() {
     fi
 }
 
-# Get access token from refresh token
-get_access_token() {
-    log_info "Obtaining access token from LWA..."
+# Set up ASK CLI config from environment variables
+setup_ask_cli() {
+    log_info "Configuring ASK CLI..."
 
-    local response
-    response=$(curl -s -X POST "https://api.amazon.com/auth/o2/token" \
-        -H "Content-Type: application/x-www-form-urlencoded" \
-        -d "grant_type=refresh_token" \
-        -d "refresh_token=$ALEXA_LWA_TOKEN" \
-        -d "client_id=$ALEXA_CLIENT_ID" \
-        -d "client_secret=$ALEXA_SECRET_KEY")
+    mkdir -p ~/.ask
 
-    ACCESS_TOKEN=$(echo "$response" | jq -r '.access_token')
+    # Create ASK CLI config with the refresh token and client credentials
+    # These must match the credentials used when the refresh token was generated via 'ask configure'
+    cat > ~/.ask/cli_config << EOF
+{
+  "profiles": {
+    "default": {
+      "vendor_id": "$ALEXA_VENDOR_ID",
+      "lwa_client_id": "$ALEXA_CLIENT_ID",
+      "lwa_client_secret": "$ALEXA_SECRET_KEY",
+      "token": {
+        "refresh_token": "$ALEXA_LWA_TOKEN"
+      }
+    }
+  }
+}
+EOF
 
-    if [ "$ACCESS_TOKEN" == "null" ] || [ -z "$ACCESS_TOKEN" ]; then
-        log_error "Failed to obtain access token"
-        echo "$response" | jq .
-        exit 1
-    fi
-
-    log_info "Access token obtained successfully"
+    log_info "ASK CLI configured"
 }
 
 # Substitute environment variables in a JSON file
@@ -92,201 +90,103 @@ substitute_vars() {
         "$template" > "$output"
 }
 
-# Create a new skill
-create_skill() {
-    log_info "Creating new Alexa Smart Home skill..."
+# Create or update the skill
+create_or_update_skill() {
+    local temp_dir=$(mktemp -d)
+    trap "rm -rf $temp_dir" EXIT
 
-    # Prepare manifest with substituted variables
-    local manifest_file="/tmp/skill-manifest.json"
-    substitute_vars "$SKILL_DIR/skill-manifest.json" "$manifest_file"
+    # Prepare skill manifest
+    log_info "Preparing skill manifest..."
+    substitute_vars "$SKILL_DIR/skill.json" "$temp_dir/skill.json"
 
-    local response
-    response=$(curl -s -X POST "$SMAPI_BASE/skills" \
-        -H "Authorization: Bearer $ACCESS_TOKEN" \
-        -H "Content-Type: application/json" \
-        -d @"$manifest_file")
+    # Prepare account linking config
+    substitute_vars "$SKILL_DIR/account-linking.json" "$temp_dir/account-linking.json"
 
-    SKILL_ID=$(echo "$response" | jq -r '.skillId')
+    if [ -n "$ALEXA_SKILL_ID" ]; then
+        log_info "Updating existing skill: $ALEXA_SKILL_ID"
 
-    if [ "$SKILL_ID" == "null" ] || [ -z "$SKILL_ID" ]; then
-        log_error "Failed to create skill"
-        echo "$response" | jq .
-        exit 1
+        # Update skill manifest
+        ask smapi update-skill-manifest \
+            --skill-id "$ALEXA_SKILL_ID" \
+            --stage development \
+            --manifest "file:$temp_dir/skill.json" || {
+            log_error "Failed to update skill manifest"
+            exit 1
+        }
+
+        log_info "Skill manifest updated successfully"
+        SKILL_ID="$ALEXA_SKILL_ID"
+    else
+        log_info "Creating new skill..."
+
+        # Create skill using ASK CLI
+        RESPONSE=$(ask smapi create-skill-for-vendor \
+            --manifest "file:$temp_dir/skill.json" 2>&1) || {
+            log_error "Failed to create skill"
+            echo "$RESPONSE"
+            exit 1
+        }
+
+        SKILL_ID=$(echo "$RESPONSE" | jq -r '.skillId // empty')
+
+        if [ -z "$SKILL_ID" ]; then
+            log_error "Failed to get skill ID from response"
+            echo "$RESPONSE"
+            exit 1
+        fi
+
+        log_info "Skill created with ID: $SKILL_ID"
+
+        # Wait for skill to be ready
+        log_info "Waiting for skill to be ready..."
+        sleep 5
     fi
 
-    log_info "Skill created with ID: $SKILL_ID"
-    echo "$SKILL_ID" > "$SKILL_DIR/.skill-id"
-}
-
-# Update existing skill manifest
-update_skill_manifest() {
-    log_info "Updating skill manifest..."
-
-    local manifest_file="/tmp/skill-manifest.json"
-    substitute_vars "$SKILL_DIR/skill-manifest.json" "$manifest_file"
-
-    local response
-    response=$(curl -s -X PUT "$SMAPI_BASE/skills/$SKILL_ID/stages/development/manifest" \
-        -H "Authorization: Bearer $ACCESS_TOKEN" \
-        -H "Content-Type: application/json" \
-        -d @"$manifest_file")
-
-    local status
-    status=$(echo "$response" | jq -r '.status // "success"')
-
-    if [ "$status" == "FAILED" ]; then
-        log_error "Failed to update skill manifest"
-        echo "$response" | jq .
-        exit 1
-    fi
-
-    log_info "Skill manifest updated"
-}
-
-# Configure account linking
-configure_account_linking() {
+    # Update account linking
     log_info "Configuring account linking..."
+    ask smapi update-account-linking-info \
+        --skill-id "$SKILL_ID" \
+        --stage development \
+        --account-linking-request "file:$temp_dir/account-linking.json" || {
+        log_warn "Failed to update account linking (may already be configured)"
+    }
 
-    local account_linking_file="/tmp/account-linking.json"
-    substitute_vars "$SKILL_DIR/account-linking.json" "$account_linking_file"
-
-    local response
-    response=$(curl -s -X PUT "$SMAPI_BASE/skills/$SKILL_ID/stages/development/accountLinkingClient" \
-        -H "Authorization: Bearer $ACCESS_TOKEN" \
-        -H "Content-Type: application/json" \
-        -d @"$account_linking_file")
-
-    # Check for errors
-    local error
-    error=$(echo "$response" | jq -r '.message // empty')
-
-    if [ -n "$error" ]; then
-        log_error "Failed to configure account linking: $error"
-        echo "$response" | jq .
-        exit 1
-    fi
-
-    log_info "Account linking configured"
-}
-
-# Add Lambda permission for Alexa
-add_lambda_permission() {
-    log_info "Adding Lambda permission for Alexa..."
-
-    # Extract region and function name from ARN
-    local region
-    region=$(echo "$LAMBDA_ARN" | cut -d: -f4)
-    local function_name
-    function_name=$(echo "$LAMBDA_ARN" | cut -d: -f7)
-
-    # Remove existing permission if it exists (ignore errors)
-    aws lambda remove-permission \
-        --function-name "$function_name" \
-        --statement-id "alexa-smart-home-$SKILL_ID" \
-        --region "$region" 2>/dev/null || true
-
-    # Add permission for this skill
+    # Set Lambda endpoint permission if needed
+    log_info "Ensuring Lambda has Alexa trigger permission..."
     aws lambda add-permission \
-        --function-name "$function_name" \
-        --statement-id "alexa-smart-home-$SKILL_ID" \
+        --function-name "$LAMBDA_ARN" \
+        --statement-id "alexa-skill-$SKILL_ID" \
         --action "lambda:InvokeFunction" \
         --principal "alexa-connectedhome.amazon.com" \
-        --event-source-token "$SKILL_ID" \
-        --region "$region"
-
-    log_info "Lambda permission added"
-}
-
-# Get skill status
-get_skill_status() {
-    log_info "Getting skill status..."
-
-    local response
-    response=$(curl -s -X GET "$SMAPI_BASE/skills/$SKILL_ID/status" \
-        -H "Authorization: Bearer $ACCESS_TOKEN")
-
-    echo "$response" | jq .
-}
-
-# Enable skill for testing
-enable_skill() {
-    log_info "Enabling skill for testing..."
-
-    local response
-    response=$(curl -s -X POST "$SMAPI_BASE/skills/$SKILL_ID/stages/development/enablement" \
-        -H "Authorization: Bearer $ACCESS_TOKEN" \
-        -H "Content-Type: application/json")
-
-    log_info "Skill enabled for testing"
-}
-
-# Get account linking info (to retrieve redirect URLs)
-get_account_linking_info() {
-    log_info "Getting account linking information..."
-
-    local response
-    response=$(curl -s -X GET "$SMAPI_BASE/skills/$SKILL_ID/stages/development/accountLinkingClient" \
-        -H "Authorization: Bearer $ACCESS_TOKEN")
+        --event-source-token "$SKILL_ID" 2>/dev/null || {
+        log_info "Permission may already exist (this is OK)"
+    }
 
     echo ""
-    log_info "Account Linking Redirect URLs (add these to your OAuth config):"
-    echo "$response" | jq -r '.accountLinkingResponse.redirectUrls[]' 2>/dev/null || echo "  (No redirect URLs yet - skill may still be processing)"
-}
-
-# Main execution
-main() {
-    log_info "=== Alexa Smart Home Skill Setup ==="
-    echo ""
-
-    check_env
-    get_access_token
-
-    # Check if we're updating an existing skill or creating new
-    if [ -n "$ALEXA_SKILL_ID" ]; then
-        SKILL_ID="$ALEXA_SKILL_ID"
-        log_info "Using existing skill ID: $SKILL_ID"
-        update_skill_manifest
-    elif [ -f "$SKILL_DIR/.skill-id" ]; then
-        SKILL_ID=$(cat "$SKILL_DIR/.skill-id")
-        log_info "Found existing skill ID: $SKILL_ID"
-        update_skill_manifest
-    else
-        create_skill
-    fi
-
-    # Configure account linking
-    configure_account_linking
-
-    # Add Lambda permission
-    add_lambda_permission
-
-    # Enable for testing
-    enable_skill
-
-    # Get status and account linking info
-    echo ""
-    get_skill_status
-    get_account_linking_info
-
-    echo ""
-    log_info "=== Setup Complete ==="
+    log_info "=== Skill Setup Complete ==="
     echo ""
     echo "Skill ID: $SKILL_ID"
     echo ""
+    if [ -z "$ALEXA_SKILL_ID" ]; then
+        echo "This is a new skill. Save the skill ID as a GitHub secret:"
+        echo "  gh secret set ALEXA_SKILL_ID --body '$SKILL_ID'"
+        echo ""
+    fi
     echo "Next steps:"
-    echo "1. Open the Alexa app on your phone"
-    echo "2. Go to Skills & Games > Your Skills > Dev"
-    echo "3. Enable the 'Garage Lights' skill and link your account"
-    echo "4. Say 'Alexa, discover devices'"
-    echo ""
-    echo "To use this skill ID in deployments:"
-    echo "  export ALEXA_SKILL_ID=$SKILL_ID"
+    echo "  1. Go to https://developer.amazon.com/alexa/console/ask"
+    echo "  2. Select the 'Candle Lights' skill"
+    echo "  3. Go to 'Test' tab and enable testing"
+    echo "  4. Link your account in the Alexa app"
     echo ""
 
-    # Output skill ID for GitHub Actions
-    if [ -n "$GITHUB_OUTPUT" ]; then
-        echo "skill_id=$SKILL_ID" >> "$GITHUB_OUTPUT"
-    fi
+    # Output for GitHub Actions
+    echo "skill_id=$SKILL_ID" >> "${GITHUB_OUTPUT:-/dev/null}"
 }
 
-main "$@"
+# Main
+log_info "=== Alexa Smart Home Skill Setup ==="
+echo ""
+
+check_env
+setup_ask_cli
+create_or_update_skill

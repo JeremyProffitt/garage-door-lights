@@ -132,6 +132,11 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Install ASK CLI
+        run: |
+          npm install -g ask-cli
+          ask --version
+
       - name: Create/Update Alexa Skill
         id: create-skill
         env:
@@ -139,7 +144,6 @@ jobs:
           ALEXA_SECRET_KEY: ${{ secrets.ALEXA_SECRET_KEY }}
           ALEXA_LWA_TOKEN: ${{ secrets.ALEXA_LWA_TOKEN }}
           ALEXA_VENDOR_ID: ${{ vars.ALEXA_VENDOR_ID }}
-          ALEXA_CUSTOMER_ID: ${{ vars.ALEXA_CUSTOMER_ID }}
           ALEXA_SKILL_ID: ${{ secrets.ALEXA_SKILL_ID }}
           DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
           LAMBDA_ARN: ${{ needs.deploy-infrastructure.outputs.lambda_arn }}
