@@ -119,6 +119,11 @@ create_or_update_skill() {
     else
         log_info "Creating new skill..."
 
+        # Debug: show the manifest being used
+        log_info "Skill manifest content:"
+        cat "$temp_dir/skill.json"
+        echo ""
+
         # Create skill using ASK CLI
         # Note: ask smapi returns JSON on success, but may output non-JSON errors
         set +e
@@ -126,6 +131,9 @@ create_or_update_skill() {
             --manifest "file:$temp_dir/skill.json" 2>&1)
         EXIT_CODE=$?
         set -e
+
+        log_info "ASK CLI exit code: $EXIT_CODE"
+        log_info "ASK CLI response: $RESPONSE"
 
         if [ $EXIT_CODE -ne 0 ]; then
             log_error "Failed to create skill (exit code: $EXIT_CODE)"
