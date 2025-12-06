@@ -97,7 +97,7 @@ create_or_update_skill() {
 
     # Prepare skill manifest
     log_info "Preparing skill manifest..."
-    substitute_vars "$SKILL_DIR/skill.json" "$temp_dir/skill.json"
+    substitute_vars "$SKILL_DIR/skill-manifest.json" "$temp_dir/skill.json"
 
     # Prepare account linking config
     substitute_vars "$SKILL_DIR/account-linking.json" "$temp_dir/account-linking.json"
