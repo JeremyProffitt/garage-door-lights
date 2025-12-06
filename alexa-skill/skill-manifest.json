@@ -6,8 +6,8 @@
           "name": "Garage Lights",
           "summary": "Control your garage LED light strips with Alexa",
           "description": "Garage Lights allows you to control your LED light strips using voice commands. Turn lights on/off, adjust brightness, change colors, and set patterns like fire, rainbow, candle, and more.",
-          "smallIconUri": "https://placehold.co/108x108/4A90D9/FFFFFF?text=GL",
-          "largeIconUri": "https://placehold.co/512x512/4A90D9/FFFFFF?text=GL",
+          "smallIconUri": "https://${DOMAIN_NAME}/static/alexa-icon-108.png",
+          "largeIconUri": "https://${DOMAIN_NAME}/static/alexa-icon-512.png",
           "examplePhrases": [
             "Alexa, turn on the garage lights",
             "Alexa, set garage lights to 50 percent",
