@@ -120,17 +120,26 @@ create_or_update_skill() {
         log_info "Creating new skill..."
 
         # Create skill using ASK CLI
+        # Note: ask smapi returns JSON on success, but may output non-JSON errors
+        set +e
         RESPONSE=$(ask smapi create-skill-for-vendor \
-            --manifest "file:$temp_dir/skill.json" 2>&1) || {
-            log_error "Failed to create skill"
+            --manifest "file:$temp_dir/skill.json" 2>&1)
+        EXIT_CODE=$?
+        set -e
+
+        if [ $EXIT_CODE -ne 0 ]; then
+            log_error "Failed to create skill (exit code: $EXIT_CODE)"
+            echo "Response:"
             echo "$RESPONSE"
             exit 1
-        }
+        fi
 
-        SKILL_ID=$(echo "$RESPONSE" | jq -r '.skillId // empty')
+        # Try to parse the response as JSON
+        SKILL_ID=$(echo "$RESPONSE" | jq -r '.skillId // empty' 2>/dev/null)
 
         if [ -z "$SKILL_ID" ]; then
             log_error "Failed to get skill ID from response"
+            echo "Response:"
             echo "$RESPONSE"
             exit 1
         fi
