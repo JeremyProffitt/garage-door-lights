@@ -103,20 +103,46 @@ create_or_update_skill() {
     substitute_vars "$SKILL_DIR/account-linking.json" "$temp_dir/account-linking.json"
 
     if [ -n "$ALEXA_SKILL_ID" ]; then
-        log_info "Updating existing skill: $ALEXA_SKILL_ID"
+        log_info "Attempting to update existing skill: $ALEXA_SKILL_ID"
 
-        # Update skill manifest
-        ask smapi update-skill-manifest \
-            --skill-id "$ALEXA_SKILL_ID" \
-            --stage development \
-            --manifest "file:$temp_dir/skill.json" || {
-            log_error "Failed to update skill manifest"
-            exit 1
-        }
+        # First check if skill exists
+        set +e
+        SKILL_STATUS=$(ask smapi get-skill-status --skill-id "$ALEXA_SKILL_ID" 2>&1)
+        STATUS_EXIT=$?
+        set -e
 
-        log_info "Skill manifest updated successfully"
-        SKILL_ID="$ALEXA_SKILL_ID"
-    else
+        if [ $STATUS_EXIT -ne 0 ] || echo "$SKILL_STATUS" | grep -q "404"; then
+            log_warn "Skill $ALEXA_SKILL_ID not found or inaccessible. Creating new skill instead."
+            # Fall through to create new skill
+            ALEXA_SKILL_ID=""
+        else
+            # Update skill manifest
+            set +e
+            UPDATE_RESULT=$(ask smapi update-skill-manifest \
+                --skill-id "$ALEXA_SKILL_ID" \
+                --stage development \
+                --manifest "file:$temp_dir/skill.json" 2>&1)
+            UPDATE_EXIT=$?
+            set -e
+
+            if [ $UPDATE_EXIT -ne 0 ]; then
+                log_warn "Failed to update skill manifest (exit: $UPDATE_EXIT). Response: $UPDATE_RESULT"
+                if echo "$UPDATE_RESULT" | grep -q "404"; then
+                    log_warn "Skill not found. Creating new skill instead."
+                    ALEXA_SKILL_ID=""
+                else
+                    log_error "Failed to update skill manifest"
+                    echo "$UPDATE_RESULT"
+                    exit 1
+                fi
+            else
+                log_info "Skill manifest updated successfully"
+                SKILL_ID="$ALEXA_SKILL_ID"
+            fi
+        fi
+    fi
+
+    if [ -z "$ALEXA_SKILL_ID" ]; then
         log_info "Creating new skill..."
 
         # Debug: show the manifest being used
@@ -164,6 +190,12 @@ create_or_update_skill() {
         # Wait for skill to be ready
         log_info "Waiting for skill to be ready..."
         sleep 5
+    fi
+
+    # Make sure SKILL_ID is set (either from update or create)
+    if [ -z "$SKILL_ID" ]; then
+        log_error "No skill ID available after create/update"
+        exit 1
     fi
 
     # Update account linking
