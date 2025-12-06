@@ -170,12 +170,14 @@ create_or_update_skill() {
 
         # Try to parse the response as JSON
         # The ASK CLI may output warnings before the JSON, so extract just the JSON part
-        JSON_RESPONSE=$(echo "$RESPONSE" | grep -E '^\{' | head -1)
+        # The response may be multiline, so we need to capture the full JSON block
+        JSON_RESPONSE=$(echo "$RESPONSE" | sed -n '/^{$/,/^}$/p')
         if [ -z "$JSON_RESPONSE" ]; then
-            # Try to find JSON block in multiline output
-            JSON_RESPONSE=$(echo "$RESPONSE" | sed -n '/^{/,/^}/p')
+            # Try single-line JSON
+            JSON_RESPONSE=$(echo "$RESPONSE" | grep -E '^\{.*\}$')
         fi
 
+        log_info "Extracted JSON: $JSON_RESPONSE"
         SKILL_ID=$(echo "$JSON_RESPONSE" | jq -r '.skillId // empty' 2>/dev/null)
 
         if [ -z "$SKILL_ID" ]; then
