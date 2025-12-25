@@ -664,12 +664,19 @@ void runPattern(int idx) {
         case PATTERN_CANDLE:
             for (int i = 0; i < count; i++) {
                 getColorForLed(idx, i, r, g, b);
-                int flicker = random(-30, 30);
-                r = constrain(r + flicker, 0, 255);
-                g = constrain(g + flicker/2, 0, 255);
+
+                // Apply brightness flicker proportionally to all channels
+                int flickerPercent = random(70, 130);
+                r = constrain((r * flickerPercent) / 100, 0, 255);
+                g = constrain((g * flickerPercent) / 100, 0, 255);
+                b = constrain((b * flickerPercent) / 100, 0, 255);
+
+                // Occasional deeper flicker (5% chance)
                 if (random(100) < 5) {
-                    r = constrain(r - random(50), 0, 255);
-                    g = constrain(g - random(30), 0, 255);
+                    int dimPercent = random(50, 80);
+                    r = (r * dimPercent) / 100;
+                    g = (g * dimPercent) / 100;
+                    b = (b * dimPercent) / 100;
                 }
                 strip->setPixelColor(i, strip->Color(r, g, b));
             }
