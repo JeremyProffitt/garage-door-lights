@@ -98,11 +98,12 @@ function patternsPage() {
             setTimeout(() => {
                 const container = document.getElementById('editLedsContainer');
                 if (container) {
+                    const activeColor = this.form.colors[this.activeColorTab] || this.form.colors[0];
                     const simPattern = {
                         type: this.form.type,
-                        red: this.form.colors[0].r,
-                        green: this.form.colors[0].g,
-                        blue: this.form.colors[0].b,
+                        red: activeColor.r,
+                        green: activeColor.g,
+                        blue: activeColor.b,
                         brightness: this.form.brightness,
                         speed: this.form.speed
                     };
@@ -119,6 +120,7 @@ function patternsPage() {
                 this.form.colors.push({ r: 255, g: 255, b: 255, percentage: newPercentage });
                 // Switch to the newly added color tab
                 this.activeColorTab = this.form.colors.length - 1;
+                this.updateLivePreview();
             }
         },
 
@@ -130,6 +132,7 @@ function patternsPage() {
                     this.activeColorTab = this.form.colors.length - 1;
                 }
                 this.normalizePercentages();
+                this.updateLivePreview();
             }
         },
 
