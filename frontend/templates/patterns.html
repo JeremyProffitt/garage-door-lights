@@ -24,7 +24,7 @@
     <div class="container" x-data="patternsPage()">
         <h1 style="color: white;">Light Patterns</h1>
 
-        <button @click="showCreateModal = true" class="btn btn-primary">Create New Pattern</button>
+        <button @click="showCreateModal = true; setTimeout(() => updateLivePreview(), 100)" class="btn btn-primary">Create New Pattern</button>
 
         <div x-show="patterns.length === 0" style="color: white; margin-top: 2rem; font-size: 1.1rem;">
             <p>No patterns created yet. Click "Create New Pattern" to get started!</p>
@@ -88,7 +88,7 @@
                         </div>
                         <div>
                             <label style="font-size: 0.8em; color: #6b7280; margin-bottom: 2px; display: block;">Type</label>
-                            <select x-model="form.type" required style="padding: 5px 8px; width: 100%; box-sizing: border-box;">
+                            <select x-model="form.type" @change="updateLivePreview()" required style="padding: 5px 8px; width: 100%; box-sizing: border-box;">
                                 <option value="candle">Candle</option>
                                 <option value="solid">Solid</option>
                                 <option value="pulse">Pulse</option>
@@ -178,15 +178,15 @@
                         <div>
                             <label style="font-size: 0.8em; color: #6b7280; margin-bottom: 2px; display: block;">Brightness</label>
                             <div style="display: flex; align-items: center; gap: 6px;">
-                                <input type="range" x-model.number="form.brightness" min="0" max="255" style="flex: 1; height: 4px;">
-                                <input type="number" x-model.number="form.brightness" min="0" max="255" style="width: 50px; padding: 4px 2px; font-size: 0.8em; text-align: center;">
+                                <input type="range" x-model.number="form.brightness" @input="updateLivePreview()" min="0" max="255" style="flex: 1; height: 4px;">
+                                <input type="number" x-model.number="form.brightness" @input="updateLivePreview()" min="0" max="255" style="width: 50px; padding: 4px 2px; font-size: 0.8em; text-align: center;">
                             </div>
                         </div>
                         <div>
                             <label style="font-size: 0.8em; color: #6b7280; margin-bottom: 2px; display: block;">Speed (ms)</label>
                             <div style="display: flex; align-items: center; gap: 6px;">
-                                <input type="range" x-model.number="form.speed" min="10" max="1000" step="10" style="flex: 1; height: 4px;">
-                                <input type="number" x-model.number="form.speed" min="10" max="1000" style="width: 50px; padding: 4px 2px; font-size: 0.8em; text-align: center;">
+                                <input type="range" x-model.number="form.speed" @input="updateLivePreview()" min="10" max="1000" step="10" style="flex: 1; height: 4px;">
+                                <input type="number" x-model.number="form.speed" @input="updateLivePreview()" min="10" max="1000" style="width: 50px; padding: 4px 2px; font-size: 0.8em; text-align: center;">
                             </div>
                         </div>
                     </div>

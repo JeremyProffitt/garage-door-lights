@@ -110,6 +110,11 @@ const LEDSimulator = {
         const baseB = Math.round((pattern.blue || 41) * brightness);
 
         leds.forEach((led, i) => {
+            // Set initial color immediately
+            const initialColor = `rgb(${baseR}, ${baseG}, ${baseB})`;
+            led.style.backgroundColor = initialColor;
+            led.style.color = initialColor;
+
             const intervalId = setInterval(() => {
                 const flicker = 0.8 + Math.random() * 0.2;
                 const r = Math.round(baseR * flicker);
@@ -128,6 +133,13 @@ const LEDSimulator = {
         const baseG = pattern.green || 0;
         const baseB = pattern.blue || 0;
         let phase = 0;
+
+        // Set initial color immediately
+        const initialColor = `rgb(${Math.round(baseR * brightness)}, ${Math.round(baseG * brightness)}, ${Math.round(baseB * brightness)})`;
+        leds.forEach(led => {
+            led.style.backgroundColor = initialColor;
+            led.style.color = initialColor;
+        });
 
         const intervalId = setInterval(() => {
             phase += (speed / 50) * 0.1;
@@ -151,6 +163,18 @@ const LEDSimulator = {
         const baseB = pattern.blue || 0;
         let offset = 0;
 
+        // Set initial colors immediately
+        leds.forEach((led, i) => {
+            const phase = (i / leds.length) * Math.PI * 2;
+            const waveBrightness = brightness * (0.3 + 0.7 * (Math.sin(phase) * 0.5 + 0.5));
+            const r = Math.round(baseR * waveBrightness);
+            const g = Math.round(baseG * waveBrightness);
+            const b = Math.round(baseB * waveBrightness);
+            const color = `rgb(${r}, ${g}, ${b})`;
+            led.style.backgroundColor = color;
+            led.style.color = color;
+        });
+
         const intervalId = setInterval(() => {
             offset += (speed / 50) * 0.2;
 
@@ -171,6 +195,18 @@ const LEDSimulator = {
     animateRainbow(leds, brightness, speed, container) {
         let hueOffset = 0;
 
+        // Set initial colors immediately
+        leds.forEach((led, i) => {
+            const hue = ((i / leds.length) * 360) % 360;
+            const rgb = this.hslToRgb(hue / 360, 1, 0.5);
+            const r = Math.round(rgb.r * brightness);
+            const g = Math.round(rgb.g * brightness);
+            const b = Math.round(rgb.b * brightness);
+            const color = `rgb(${r}, ${g}, ${b})`;
+            led.style.backgroundColor = color;
+            led.style.color = color;
+        });
+
         const intervalId = setInterval(() => {
             hueOffset += (speed / 50) * 2;
 
@@ -190,6 +226,13 @@ const LEDSimulator = {
 
     animateFire(leds, brightness, container) {
         leds.forEach((led, i) => {
+            // Set initial color immediately
+            const initialR = Math.round(255 * brightness * 0.8);
+            const initialG = Math.round(140 * brightness * 0.5);
+            const initialColor = `rgb(${initialR}, ${initialG}, 0)`;
+            led.style.backgroundColor = initialColor;
+            led.style.color = initialColor;
+
             const intervalId = setInterval(() => {
                 const heat = 0.6 + Math.random() * 0.4;
                 const r = Math.round(255 * brightness * heat);
