@@ -2,6 +2,9 @@
 // Simulates WS2812 LED behavior based on pattern type
 
 const LEDSimulator = {
+    // Track active intervals per container to prevent memory leaks
+    _activeIntervals: new Map(),
+
     /**
      * Create and render an LED strip
      * @param {HTMLElement} container - Container element to render LEDs into
@@ -11,6 +14,9 @@ const LEDSimulator = {
      */
     render(container, pattern, ledCount = 8, options = {}) {
         if (!container) return;
+
+        // Clear any existing intervals for this container
+        this.clearIntervals(container);
 
         container.innerHTML = '';
         container.className = 'led-strip' + (options.compact ? ' compact' : '');
@@ -24,37 +30,62 @@ const LEDSimulator = {
             leds.push(led);
         }
 
-        this.animate(leds, pattern);
+        this.animate(leds, pattern, container);
         return leds;
+    },
+
+    /**
+     * Clear all intervals for a container
+     * @param {HTMLElement} container - Container to clear intervals for
+     */
+    clearIntervals(container) {
+        const intervals = this._activeIntervals.get(container);
+        if (intervals) {
+            intervals.forEach(id => clearInterval(id));
+            this._activeIntervals.delete(container);
+        }
+    },
+
+    /**
+     * Register an interval for a container
+     * @param {HTMLElement} container - Container to track interval for
+     * @param {number} intervalId - Interval ID to track
+     */
+    trackInterval(container, intervalId) {
+        if (!this._activeIntervals.has(container)) {
+            this._activeIntervals.set(container, []);
+        }
+        this._activeIntervals.get(container).push(intervalId);
     },
 
     /**
      * Animate LEDs based on pattern type
      * @param {Array<HTMLElement>} leds - Array of LED elements
      * @param {Object} pattern - Pattern object
+     * @param {HTMLElement} container - Container element for interval tracking
      */
-    animate(leds, pattern) {
+    animate(leds, pattern, container) {
         const brightness = (pattern.brightness || 128) / 255;
         const speed = pattern.speed || 50;
 
         switch (pattern.type) {
             case 'candle':
-                this.animateCandle(leds, pattern, brightness);
+                this.animateCandle(leds, pattern, brightness, container);
                 break;
             case 'solid':
                 this.animateSolid(leds, pattern, brightness);
                 break;
             case 'pulse':
-                this.animatePulse(leds, pattern, brightness, speed);
+                this.animatePulse(leds, pattern, brightness, speed, container);
                 break;
             case 'wave':
-                this.animateWave(leds, pattern, brightness, speed);
+                this.animateWave(leds, pattern, brightness, speed, container);
                 break;
             case 'rainbow':
-                this.animateRainbow(leds, brightness, speed);
+                this.animateRainbow(leds, brightness, speed, container);
                 break;
             case 'fire':
-                this.animateFire(leds, brightness);
+                this.animateFire(leds, brightness, container);
                 break;
             default:
                 this.animateSolid(leds, pattern, brightness);
@@ -73,13 +104,13 @@ const LEDSimulator = {
         });
     },
 
-    animateCandle(leds, pattern, brightness) {
+    animateCandle(leds, pattern, brightness, container) {
         const baseR = Math.round((pattern.red || 255) * brightness);
         const baseG = Math.round((pattern.green || 147) * brightness);
         const baseB = Math.round((pattern.blue || 41) * brightness);
 
         leds.forEach((led, i) => {
-            setInterval(() => {
+            const intervalId = setInterval(() => {
                 const flicker = 0.8 + Math.random() * 0.2;
                 const r = Math.round(baseR * flicker);
                 const g = Math.round(baseG * flicker);
@@ -88,16 +119,17 @@ const LEDSimulator = {
                 led.style.backgroundColor = color;
                 led.style.color = color;
             }, 50 + Math.random() * 100);
+            if (container) this.trackInterval(container, intervalId);
         });
     },
 
-    animatePulse(leds, pattern, brightness, speed) {
+    animatePulse(leds, pattern, brightness, speed, container) {
         const baseR = pattern.red || 0;
         const baseG = pattern.green || 0;
         const baseB = pattern.blue || 0;
         let phase = 0;
 
-        setInterval(() => {
+        const intervalId = setInterval(() => {
             phase += (speed / 50) * 0.1;
             const pulseBrightness = brightness * (0.3 + 0.7 * (Math.sin(phase) * 0.5 + 0.5));
             const r = Math.round(baseR * pulseBrightness);
@@ -110,15 +142,16 @@ const LEDSimulator = {
                 led.style.color = color;
             });
         }, 50);
+        if (container) this.trackInterval(container, intervalId);
     },
 
-    animateWave(leds, pattern, brightness, speed) {
+    animateWave(leds, pattern, brightness, speed, container) {
         const baseR = pattern.red || 0;
         const baseG = pattern.green || 0;
         const baseB = pattern.blue || 0;
         let offset = 0;
 
-        setInterval(() => {
+        const intervalId = setInterval(() => {
             offset += (speed / 50) * 0.2;
 
             leds.forEach((led, i) => {
@@ -132,12 +165,13 @@ const LEDSimulator = {
                 led.style.color = color;
             });
         }, 50);
+        if (container) this.trackInterval(container, intervalId);
     },
 
-    animateRainbow(leds, brightness, speed) {
+    animateRainbow(leds, brightness, speed, container) {
         let hueOffset = 0;
 
-        setInterval(() => {
+        const intervalId = setInterval(() => {
             hueOffset += (speed / 50) * 2;
 
             leds.forEach((led, i) => {
@@ -151,11 +185,12 @@ const LEDSimulator = {
                 led.style.color = color;
             });
         }, 50);
+        if (container) this.trackInterval(container, intervalId);
     },
 
-    animateFire(leds, brightness) {
+    animateFire(leds, brightness, container) {
         leds.forEach((led, i) => {
-            setInterval(() => {
+            const intervalId = setInterval(() => {
                 const heat = 0.6 + Math.random() * 0.4;
                 const r = Math.round(255 * brightness * heat);
                 const g = Math.round(heat > 0.7 ? 140 * brightness * (heat - 0.3) : 0);
@@ -164,6 +199,7 @@ const LEDSimulator = {
                 led.style.backgroundColor = color;
                 led.style.color = color;
             }, 50 + Math.random() * 100);
+            if (container) this.trackInterval(container, intervalId);
         });
     },
 
