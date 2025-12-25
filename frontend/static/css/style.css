@@ -623,6 +623,35 @@ input[type="color"] {
     height: 40px;
 }
 
+.led-strip.compact {
+    gap: 6px;
+    padding: 6px 10px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 6px;
+    margin: 0;
+    box-shadow: none;
+}
+
+.led-strip.compact .led {
+    width: 16px;
+    height: 16px;
+    box-shadow:
+        0 0 6px currentColor,
+        0 0 12px currentColor;
+}
+
+.led-strip.compact .led::before {
+    top: 15%;
+    left: 15%;
+    width: 35%;
+    height: 35%;
+    filter: blur(1px);
+}
+
+.led-strip.compact .led::after {
+    display: none;
+}
+
 /* Notification Banner */
 .notification-banner {
     position: fixed;

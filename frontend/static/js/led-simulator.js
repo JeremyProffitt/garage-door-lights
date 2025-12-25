@@ -7,12 +7,13 @@ const LEDSimulator = {
      * @param {HTMLElement} container - Container element to render LEDs into
      * @param {Object} pattern - Pattern object with type, red, green, blue, brightness, speed
      * @param {number} ledCount - Number of LEDs to display (default: 8)
+     * @param {Object} options - Optional settings { compact: boolean }
      */
-    render(container, pattern, ledCount = 8) {
+    render(container, pattern, ledCount = 8, options = {}) {
         if (!container) return;
 
         container.innerHTML = '';
-        container.className = 'led-strip';
+        container.className = 'led-strip' + (options.compact ? ' compact' : '');
 
         const leds = [];
         for (let i = 0; i < ledCount; i++) {

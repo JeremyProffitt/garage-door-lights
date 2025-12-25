@@ -72,22 +72,23 @@
 
         <!-- Create/Edit Modal -->
         <div x-show="showCreateModal" class="modal" style="display: none;">
-            <div class="modal-content" style="max-width: 580px; max-height: 90vh; overflow-y: auto; padding: 20px;">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                    <h2 style="margin: 0; font-size: 1.25rem;" x-text="editingPattern ? 'Edit Pattern' : 'Create Pattern'"></h2>
-                    <div id="editLedsContainer" style="transform: scale(0.8); transform-origin: right center;"></div>
+            <div class="modal-content" style="max-width: 580px; max-height: 90vh; overflow-y: auto; padding: 0;">
+                <!-- Header Bar -->
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: #7e22ce; color: white; border-radius: 8px 8px 0 0;">
+                    <h2 style="margin: 0; font-size: 1.1rem; font-weight: 600;" x-text="editingPattern ? 'Edit Pattern' : 'Create Pattern'"></h2>
+                    <div id="editLedsContainer"></div>
                 </div>
 
-                <form @submit.prevent="savePattern">
+                <form @submit.prevent="savePattern" style="padding: 12px 16px 16px;">
                     <!-- Name & Type Row -->
-                    <div style="display: grid; grid-template-columns: 1fr auto; gap: 12px; margin-bottom: 12px;">
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.9em;">Name</label>
-                            <input type="text" x-model="form.name" required style="padding: 6px 10px;">
+                    <div style="display: grid; grid-template-columns: 1fr 120px; gap: 8px; margin-bottom: 6px;">
+                        <div>
+                            <label style="font-size: 0.8em; color: #6b7280; margin-bottom: 2px; display: block;">Name</label>
+                            <input type="text" x-model="form.name" required style="padding: 5px 8px; width: 100%; box-sizing: border-box;">
                         </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.9em;">Type</label>
-                            <select x-model="form.type" required style="padding: 6px 10px;">
+                        <div>
+                            <label style="font-size: 0.8em; color: #6b7280; margin-bottom: 2px; display: block;">Type</label>
+                            <select x-model="form.type" required style="padding: 5px 8px; width: 100%; box-sizing: border-box;">
                                 <option value="candle">Candle</option>
                                 <option value="solid">Solid</option>
                                 <option value="pulse">Pulse</option>
@@ -97,101 +98,101 @@
                             </select>
                         </div>
                     </div>
-                    <div class="form-group" style="margin-bottom: 12px;">
-                        <label style="font-size: 0.9em;">Description <span style="color: #9ca3af; font-weight: normal;">(optional)</span></label>
-                        <input type="text" x-model="form.description" style="padding: 6px 10px;">
+                    <div style="margin-bottom: 10px;">
+                        <label style="font-size: 0.8em; color: #6b7280; margin-bottom: 2px; display: block;">Description <span style="font-weight: normal;">(optional)</span></label>
+                        <input type="text" x-model="form.description" style="padding: 5px 8px; width: 100%; box-sizing: border-box;">
                     </div>
 
                     <!-- Colors Section -->
-                    <div class="form-group">
-                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                            <label style="margin: 0;">Colors</label>
-                            <a href="#" @click.prevent="showRGBHelp = !showRGBHelp" style="font-size: 0.8em; color: #6b7280;">ℹ️</a>
+                    <div style="margin-bottom: 10px;">
+                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+                            <label style="font-size: 0.85em; font-weight: 600; color: #374151;">Colors</label>
+                            <button type="button" @click="showRGBHelp = !showRGBHelp" style="width: 18px; height: 18px; border-radius: 50%; border: 1px solid #9ca3af; background: white; color: #6b7280; font-size: 0.7em; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">i</button>
                         </div>
-                        <div x-show="showRGBHelp" style="background: #f0f0f0; padding: 8px 10px; border-radius: 6px; margin-bottom: 8px; font-size: 0.8em;">
-                            <strong>RGB:</strong> Red, Green, Blue (0-255 each). Examples: Red (255,0,0), Blue (0,0,255), Yellow (255,255,0)
+                        <div x-show="showRGBHelp" style="background: #f3f4f6; padding: 6px 10px; border-radius: 4px; margin-bottom: 6px; font-size: 0.75em; color: #4b5563;">
+                            <strong>RGB:</strong> Red, Green, Blue (0-255). Examples: Red (255,0,0), Blue (0,0,255), Yellow (255,255,0)
                         </div>
 
                         <!-- Color Tabs -->
-                        <div style="display: flex; align-items: flex-end; gap: 2px; margin-bottom: 0;">
+                        <div style="display: flex; align-items: flex-end; gap: 4px; margin-bottom: 0;">
                             <template x-for="(color, index) in form.colors" :key="index">
                                 <button
                                     type="button"
                                     @click="activeColorTab = index"
-                                    style="padding: 6px 12px; border: none; background: transparent; cursor: pointer; font-size: 0.85em; font-weight: 500; color: #374151; position: relative; transition: all 0.15s;"
-                                    :style="activeColorTab === index ? 'color: #7e22ce; background: #faf5ff;' : 'color: #6b7280;'">
+                                    style="padding: 8px 14px 6px; border: none; cursor: pointer; font-size: 0.8em; font-weight: 500; position: relative; transition: all 0.15s; border-radius: 8px 8px 0 0;"
+                                    :style="activeColorTab === index ? 'background: #f5f3ff; color: #6b21a8;' : 'background: #e5e7eb; color: #6b7280;'">
+                                    <div style="position: absolute; top: 0; left: 0; right: 0; height: 4px; border-radius: 8px 8px 0 0;" :style="`background: rgb(${color.r}, ${color.g}, ${color.b});`"></div>
                                     <span x-text="'Color ' + (index + 1)"></span>
-                                    <div style="position: absolute; bottom: 0; left: 4px; right: 4px; height: 3px; border-radius: 2px 2px 0 0;" :style="`background: rgb(${color.r}, ${color.g}, ${color.b}); opacity: ${activeColorTab === index ? '1' : '0.5'};`"></div>
                                 </button>
                             </template>
                             <button
                                 type="button"
                                 @click="addColor()"
                                 x-show="form.colors.length < 8"
-                                style="padding: 6px 10px; border: none; background: transparent; cursor: pointer; font-size: 0.85em; font-weight: 500; color: #7e22ce;">
+                                style="padding: 8px 12px 6px; border: none; background: transparent; cursor: pointer; font-size: 0.85em; font-weight: 600; color: #7e22ce;">
                                 +
                             </button>
                         </div>
 
                         <!-- Color Tab Content -->
                         <template x-for="(color, index) in form.colors" :key="index">
-                            <div x-show="activeColorTab === index" style="padding: 12px; background: #faf5ff; border-radius: 0 8px 8px 8px; border: 1px solid #e9d5ff;">
-                                <div style="display: flex; gap: 12px; align-items: center;">
+                            <div x-show="activeColorTab === index" style="padding: 10px; background: #f5f3ff; border-radius: 0 8px 8px 8px; border: 1px solid #e9d5ff; border-top: none;">
+                                <div style="display: flex; gap: 10px; align-items: center;">
                                     <!-- Color Picker -->
                                     <input
                                         type="color"
                                         :value="rgbToHex(color.r, color.g, color.b)"
                                         @input="updateColorFromPicker(index, $event.target.value)"
-                                        style="width: 50px; height: 50px; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; padding: 2px;">
+                                        style="width: 44px; height: 44px; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; padding: 2px;">
 
                                     <!-- RGB Inputs -->
-                                    <div style="display: flex; gap: 6px;">
-                                        <div style="display: flex; flex-direction: column; gap: 2px;">
-                                            <label style="font-size: 0.7em; color: #6b7280; text-align: center;">R</label>
-                                            <input type="number" x-model.number="color.r" min="0" max="255" required style="width: 50px; padding: 4px; font-size: 0.85em; text-align: center;">
+                                    <div style="display: flex; gap: 4px;">
+                                        <div style="display: flex; flex-direction: column; align-items: center;">
+                                            <label style="font-size: 0.7em; color: #6b7280; font-weight: 600; margin-bottom: 2px;">R</label>
+                                            <input type="number" x-model.number="color.r" min="0" max="255" required style="width: 46px; padding: 4px 2px; font-size: 0.8em; text-align: center;">
                                         </div>
-                                        <div style="display: flex; flex-direction: column; gap: 2px;">
-                                            <label style="font-size: 0.7em; color: #6b7280; text-align: center;">G</label>
-                                            <input type="number" x-model.number="color.g" min="0" max="255" required style="width: 50px; padding: 4px; font-size: 0.85em; text-align: center;">
+                                        <div style="display: flex; flex-direction: column; align-items: center;">
+                                            <label style="font-size: 0.7em; color: #6b7280; font-weight: 600; margin-bottom: 2px;">G</label>
+                                            <input type="number" x-model.number="color.g" min="0" max="255" required style="width: 46px; padding: 4px 2px; font-size: 0.8em; text-align: center;">
                                         </div>
-                                        <div style="display: flex; flex-direction: column; gap: 2px;">
-                                            <label style="font-size: 0.7em; color: #6b7280; text-align: center;">B</label>
-                                            <input type="number" x-model.number="color.b" min="0" max="255" required style="width: 50px; padding: 4px; font-size: 0.85em; text-align: center;">
+                                        <div style="display: flex; flex-direction: column; align-items: center;">
+                                            <label style="font-size: 0.7em; color: #6b7280; font-weight: 600; margin-bottom: 2px;">B</label>
+                                            <input type="number" x-model.number="color.b" min="0" max="255" required style="width: 46px; padding: 4px 2px; font-size: 0.8em; text-align: center;">
                                         </div>
                                     </div>
 
                                     <!-- Percentage -->
-                                    <div style="flex: 1; display: flex; align-items: center; gap: 8px;">
-                                        <input type="range" x-model.number="color.percentage" min="1" max="100" @input="normalizePercentages(index)" style="flex: 1; height: 6px;">
-                                        <span style="font-size: 0.85em; font-weight: 500; min-width: 36px;" x-text="color.percentage + '%'"></span>
+                                    <div style="flex: 1; display: flex; align-items: center; gap: 6px;">
+                                        <input type="range" x-model.number="color.percentage" min="1" max="100" @input="normalizePercentages(index)" style="flex: 1; height: 4px;">
+                                        <span style="font-size: 0.8em; font-weight: 500; min-width: 32px;" x-text="color.percentage + '%'"></span>
                                     </div>
 
                                     <!-- Remove -->
-                                    <button type="button" @click="removeColor(index)" x-show="form.colors.length > 1" style="padding: 4px 8px; border: none; background: #fee2e2; color: #dc2626; border-radius: 4px; cursor: pointer; font-size: 0.8em;">✕</button>
+                                    <button type="button" @click="removeColor(index)" x-show="form.colors.length > 1" style="width: 22px; height: 22px; border: none; background: #fee2e2; color: #dc2626; border-radius: 4px; cursor: pointer; font-size: 0.75em; display: flex; align-items: center; justify-content: center;">✕</button>
                                 </div>
                             </div>
                         </template>
                     </div>
 
                     <!-- Brightness & Speed Row -->
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.9em;">Brightness</label>
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <input type="range" x-model.number="form.brightness" min="0" max="255" style="flex: 1; height: 6px;">
-                                <input type="number" x-model.number="form.brightness" min="0" max="255" style="width: 55px; padding: 4px; font-size: 0.85em; text-align: center;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                        <div>
+                            <label style="font-size: 0.8em; color: #6b7280; margin-bottom: 2px; display: block;">Brightness</label>
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <input type="range" x-model.number="form.brightness" min="0" max="255" style="flex: 1; height: 4px;">
+                                <input type="number" x-model.number="form.brightness" min="0" max="255" style="width: 50px; padding: 4px 2px; font-size: 0.8em; text-align: center;">
                             </div>
                         </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.9em;">Speed (ms)</label>
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <input type="range" x-model.number="form.speed" min="10" max="1000" step="10" style="flex: 1; height: 6px;">
-                                <input type="number" x-model.number="form.speed" min="10" max="1000" style="width: 55px; padding: 4px; font-size: 0.85em; text-align: center;">
+                        <div>
+                            <label style="font-size: 0.8em; color: #6b7280; margin-bottom: 2px; display: block;">Speed (ms)</label>
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <input type="range" x-model.number="form.speed" min="10" max="1000" step="10" style="flex: 1; height: 4px;">
+                                <input type="number" x-model.number="form.speed" min="10" max="1000" style="width: 50px; padding: 4px 2px; font-size: 0.8em; text-align: center;">
                             </div>
                         </div>
                     </div>
 
-                    <div class="buttons" style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
+                    <div class="buttons" style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e5e7eb;">
                         <button type="submit" class="btn btn-primary">Save</button>
                         <button type="button" @click="cancelEdit()" class="btn btn-secondary">Cancel</button>
                     </div>

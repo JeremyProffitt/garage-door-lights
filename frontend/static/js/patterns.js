@@ -106,7 +106,7 @@ function patternsPage() {
                         brightness: this.form.brightness,
                         speed: this.form.speed
                     };
-                    LEDSimulator.render(container, simPattern, 9);
+                    LEDSimulator.render(container, simPattern, 8, { compact: true });
                 }
             }, 50);
         },
