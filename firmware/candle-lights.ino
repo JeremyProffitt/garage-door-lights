@@ -663,9 +663,28 @@ void runPattern(int idx) {
 
         case PATTERN_CANDLE:
             for (int i = 0; i < count; i++) {
-                getColorForLed(idx, i, r, g, b);
+                // Blend between all configured colors for flame palette
+                if (cfg.colorCount == 1) {
+                    r = cfg.colors[0].r;
+                    g = cfg.colors[0].g;
+                    b = cfg.colors[0].b;
+                } else {
+                    // Random blend position through the color palette
+                    int blendPos = random(0, 256);
+                    int totalColors = cfg.colorCount;
+                    int segment = 256 / totalColors;
+                    int colorIdx = blendPos / segment;
+                    if (colorIdx >= totalColors) colorIdx = totalColors - 1;
+                    int nextIdx = (colorIdx + 1) % totalColors;
+                    int blend = (blendPos % segment) * 256 / segment;
 
-                // Apply brightness flicker proportionally to all channels
+                    // Lerp between two adjacent colors
+                    r = ((cfg.colors[colorIdx].r * (256 - blend)) + (cfg.colors[nextIdx].r * blend)) / 256;
+                    g = ((cfg.colors[colorIdx].g * (256 - blend)) + (cfg.colors[nextIdx].g * blend)) / 256;
+                    b = ((cfg.colors[colorIdx].b * (256 - blend)) + (cfg.colors[nextIdx].b * blend)) / 256;
+                }
+
+                // Apply brightness flicker
                 int flickerPercent = random(70, 130);
                 r = constrain((r * flickerPercent) / 100, 0, 255);
                 g = constrain((g * flickerPercent) / 100, 0, 255);
