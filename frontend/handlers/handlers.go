@@ -139,6 +139,52 @@ func ParticleOAuthInitiateHandler(c *fiber.Ctx) error {
     return proxyRequest(c, "POST", "/api/particle/oauth/initiate", body)
 }
 
+// Glow Blaster API handlers
+
+func GetGlowBlasterConversationsHandler(c *fiber.Ctx) error {
+    return proxyRequest(c, "GET", "/api/glowblaster/conversations", nil)
+}
+
+func CreateGlowBlasterConversationHandler(c *fiber.Ctx) error {
+    body := c.Body()
+    return proxyRequest(c, "POST", "/api/glowblaster/conversations", body)
+}
+
+func GetGlowBlasterConversationHandler(c *fiber.Ctx) error {
+    id := c.Params("id")
+    return proxyRequest(c, "GET", "/api/glowblaster/conversations/"+id, nil)
+}
+
+func DeleteGlowBlasterConversationHandler(c *fiber.Ctx) error {
+    id := c.Params("id")
+    return proxyRequest(c, "DELETE", "/api/glowblaster/conversations/"+id, nil)
+}
+
+func GlowBlasterChatHandler(c *fiber.Ctx) error {
+    id := c.Params("id")
+    body := c.Body()
+    return proxyRequest(c, "POST", "/api/glowblaster/conversations/"+id+"/chat", body)
+}
+
+func GlowBlasterCompactHandler(c *fiber.Ctx) error {
+    id := c.Params("id")
+    return proxyRequest(c, "POST", "/api/glowblaster/conversations/"+id+"/compact", nil)
+}
+
+func GlowBlasterCompileHandler(c *fiber.Ctx) error {
+    body := c.Body()
+    return proxyRequest(c, "POST", "/api/glowblaster/compile", body)
+}
+
+func GetGlowBlasterPatternsHandler(c *fiber.Ctx) error {
+    return proxyRequest(c, "GET", "/api/glowblaster/patterns", nil)
+}
+
+func SaveGlowBlasterPatternHandler(c *fiber.Ctx) error {
+    body := c.Body()
+    return proxyRequest(c, "POST", "/api/glowblaster/patterns", body)
+}
+
 func proxyRequest(c *fiber.Ctx, method, path string, body []byte) error {
     sessionID := c.Cookies("session_id")
     if sessionID == "" {

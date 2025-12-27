@@ -113,6 +113,17 @@ func setupRoutes(app *fiber.App) {
 
     // API routes for settings (protected)
     app.Post("/api/settings/particle", middleware.APIAuthMiddleware, handlers.UpdateParticleSettingsHandler)
+
+    // API routes for Glow Blaster (protected)
+    app.Get("/api/glowblaster/conversations", middleware.APIAuthMiddleware, handlers.GetGlowBlasterConversationsHandler)
+    app.Post("/api/glowblaster/conversations", middleware.APIAuthMiddleware, handlers.CreateGlowBlasterConversationHandler)
+    app.Get("/api/glowblaster/conversations/:id", middleware.APIAuthMiddleware, handlers.GetGlowBlasterConversationHandler)
+    app.Delete("/api/glowblaster/conversations/:id", middleware.APIAuthMiddleware, handlers.DeleteGlowBlasterConversationHandler)
+    app.Post("/api/glowblaster/conversations/:id/chat", middleware.APIAuthMiddleware, handlers.GlowBlasterChatHandler)
+    app.Post("/api/glowblaster/conversations/:id/compact", middleware.APIAuthMiddleware, handlers.GlowBlasterCompactHandler)
+    app.Post("/api/glowblaster/compile", middleware.APIAuthMiddleware, handlers.GlowBlasterCompileHandler)
+    app.Get("/api/glowblaster/patterns", middleware.APIAuthMiddleware, handlers.GetGlowBlasterPatternsHandler)
+    app.Post("/api/glowblaster/patterns", middleware.APIAuthMiddleware, handlers.SaveGlowBlasterPatternHandler)
 }
 
 func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
