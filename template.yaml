@@ -477,6 +477,15 @@ Resources:
       Handler: bootstrap
       Timeout: 60
       MemorySize: 256
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ConversationsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PatternsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref SessionsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
       Events:
         ListConversations:
           Type: Api
