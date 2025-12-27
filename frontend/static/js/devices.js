@@ -148,10 +148,24 @@ function devicesPage() {
             }
         },
 
+        // Rainbow Bytecode Test - known-working LCL bytecode pattern
+        RAINBOW_BYTECODE_TEST: 'TENMAgAI8gBQClEDBFEEzGc=',
+
         async applyStripPattern(device, pin) {
             const strip = device.ledStrips?.find(s => s.pin === pin);
             if (!strip || !strip.patternId) {
                 NotificationBanner.warning('Please select a pattern first');
+                return;
+            }
+
+            // Handle special bytecode test patterns
+            if (strip.patternId === '__rainbow_bytecode_test__') {
+                try {
+                    await this.sendBytecodeToStrip(device.deviceId, pin, this.RAINBOW_BYTECODE_TEST);
+                    NotificationBanner.success(`Rainbow Bytecode Test applied to strip D${pin}`);
+                } catch (err) {
+                    NotificationBanner.error('Error applying bytecode: ' + err.message);
+                }
                 return;
             }
 
@@ -162,6 +176,13 @@ function devicesPage() {
             }
 
             try {
+                // Check if this is a Glow Blaster pattern with bytecode
+                if (pattern.category === 'glowblaster' && pattern.bytecode) {
+                    await this.sendBytecodeToStrip(device.deviceId, pin, pattern.bytecode);
+                    NotificationBanner.success(`Pattern "${pattern.name}" (bytecode) applied to strip D${pin}`);
+                    return;
+                }
+
                 // First save the strip pattern assignment to the database
                 const saveResp = await fetch(`/api/devices/${device.deviceId}`, {
                     method: 'PUT',
@@ -181,6 +202,24 @@ function devicesPage() {
                 NotificationBanner.success(`Pattern "${pattern.name}" applied to strip D${pin}`);
             } catch (err) {
                 NotificationBanner.error('Error applying pattern: ' + err.message);
+            }
+        },
+
+        async sendBytecodeToStrip(deviceId, pin, bytecode) {
+            // Bytecode is already base64-encoded from Go backend or hardcoded
+            const resp = await fetch('/api/particle/command', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    deviceId,
+                    command: 'setBytecode',
+                    argument: `${pin},${bytecode}`
+                })
+            });
+            const data = await resp.json();
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to send bytecode');
             }
         },
 
