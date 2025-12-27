@@ -81,6 +81,7 @@ func setupRoutes(app *fiber.App) {
     // Protected routes (require auth)
     app.Get("/dashboard", middleware.AuthMiddleware, handlers.DashboardHandler)
     app.Get("/patterns", middleware.AuthMiddleware, handlers.PatternsHandler)
+    app.Get("/glowblaster", middleware.AuthMiddleware, handlers.GlowBlasterHandler)
     app.Get("/devices", middleware.AuthMiddleware, handlers.DevicesHandler)
     app.Get("/settings", middleware.AuthMiddleware, handlers.SettingsHandler)
 

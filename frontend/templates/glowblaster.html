@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glow Blaster - Candle Lights Controller</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="/static/js/led-simulator.js"></script>
+    <script src="/static/js/lcl-preview.js"></script>
+    <script src="/static/js/notifications.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand"><a href="/dashboard" style="color: inherit; text-decoration: none;">🕯️ Candle Lights</a></div>
+        <div class="nav-menu">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/patterns">Patterns</a>
+            <a href="/glowblaster" class="active">Glow Blaster</a>
+            <a href="/devices">Devices</a>
+            <a href="/settings">Settings</a>
+            <a href="/auth/logout">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container" x-data="glowBlasterPage()" x-init="init()">
+        <!-- Header with tagline -->
+        <div class="glowblaster-header">
+            <h1>Glow Blaster</h1>
+            <p class="tagline">Pan Galactic Glowblaster - Wild, colorful bursts that feel slightly irresponsible</p>
+        </div>
+
+        <!-- Three-column layout -->
+        <div class="glowblaster-layout">
+            <!-- Left: Conversation sidebar -->
+            <div class="conversation-sidebar">
+                <button @click="startNewConversation()" class="btn btn-primary" style="width: 100%; margin-bottom: 1rem;">
+                    + New Conversation
+                </button>
+
+                <!-- Model selector -->
+                <div style="margin-bottom: 1rem;">
+                    <label style="font-size: 0.85rem; color: #6b7280;">AI Model</label>
+                    <select x-model="selectedModel" @change="updateConversationModel()" style="width: 100%; padding: 0.5rem; border-radius: 8px; border: 1px solid #e5e7eb;">
+                        <option value="claude-sonnet-4-20250514">Claude Sonnet 4 (Default)</option>
+                        <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
+                        <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku (Faster)</option>
+                    </select>
+                </div>
+
+                <h3 style="font-size: 0.9rem; color: #374151; margin-bottom: 0.5rem;">Conversations</h3>
+                <div class="conversation-list">
+                    <template x-for="conv in conversations" :key="conv.conversationId">
+                        <div class="conversation-item"
+                             :class="{ active: activeConversation?.conversationId === conv.conversationId }"
+                             @click="loadConversation(conv.conversationId)">
+                            <span x-text="conv.title" style="display: block; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></span>
+                            <small style="color: #9ca3af;" x-text="formatDate(conv.updatedAt)"></small>
+                            <button @click.stop="deleteConversation(conv.conversationId)" class="delete-conv-btn" title="Delete">×</button>
+                        </div>
+                    </template>
+                    <div x-show="conversations.length === 0" style="color: #9ca3af; font-size: 0.85rem; padding: 0.5rem;">
+                        No conversations yet
+                    </div>
+                </div>
+
+                <!-- Pattern list -->
+                <h3 style="font-size: 0.9rem; color: #374151; margin: 1rem 0 0.5rem;">Saved Patterns</h3>
+                <div class="pattern-list">
+                    <template x-for="pattern in glowBlasterPatterns" :key="pattern.patternId">
+                        <div class="pattern-item" @click="loadPatternToConversation(pattern)">
+                            <span x-text="pattern.name" style="font-weight: 500;"></span>
+                        </div>
+                    </template>
+                    <div x-show="glowBlasterPatterns.length === 0" style="color: #9ca3af; font-size: 0.85rem; padding: 0.5rem;">
+                        No patterns saved yet
+                    </div>
+                </div>
+            </div>
+
+            <!-- Center: Chat interface -->
+            <div class="chat-container">
+                <div class="chat-messages" x-ref="chatMessages">
+                    <!-- Welcome message -->
+                    <div x-show="currentMessages.length === 0" class="chat-welcome">
+                        <h3>Welcome to Glow Blaster!</h3>
+                        <p>Describe the LED pattern you want to create. For example:</p>
+                        <ul>
+                            <li>"Create a cozy campfire effect with tall orange flames"</li>
+                            <li>"Make a pulsing blue wave pattern"</li>
+                            <li>"I want something sparkly and magical"</li>
+                        </ul>
+                    </div>
+
+                    <template x-for="(msg, idx) in currentMessages" :key="idx">
+                        <div class="chat-message" :class="msg.role">
+                            <div class="message-content" x-html="formatMessage(msg.content)"></div>
+                        </div>
+                    </template>
+
+                    <div x-show="isLoading" class="chat-message assistant loading">
+                        <div class="typing-indicator">
+                            <span></span><span></span><span></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chat-input-area">
+                    <textarea
+                        x-model="userMessage"
+                        @keydown.enter.meta="sendMessage()"
+                        @keydown.enter.ctrl="sendMessage()"
+                        placeholder="Describe the pattern you want to create..."
+                        rows="3"
+                        :disabled="isLoading"></textarea>
+                    <button @click="sendMessage()" class="btn btn-primary" :disabled="isLoading || !userMessage.trim()">
+                        <span x-show="!isLoading">Send</span>
+                        <span x-show="isLoading">...</span>
+                    </button>
+                </div>
+
+                <!-- Action buttons -->
+                <div class="chat-actions" x-show="currentLCL">
+                    <button @click="saveAsPattern()" class="btn btn-secondary">Save as Pattern</button>
+                    <button @click="showDeviceModal = true" class="btn btn-primary">Send to Device</button>
+                    <button @click="compactConversation()" class="btn btn-sm" style="background: #e5e7eb; color: #374151;">Compact History</button>
+                </div>
+            </div>
+
+            <!-- Right: Live preview -->
+            <div class="preview-panel">
+                <h3>Live Preview</h3>
+                <div id="glowblasterPreview" class="led-preview-large">
+                    <div class="no-preview" x-show="!currentLCL">
+                        <p>Pattern preview will appear here</p>
+                    </div>
+                </div>
+
+                <div x-show="currentLCL" class="lcl-display">
+                    <h4>Current LCL</h4>
+                    <pre x-text="currentLCL"></pre>
+                </div>
+
+                <div class="token-usage" x-show="totalTokens > 0">
+                    <small>Tokens used: <span x-text="totalTokens.toLocaleString()"></span></small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Device Selection Modal -->
+        <div x-show="showDeviceModal" class="modal" style="display: none;" @click.self="showDeviceModal = false">
+            <div class="modal-content" style="max-width: 400px;">
+                <h2>Send to Device</h2>
+                <p style="color: #6b7280; margin-bottom: 1rem;">Select a device and LED strip to apply this pattern.</p>
+
+                <div style="margin-bottom: 1rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Device</label>
+                    <select x-model="selectedDeviceId" @change="onDeviceSelect()" style="width: 100%; padding: 0.75rem; border-radius: 8px; border: 1px solid #e5e7eb;">
+                        <option value="">Select a device...</option>
+                        <template x-for="device in devices" :key="device.deviceId">
+                            <option :value="device.deviceId" x-text="device.name"></option>
+                        </template>
+                    </select>
+                </div>
+
+                <div style="margin-bottom: 1rem;" x-show="selectedDevice?.ledStrips?.length > 0">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">LED Strip</label>
+                    <select x-model="selectedStripPin" style="width: 100%; padding: 0.75rem; border-radius: 8px; border: 1px solid #e5e7eb;">
+                        <template x-for="strip in selectedDevice?.ledStrips || []" :key="strip.pin">
+                            <option :value="strip.pin" x-text="'D' + strip.pin + ' (' + strip.ledCount + ' LEDs)'"></option>
+                        </template>
+                    </select>
+                </div>
+
+                <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                    <button @click="showDeviceModal = false" class="btn btn-secondary">Cancel</button>
+                    <button @click="sendToDevice()" class="btn btn-primary" :disabled="!selectedDeviceId">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/glowblaster.js"></script>
+</body>
+</html>

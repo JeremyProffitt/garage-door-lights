@@ -26,6 +26,11 @@ Parameters:
     Default: ""
     NoEcho: true
     Description: OAuth Client Secret for Alexa account linking
+  ClaudeApiKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Anthropic Claude API key for Glow Blaster AI
 
 Conditions:
   HasAlexaSkillId: !Not [!Equals [!Ref AlexaSkillId, "amzn1.ask.skill.placeholder"]]
@@ -49,6 +54,8 @@ Globals:
         ALEXA_SKILL_ID: !Ref AlexaSkillId
         ALEXA_CLIENT_ID: !Ref AlexaClientId
         ALEXA_CLIENT_SECRET: !Ref AlexaClientSecret
+        CONVERSATIONS_TABLE: !Ref ConversationsTable
+        CLAUDE_API_KEY: !Ref ClaudeApiKey
 
 Resources:
   # DynamoDB Tables
@@ -193,6 +200,31 @@ Resources:
           Projection:
             ProjectionType: ALL
 
+  # Glow Blaster Conversations Table
+  ConversationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${AWS::StackName}-conversations
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: conversationId
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: conversationId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: userId-index
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+
   # CloudWatch Log Groups with retention
   AuthFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -235,6 +267,12 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-AlexaFunction'
+      RetentionInDays: 7
+
+  GlowBlasterFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-GlowBlasterFunction'
       RetentionInDays: 7
 
   # Lambda Functions
@@ -428,6 +466,73 @@ Resources:
             Path: /api/particle/oauth/initiate
             Method: POST
 
+  # GlowBlaster Lambda for AI Pattern Creation
+  GlowBlasterFunction:
+    DependsOn: GlowBlasterFunctionLogGroup
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      CodeUri: backend/functions/glowblaster/
+      Handler: bootstrap
+      Timeout: 60
+      MemorySize: 256
+      Events:
+        ListConversations:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/glowblaster/conversations
+            Method: GET
+        CreateConversation:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/glowblaster/conversations
+            Method: POST
+        GetConversation:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/glowblaster/conversations/{conversationId}
+            Method: GET
+        DeleteConversation:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/glowblaster/conversations/{conversationId}
+            Method: DELETE
+        Chat:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/glowblaster/conversations/{conversationId}/chat
+            Method: POST
+        Compact:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/glowblaster/conversations/{conversationId}/compact
+            Method: POST
+        Compile:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/glowblaster/compile
+            Method: POST
+        ListPatterns:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/glowblaster/patterns
+            Method: GET
+        SavePattern:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/glowblaster/patterns
+            Method: POST
+
   # OAuth Lambda for Alexa Account Linking
   OAuthFunction:
     DependsOn: OAuthFunctionLogGroup
@@ -573,6 +678,9 @@ Outputs:
   AlexaStateTableName:
     Description: Alexa Device State DynamoDB table name
     Value: !Ref AlexaStateTable
+  ConversationsTableName:
+    Description: Glow Blaster Conversations DynamoDB table name
+    Value: !Ref ConversationsTable
   AlexaFunctionArn:
     Condition: HasAlexaSkillId
     Description: ARN of the Alexa Smart Home Lambda function

@@ -68,6 +68,15 @@ func SettingsHandler(c *fiber.Ctx) error {
     })
 }
 
+// glowBlasterHandler renders the Glow Blaster AI pattern creation page
+func GlowBlasterHandler(c *fiber.Ctx) error {
+    username := c.Locals("username").(string)
+    return c.Render("templates/glowblaster", fiber.Map{
+        "Title":    "Glow Blaster",
+        "Username": username,
+    })
+}
+
 // API handlers that proxy to backend Lambda functions
 
 func GetPatternsHandler(c *fiber.Ctx) error {

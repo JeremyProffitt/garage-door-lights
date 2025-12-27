@@ -39,8 +39,37 @@ enum PatternType {
     PATTERN_PULSE = 3,
     PATTERN_WAVE = 4,
     PATTERN_RAINBOW = 5,
-    PATTERN_FIRE = 6
+    PATTERN_FIRE = 6,
+    PATTERN_BYTECODE = 7  // LCL bytecode pattern
 };
+
+// Bytecode constants
+#define MAX_BYTECODE_SIZE 256
+#define BYTECODE_HEADER_SIZE 8
+
+// Bytecode opcodes (must match lcl_compiler.go)
+#define OP_SET_PATTERN 0x50
+#define OP_SET_PARAM   0x51
+#define OP_HALT        0x67
+
+// Effect type IDs from bytecode
+#define EFFECT_SOLID    0x01
+#define EFFECT_PULSE    0x02
+#define EFFECT_SPARKLE  0x04
+#define EFFECT_GRADIENT 0x05
+#define EFFECT_FIRE     0x07
+#define EFFECT_CANDLE   0x08
+#define EFFECT_WAVE     0x09
+#define EFFECT_RAINBOW  0x0A
+
+// Parameter IDs from bytecode
+#define PARAM_RED        0x01
+#define PARAM_GREEN      0x02
+#define PARAM_BLUE       0x03
+#define PARAM_BRIGHTNESS 0x04
+#define PARAM_SPEED      0x05
+#define PARAM_COOLING    0x06
+#define PARAM_SPARKING   0x07
 
 // Color entry with percentage
 struct ColorEntry {
@@ -71,6 +100,13 @@ struct StripRuntime {
     uint8_t pulseValue;                 // For pulse effect
     int8_t pulseDirection;              // Pulse direction
     uint8_t ledColorIndex[MAX_LEDS_PER_STRIP]; // Which color index each LED uses
+    // Bytecode VM state
+    uint8_t bytecode[MAX_BYTECODE_SIZE];
+    uint16_t bytecodeLen;
+    uint8_t bytecodeEffect;             // Parsed effect type from bytecode
+    uint8_t bytecodeR, bytecodeG, bytecodeB;
+    uint8_t bytecodeBrightness;
+    uint8_t bytecodeSpeed;
 };
 
 // =============================================================================
@@ -642,6 +678,136 @@ int getColors(String command) {
     return -1;
 }
 
+// Parse bytecode and extract parameters
+void parseBytecode(int stripIdx) {
+    StripRuntime& rt = stripRuntime[stripIdx];
+
+    // Validate header
+    if (rt.bytecodeLen < BYTECODE_HEADER_SIZE) return;
+    if (rt.bytecode[0] != 'L' || rt.bytecode[1] != 'C' || rt.bytecode[2] != 'L') return;
+
+    // Set defaults
+    rt.bytecodeEffect = EFFECT_SOLID;
+    rt.bytecodeR = 255;
+    rt.bytecodeG = 147;
+    rt.bytecodeB = 41;
+    rt.bytecodeBrightness = 128;
+    rt.bytecodeSpeed = 50;
+
+    // Execute bytecode instructions
+    uint16_t pc = BYTECODE_HEADER_SIZE;
+    while (pc < rt.bytecodeLen) {
+        uint8_t op = rt.bytecode[pc];
+
+        switch (op) {
+            case OP_SET_PATTERN:
+                if (pc + 1 < rt.bytecodeLen) {
+                    rt.bytecodeEffect = rt.bytecode[pc + 1];
+                    pc += 2;
+                } else {
+                    pc++;
+                }
+                break;
+
+            case OP_SET_PARAM:
+                if (pc + 2 < rt.bytecodeLen) {
+                    uint8_t paramId = rt.bytecode[pc + 1];
+                    uint8_t value = rt.bytecode[pc + 2];
+                    switch (paramId) {
+                        case PARAM_RED: rt.bytecodeR = value; break;
+                        case PARAM_GREEN: rt.bytecodeG = value; break;
+                        case PARAM_BLUE: rt.bytecodeB = value; break;
+                        case PARAM_BRIGHTNESS: rt.bytecodeBrightness = value; break;
+                        case PARAM_SPEED: rt.bytecodeSpeed = value; break;
+                    }
+                    pc += 3;
+                } else {
+                    pc++;
+                }
+                break;
+
+            case OP_HALT:
+                return;
+
+            default:
+                pc++;
+                break;
+        }
+    }
+}
+
+// Set bytecode for a strip: "pin,base64EncodedBytecode"
+// Example: "6,TENMAQ..." (base64 encoded LCL bytecode)
+int setBytecode(String command) {
+    int comma = command.indexOf(',');
+    if (comma <= 0) return -1;
+
+    int pin = command.substring(0, comma).toInt();
+    String base64Data = command.substring(comma + 1);
+
+    // Find the strip
+    int stripIdx = -1;
+    for (int i = 0; i < numStrips; i++) {
+        if (stripConfigs[i].pin == pin) {
+            stripIdx = i;
+            break;
+        }
+    }
+    if (stripIdx < 0) return -1;
+
+    StripRuntime& rt = stripRuntime[stripIdx];
+    StripConfig& cfg = stripConfigs[stripIdx];
+
+    // Decode base64
+    // Simple base64 decoder
+    static const char b64chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+    uint16_t outIdx = 0;
+    int buffer = 0;
+    int bitsCollected = 0;
+
+    for (int i = 0; i < (int)base64Data.length() && outIdx < MAX_BYTECODE_SIZE; i++) {
+        char c = base64Data.charAt(i);
+        if (c == '=') break;
+
+        const char* p = strchr(b64chars, c);
+        if (!p) continue;
+
+        int value = p - b64chars;
+        buffer = (buffer << 6) | value;
+        bitsCollected += 6;
+
+        if (bitsCollected >= 8) {
+            bitsCollected -= 8;
+            rt.bytecode[outIdx++] = (buffer >> bitsCollected) & 0xFF;
+        }
+    }
+
+    rt.bytecodeLen = outIdx;
+
+    if (rt.bytecodeLen < BYTECODE_HEADER_SIZE) {
+        Serial.println("Bytecode too short");
+        return -1;
+    }
+
+    // Parse the bytecode to extract effect and parameters
+    parseBytecode(stripIdx);
+
+    // Set pattern to bytecode mode
+    cfg.pattern = PATTERN_BYTECODE;
+
+    // Apply brightness from bytecode
+    if (rt.strip != nullptr) {
+        rt.strip->setBrightness(rt.bytecodeBrightness);
+    }
+
+    Serial.printlnf("Strip D%d: bytecode loaded (%d bytes), effect=%d, RGB=(%d,%d,%d)",
+                    pin, rt.bytecodeLen, rt.bytecodeEffect,
+                    rt.bytecodeR, rt.bytecodeG, rt.bytecodeB);
+
+    return rt.bytecodeLen;
+}
+
 // =============================================================================
 // PATTERN EFFECTS
 // =============================================================================
@@ -786,6 +952,105 @@ void runPattern(int idx) {
                 }
             }
             break;
+
+        case PATTERN_BYTECODE:
+            // Execute pattern based on parsed bytecode effect type
+            // Map bytecode effect to native patterns using parsed parameters
+            switch (rt.bytecodeEffect) {
+                case EFFECT_SOLID:
+                    for (int i = 0; i < count; i++) {
+                        strip->setPixelColor(i, strip->Color(rt.bytecodeR, rt.bytecodeG, rt.bytecodeB));
+                    }
+                    break;
+
+                case EFFECT_PULSE:
+                    rt.pulseValue += rt.pulseDirection * 5;
+                    if (rt.pulseValue >= 250 || rt.pulseValue <= 5) {
+                        rt.pulseDirection = -rt.pulseDirection;
+                    }
+                    for (int i = 0; i < count; i++) {
+                        r = (rt.bytecodeR * rt.pulseValue) / 255;
+                        g = (rt.bytecodeG * rt.pulseValue) / 255;
+                        b = (rt.bytecodeB * rt.pulseValue) / 255;
+                        strip->setPixelColor(i, strip->Color(r, g, b));
+                    }
+                    break;
+
+                case EFFECT_WAVE:
+                    rt.animPosition++;
+                    for (int i = 0; i < count; i++) {
+                        uint8_t brightness = (sin((i + rt.animPosition) * 0.5) + 1) * 127;
+                        r = (rt.bytecodeR * brightness) / 255;
+                        g = (rt.bytecodeG * brightness) / 255;
+                        b = (rt.bytecodeB * brightness) / 255;
+                        strip->setPixelColor(i, strip->Color(r, g, b));
+                    }
+                    break;
+
+                case EFFECT_RAINBOW:
+                    rt.animPosition++;
+                    for (int i = 0; i < count; i++) {
+                        uint8_t pos = ((i * 256 / count) + rt.animPosition) & 255;
+                        uint32_t color;
+                        if (pos < 85) {
+                            color = strip->Color(pos * 3, 255 - pos * 3, 0);
+                        } else if (pos < 170) {
+                            pos -= 85;
+                            color = strip->Color(255 - pos * 3, 0, pos * 3);
+                        } else {
+                            pos -= 170;
+                            color = strip->Color(0, pos * 3, 255 - pos * 3);
+                        }
+                        strip->setPixelColor(i, color);
+                    }
+                    break;
+
+                case EFFECT_FIRE:
+                case EFFECT_CANDLE:
+                    {
+                        uint8_t cooling = 50;
+                        uint8_t sparking = 120;
+                        for (int i = 0; i < count; i++) {
+                            int cooldown = random(0, ((cooling * 10) / count) + 2);
+                            rt.heat[i] = (rt.heat[i] > cooldown) ? rt.heat[i] - cooldown : 0;
+                        }
+                        for (int k = count - 1; k >= 2; k--) {
+                            rt.heat[k] = (rt.heat[k - 1] + rt.heat[k - 2] + rt.heat[k - 2]) / 3;
+                        }
+                        if (random(255) < sparking) {
+                            int y = random(0, 3);
+                            if (y < count) {
+                                rt.heat[y] = min(255, rt.heat[y] + random(160, 255));
+                            }
+                        }
+                        for (int j = 0; j < count; j++) {
+                            // Blend bytecode color with fire temperature
+                            uint8_t t = (rt.heat[j] * 240) / 256;
+                            uint8_t fireR, fireG, fireB;
+                            if (t < 85) {
+                                fireR = t * 3; fireG = 0; fireB = 0;
+                            } else if (t < 170) {
+                                fireR = 255; fireG = (t - 85) * 3; fireB = 0;
+                            } else {
+                                fireR = 255; fireG = 255; fireB = (t - 170) * 3;
+                            }
+                            // Blend with bytecode color
+                            r = (fireR * rt.bytecodeR) / 255;
+                            g = (fireG * rt.bytecodeG) / 255;
+                            b = (fireB * rt.bytecodeB) / 255;
+                            strip->setPixelColor(j, strip->Color(r, g, b));
+                        }
+                    }
+                    break;
+
+                default:
+                    // Default to solid with bytecode color
+                    for (int i = 0; i < count; i++) {
+                        strip->setPixelColor(i, strip->Color(rt.bytecodeR, rt.bytecodeG, rt.bytecodeB));
+                    }
+                    break;
+            }
+            break;
     }
 
     strip->show();
@@ -827,6 +1092,7 @@ void setup() {
     Particle.function("getConfig", getConfig);     // "" - refreshes variables
     Particle.function("getStrip", getStrip);       // "pin" - result in query variable
     Particle.function("getColors", getColors);     // "pin" - result in query variable
+    Particle.function("setBytecode", setBytecode); // "pin,base64Bytecode" - LCL bytecode pattern
 
     // Register cloud variables
     Particle.variable("deviceInfo", deviceInfo);   // "version|platform|maxStrips|maxLeds|maxColors"

@@ -104,7 +104,7 @@ function patternsPage() {
                         red: activeColor.r,
                         green: activeColor.g,
                         blue: activeColor.b,
-                        brightness: this.form.brightness,
+                        brightness: Math.max(128, this.form.brightness),
                         speed: this.form.speed
                     };
                     LEDSimulator.render(container, simPattern, 8, { compact: true });
