@@ -328,8 +328,8 @@ function glowBlasterPage() {
             }
 
             try {
-                // Convert bytecode to base64
-                const base64Bytecode = btoa(String.fromCharCode.apply(null, this.currentBytecode));
+                // Bytecode is already base64-encoded from Go backend
+                const base64Bytecode = this.currentBytecode;
 
                 const resp = await fetch('/api/particle/command', {
                     method: 'POST',
