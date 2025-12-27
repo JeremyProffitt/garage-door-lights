@@ -337,7 +337,7 @@ function glowBlasterPage() {
                     credentials: 'same-origin',
                     body: JSON.stringify({
                         deviceId: this.selectedDeviceId,
-                        function: 'setBytecode',
+                        command: 'setBytecode',
                         argument: `${this.selectedStripPin},${base64Bytecode}`
                     })
                 });
