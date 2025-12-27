@@ -66,7 +66,10 @@ function devicesPage() {
             });
             const data = await resp.json();
             if (data.success) {
-                this.patterns = data.data || [];
+                // Filter out any test patterns (handled separately in UI)
+                this.patterns = (data.data || []).filter(p =>
+                    !p.name.toLowerCase().includes('rainbow bytecode test')
+                );
             }
         },
 

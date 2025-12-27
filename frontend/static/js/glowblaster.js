@@ -102,11 +102,12 @@ function glowBlasterPage() {
                     this.activeConversation = data.data;
                     this.currentMessages = data.data.messages || [];
                     this.currentLCL = data.data.currentLcl || '';
+                    this.currentBytecode = null; // Reset bytecode so updatePreview recompiles
                     this.totalTokens = data.data.totalTokens || 0;
                     this.selectedModel = data.data.model || 'claude-sonnet-4-20250514';
 
                     if (this.currentLCL) {
-                        this.updatePreview();
+                        await this.updatePreview();
                     } else {
                         this.clearPreview();
                     }
