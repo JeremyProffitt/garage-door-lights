@@ -322,6 +322,26 @@ function glowBlasterPage() {
             }
         },
 
+        async deletePattern(patternId, patternName) {
+            if (!confirm(`Delete pattern "${patternName}"?`)) return;
+
+            try {
+                const resp = await fetch(`/api/glowblaster/patterns/${patternId}`, {
+                    method: 'DELETE',
+                    credentials: 'same-origin'
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    NotificationBanner.success('Pattern deleted');
+                    await this.loadGlowBlasterPatterns();
+                } else {
+                    NotificationBanner.error('Error: ' + (data.error || 'Failed to delete'));
+                }
+            } catch (err) {
+                NotificationBanner.error('Failed to delete pattern');
+            }
+        },
+
         async compactConversation() {
             if (!this.activeConversation) return;
             if (!confirm('Compact conversation? This will summarize older messages to save tokens.')) return;

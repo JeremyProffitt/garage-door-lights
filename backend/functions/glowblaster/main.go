@@ -37,6 +37,7 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	path := request.Path
 	method := request.HTTPMethod
 	conversationID := request.PathParameters["conversationId"]
+	patternID := request.PathParameters["patternId"]
 
 	switch {
 	// Conversation endpoints
@@ -62,6 +63,8 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		return handleListGlowBlasterPatterns(ctx, username)
 	case path == "/api/glowblaster/patterns" && method == "POST":
 		return handleSavePattern(ctx, username, request)
+	case patternID != "" && method == "DELETE":
+		return handleDeletePattern(ctx, username, patternID)
 
 	default:
 		log.Printf("No matching route for path: %s, method: %s", path, method)
@@ -499,6 +502,36 @@ func handleSavePattern(ctx context.Context, username string, request events.APIG
 	}
 
 	return shared.CreateSuccessResponse(201, pattern), nil
+}
+
+func handleDeletePattern(ctx context.Context, username string, patternID string) (events.APIGatewayProxyResponse, error) {
+	key, _ := attributevalue.MarshalMap(map[string]string{
+		"patternId": patternID,
+	})
+
+	// First verify the pattern belongs to this user
+	var pattern shared.Pattern
+	if err := shared.GetItem(ctx, patternsTable, key, &pattern); err != nil {
+		return shared.CreateErrorResponse(500, "Database error"), nil
+	}
+
+	if pattern.PatternID == "" {
+		return shared.CreateErrorResponse(404, "Pattern not found"), nil
+	}
+
+	if pattern.UserID != username {
+		return shared.CreateErrorResponse(403, "Not authorized to delete this pattern"), nil
+	}
+
+	// Delete the pattern
+	if err := shared.DeleteItem(ctx, patternsTable, key); err != nil {
+		return shared.CreateErrorResponse(500, "Failed to delete pattern"), nil
+	}
+
+	return shared.CreateSuccessResponse(200, map[string]interface{}{
+		"message":   "Pattern deleted",
+		"patternId": patternID,
+	}), nil
 }
 
 func truncate(s string, maxLen int) string {

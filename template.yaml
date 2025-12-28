@@ -541,6 +541,12 @@ Resources:
             RestApiId: !Ref WebsiteGateway
             Path: /api/glowblaster/patterns
             Method: POST
+        DeletePattern:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/glowblaster/patterns/{patternId}
+            Method: DELETE
 
   # OAuth Lambda for Alexa Account Linking
   OAuthFunction:

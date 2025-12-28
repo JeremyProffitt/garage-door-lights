@@ -68,8 +68,14 @@
                 <h3 style="font-size: 0.9rem; color: #374151; margin: 1rem 0 0.5rem;">Saved Patterns</h3>
                 <div class="pattern-list">
                     <template x-for="pattern in glowBlasterPatterns" :key="pattern.patternId">
-                        <div class="pattern-item" @click="loadPatternToConversation(pattern)">
-                            <span x-text="pattern.name" style="font-weight: 500;"></span>
+                        <div class="pattern-item" style="display: flex; justify-content: space-between; align-items: center;">
+                            <span @click="loadPatternToConversation(pattern)" x-text="pattern.name" style="font-weight: 500; cursor: pointer; flex: 1;"></span>
+                            <button @click.stop="deletePattern(pattern.patternId, pattern.name)"
+                                    class="btn-delete-pattern"
+                                    title="Delete pattern"
+                                    style="background: none; border: none; color: #9ca3af; cursor: pointer; padding: 0.25rem; font-size: 0.8rem;"
+                                    @mouseenter="$el.style.color='#ef4444'"
+                                    @mouseleave="$el.style.color='#9ca3af'">✕</button>
                         </div>
                     </template>
                     <div x-show="glowBlasterPatterns.length === 0" style="color: #9ca3af; font-size: 0.85rem; padding: 0.5rem;">
