@@ -93,11 +93,14 @@ function glowBlasterPage() {
         },
 
         async loadConversation(conversationId) {
+            console.log('[LoadConversation] Loading:', conversationId);
             try {
                 const resp = await fetch(`/api/glowblaster/conversations/${conversationId}`, {
                     credentials: 'same-origin'
                 });
                 const data = await resp.json();
+                console.log('[LoadConversation] Response:', { success: data.success, hasData: !!data.data });
+
                 if (data.success) {
                     this.activeConversation = data.data;
                     this.currentMessages = data.data.messages || [];
@@ -106,15 +109,24 @@ function glowBlasterPage() {
                     this.totalTokens = data.data.totalTokens || 0;
                     this.selectedModel = data.data.model || 'claude-sonnet-4-20250514';
 
+                    console.log('[LoadConversation] State after load:', {
+                        currentLCL: this.currentLCL ? `${this.currentLCL.substring(0, 100)}...` : '(empty)',
+                        currentBytecode: this.currentBytecode
+                    });
+
                     if (this.currentLCL) {
+                        console.log('[LoadConversation] Has LCL, calling updatePreview...');
                         await this.updatePreview();
+                        console.log('[LoadConversation] After updatePreview, bytecode:', this.currentBytecode ? 'SET' : 'NULL');
                     } else {
+                        console.log('[LoadConversation] No LCL, clearing preview');
                         this.clearPreview();
                     }
 
                     this.$nextTick(() => this.scrollToBottom());
                 }
             } catch (err) {
+                console.error('[LoadConversation] Error:', err);
                 NotificationBanner.error('Failed to load conversation');
             }
         },
@@ -219,18 +231,28 @@ function glowBlasterPage() {
         },
 
         async updatePreview() {
+            console.log('[UpdatePreview] Starting...', {
+                hasBytecode: !!this.currentBytecode,
+                hasLCL: !!this.currentLCL
+            });
+
             const container = document.getElementById('glowblasterPreview');
-            if (!container) return;
+            if (!container) {
+                console.warn('[UpdatePreview] No preview container found!');
+                return;
+            }
 
             // Clear existing content
             container.innerHTML = '';
 
             if (this.currentBytecode && this.currentBytecode.length > 0) {
+                console.log('[UpdatePreview] Using existing bytecode');
                 // Use LCL preview interpreter
                 if (typeof LCLPreview !== 'undefined') {
                     LCLPreview.render(container, this.currentBytecode, 12);
                 }
             } else if (this.currentLCL) {
+                console.log('[UpdatePreview] Compiling LCL:', this.currentLCL.substring(0, 100));
                 // Compile LCL and render
                 try {
                     const resp = await fetch('/api/glowblaster/compile', {
@@ -240,22 +262,29 @@ function glowBlasterPage() {
                         body: JSON.stringify({ lcl: this.currentLCL })
                     });
                     const data = await resp.json();
-                    console.log('Compile response:', data);
+                    console.log('[UpdatePreview] Compile response:', JSON.stringify(data, null, 2));
 
                     if (data.success && data.data) {
                         if (data.data.success && data.data.bytecode) {
+                            console.log('[UpdatePreview] Compile SUCCESS, bytecode length:', data.data.bytecode.length);
                             this.currentBytecode = data.data.bytecode;
                             if (typeof LCLPreview !== 'undefined') {
                                 LCLPreview.render(container, data.data.bytecode, 12);
                             }
                         } else if (data.data.errors && data.data.errors.length > 0) {
-                            console.error('LCL compile errors:', data.data.errors);
+                            console.error('[UpdatePreview] Compile FAILED with errors:', data.data.errors);
                             container.innerHTML = '<div class="compile-error">Compile error: ' + data.data.errors.join(', ') + '</div>';
+                        } else {
+                            console.warn('[UpdatePreview] Compile returned no bytecode and no errors:', data.data);
                         }
+                    } else {
+                        console.warn('[UpdatePreview] Compile response missing success or data:', data);
                     }
                 } catch (err) {
-                    console.error('Failed to compile LCL:', err);
+                    console.error('[UpdatePreview] Fetch failed:', err);
                 }
+            } else {
+                console.log('[UpdatePreview] No bytecode or LCL to preview');
             }
         },
 
@@ -330,7 +359,18 @@ function glowBlasterPage() {
         },
 
         async sendToDevice() {
+            console.log('[SendToDevice] State check:', {
+                selectedDeviceId: this.selectedDeviceId,
+                currentBytecode: this.currentBytecode ? `${this.currentBytecode.substring(0, 20)}...` : null,
+                currentLCL: this.currentLCL ? `${this.currentLCL.substring(0, 50)}...` : null,
+                selectedStripPin: this.selectedStripPin
+            });
+
             if (!this.selectedDeviceId || !this.currentBytecode) {
+                console.error('[SendToDevice] FAILED - Missing:', {
+                    hasDeviceId: !!this.selectedDeviceId,
+                    hasBytecode: !!this.currentBytecode
+                });
                 NotificationBanner.error('Select a device and ensure pattern is compiled');
                 return;
             }
