@@ -240,10 +240,17 @@ function glowBlasterPage() {
                         body: JSON.stringify({ lcl: this.currentLCL })
                     });
                     const data = await resp.json();
-                    if (data.success && data.data.bytecode) {
-                        this.currentBytecode = data.data.bytecode;
-                        if (typeof LCLPreview !== 'undefined') {
-                            LCLPreview.render(container, data.data.bytecode, 12);
+                    console.log('Compile response:', data);
+
+                    if (data.success && data.data) {
+                        if (data.data.success && data.data.bytecode) {
+                            this.currentBytecode = data.data.bytecode;
+                            if (typeof LCLPreview !== 'undefined') {
+                                LCLPreview.render(container, data.data.bytecode, 12);
+                            }
+                        } else if (data.data.errors && data.data.errors.length > 0) {
+                            console.error('LCL compile errors:', data.data.errors);
+                            container.innerHTML = '<div class="compile-error">Compile error: ' + data.data.errors.join(', ') + '</div>';
                         }
                     }
                 } catch (err) {

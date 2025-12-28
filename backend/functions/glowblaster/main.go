@@ -386,21 +386,30 @@ func handleCompact(ctx context.Context, username, conversationID string, request
 func handleCompile(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	var req shared.CompileRequest
 	body := shared.GetRequestBody(request)
+	log.Printf("[Compile] Received body length: %d", len(body))
+
 	if err := json.Unmarshal([]byte(body), &req); err != nil {
+		log.Printf("[Compile] JSON unmarshal error: %v", err)
 		return shared.CreateErrorResponse(400, "Invalid request body"), nil
 	}
 
 	if req.LCL == "" {
+		log.Printf("[Compile] LCL is empty")
 		return shared.CreateErrorResponse(400, "LCL is required"), nil
 	}
 
+	log.Printf("[Compile] Compiling LCL (first 200 chars): %s", truncate(req.LCL, 200))
+
 	bytecode, warnings, err := shared.CompileLCL(req.LCL)
 	if err != nil {
+		log.Printf("[Compile] Compilation error: %v", err)
 		return shared.CreateSuccessResponse(200, shared.CompileResponse{
 			Success: false,
 			Errors:  []string{err.Error()},
 		}), nil
 	}
+
+	log.Printf("[Compile] Success! Bytecode length: %d, Warnings: %v", len(bytecode), warnings)
 
 	return shared.CreateSuccessResponse(200, shared.CompileResponse{
 		Success:  true,
