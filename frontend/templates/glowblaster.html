@@ -34,21 +34,21 @@
         <div class="glowblaster-layout">
             <!-- Left: Conversation sidebar -->
             <div class="conversation-sidebar">
-                <button @click="startNewConversation()" class="btn btn-primary" style="width: 100%; margin-bottom: 1rem;">
+                <button @click="startNewConversation()" class="btn btn-primary" style="width: 100%; margin-bottom: 0.5rem; padding: 0.5rem; font-size: 0.85rem;">
                     + New Conversation
                 </button>
 
                 <!-- Model selector -->
-                <div style="margin-bottom: 1rem;">
-                    <label style="font-size: 0.85rem; color: #6b7280;">AI Model</label>
-                    <select x-model="selectedModel" @change="updateConversationModel()" style="width: 100%; padding: 0.5rem; border-radius: 8px; border: 1px solid #e5e7eb;">
-                        <option value="claude-sonnet-4-20250514">Claude Sonnet 4 (Default)</option>
-                        <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
-                        <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku (Faster)</option>
+                <div style="margin-bottom: 0.5rem;">
+                    <label style="font-size: 0.75rem; color: #6b7280;">Model</label>
+                    <select x-model="selectedModel" @change="updateConversationModel()" style="width: 100%; padding: 0.35rem; border-radius: 6px; border: 1px solid #e5e7eb; font-size: 0.8rem;">
+                        <option value="claude-sonnet-4-20250514">Sonnet 4</option>
+                        <option value="claude-3-5-sonnet-20241022">Sonnet 3.5</option>
+                        <option value="claude-3-5-haiku-20241022">Haiku (Fast)</option>
                     </select>
                 </div>
 
-                <h3 style="font-size: 0.9rem; color: #374151; margin-bottom: 0.5rem;">Conversations</h3>
+                <h3 style="font-size: 0.8rem; color: #374151; margin-bottom: 0.25rem;">Conversations</h3>
                 <div class="conversation-list">
                     <template x-for="conv in conversations" :key="conv.conversationId">
                         <div class="conversation-item"
@@ -65,7 +65,7 @@
                 </div>
 
                 <!-- Pattern list -->
-                <h3 style="font-size: 0.9rem; color: #374151; margin: 1rem 0 0.5rem;">Saved Patterns</h3>
+                <h3 style="font-size: 0.8rem; color: #374151; margin: 0.5rem 0 0.25rem;">Saved Patterns</h3>
                 <div class="pattern-list">
                     <template x-for="pattern in glowBlasterPatterns" :key="pattern.patternId">
                         <div class="pattern-item" style="display: flex; justify-content: space-between; align-items: center;">
@@ -90,11 +90,11 @@
                     <!-- Welcome message -->
                     <div x-show="currentMessages.length === 0" class="chat-welcome">
                         <h3>Welcome to Glow Blaster!</h3>
-                        <p>Describe the LED pattern you want to create. For example:</p>
-                        <ul>
-                            <li>"Create a cozy campfire effect with tall orange flames"</li>
-                            <li>"Make a pulsing blue wave pattern"</li>
-                            <li>"I want something sparkly and magical"</li>
+                        <p style="font-size: 0.9rem; margin-bottom: 0.5rem;">Describe the LED pattern you want:</p>
+                        <ul style="font-size: 0.85rem;">
+                            <li>"Cozy campfire with tall orange flames"</li>
+                            <li>"Pulsing blue wave"</li>
+                            <li>"Sparkly and magical"</li>
                         </ul>
                     </div>
 
@@ -116,8 +116,8 @@
                         x-model="userMessage"
                         @keydown.enter.meta="sendMessage()"
                         @keydown.enter.ctrl="sendMessage()"
-                        placeholder="Describe the pattern you want to create..."
-                        rows="3"
+                        placeholder="Describe the pattern..."
+                        rows="2"
                         :disabled="isLoading"></textarea>
                     <button @click="sendMessage()" class="btn btn-primary" :disabled="isLoading || !userMessage.trim()">
                         <span x-show="!isLoading">Send</span>
@@ -126,10 +126,10 @@
                 </div>
 
                 <!-- Action buttons -->
-                <div class="chat-actions" x-show="currentLCL">
-                    <button @click="saveAsPattern()" class="btn btn-secondary">Save as Pattern</button>
-                    <button @click="showDeviceModal = true" class="btn btn-primary">Send to Device</button>
-                    <button @click="compactConversation()" class="btn btn-sm" style="background: #e5e7eb; color: #374151;">Compact History</button>
+                <div class="chat-actions" x-show="currentLCL" style="padding: 0.5rem; gap: 0.5rem;">
+                    <button @click="saveAsPattern()" class="btn btn-secondary btn-sm">Save Pattern</button>
+                    <button @click="showDeviceModal = true" class="btn btn-primary btn-sm">Send to Device</button>
+                    <button @click="compactConversation()" class="btn btn-sm" style="background: #e5e7eb; color: #374151;">Compact</button>
                 </div>
             </div>
 
