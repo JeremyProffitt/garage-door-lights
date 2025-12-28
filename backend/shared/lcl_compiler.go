@@ -140,6 +140,7 @@ var effectTypes = map[string]byte{
 	"fire":     EffectFire,
 	"candle":   EffectCandle,
 	"wave":     EffectWave,
+	"chase":    EffectWave, // alias - chase is similar to wave
 	"rainbow":  EffectRainbow,
 }
 
