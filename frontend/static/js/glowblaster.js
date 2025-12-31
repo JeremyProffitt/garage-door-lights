@@ -11,7 +11,7 @@ function glowBlasterPage() {
         userMessage: '',
         isLoading: false,
         totalTokens: 0,
-        selectedModel: 'claude-sonnet-4-5-20250514',
+        selectedModel: 'claude-sonnet-4-20250514',
 
         // Device modal
         showDeviceModal: false,
@@ -146,7 +146,7 @@ function glowBlasterPage() {
                     this.currentLCL = data.data.currentLcl || '';
                     this.currentBytecode = null; // Reset bytecode so updatePreview recompiles
                     this.totalTokens = data.data.totalTokens || 0;
-                    this.selectedModel = data.data.model || 'claude-sonnet-4-5-20250514';
+                    this.selectedModel = data.data.model || 'claude-sonnet-4-20250514';
 
                     console.log('[LoadConversation] State after load:', {
                         currentLCL: this.currentLCL ? `${this.currentLCL.substring(0, 100)}...` : '(empty)',
@@ -451,7 +451,7 @@ function glowBlasterPage() {
                         this.currentLCL = data.data.currentLcl || pattern.lclSpec || pattern.intentLayer || '';
                         this.currentBytecode = null;
                         this.totalTokens = data.data.totalTokens || 0;
-                        this.selectedModel = data.data.model || 'claude-sonnet-4-5-20250514';
+                        this.selectedModel = data.data.model || 'claude-sonnet-4-20250514';
 
                         if (this.currentLCL) {
                             await this.updatePreview();
