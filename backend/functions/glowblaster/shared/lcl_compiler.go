@@ -459,6 +459,26 @@ func (c *LCLCompiler) generateSparkleBytecode(parsed *ParsedLCL) {
 	c.emit(OpSetParam)
 	c.emit(ParamDensity)
 	c.emit(byte(density))
+
+	// Set sparkle color - check for 'color' first, then 'colors'
+	var r, g, b byte = 255, 255, 255 // default white
+	if colorStr := parsed.Appearance["color"]; colorStr != "" {
+		r, g, b = c.parseColor(colorStr)
+	} else if colorsStr := parsed.Appearance["colors"]; colorsStr != "" {
+		colors := c.parseColorList(colorsStr)
+		if len(colors) > 0 {
+			r, g, b = colors[0][0], colors[0][1], colors[0][2]
+		}
+	}
+	c.emit(OpSetParam)
+	c.emit(ParamRed)
+	c.emit(r)
+	c.emit(OpSetParam)
+	c.emit(ParamGreen)
+	c.emit(g)
+	c.emit(OpSetParam)
+	c.emit(ParamBlue)
+	c.emit(b)
 }
 
 func (c *LCLCompiler) generateBreatheBytecode(parsed *ParsedLCL) {

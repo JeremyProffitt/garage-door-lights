@@ -1202,6 +1202,44 @@ void runPattern(int idx) {
                     }
                     break;
 
+                case EFFECT_SPARKLE:
+                    // Sparkle effect - random LEDs light up briefly
+                    {
+                        // Fade all LEDs slightly
+                        for (int i = 0; i < count; i++) {
+                            uint32_t color = strip->getPixelColor(i);
+                            uint8_t cr = (color >> 16) & 0xFF;
+                            uint8_t cg = (color >> 8) & 0xFF;
+                            uint8_t cb = color & 0xFF;
+                            // Fade by 25%
+                            cr = cr * 3 / 4;
+                            cg = cg * 3 / 4;
+                            cb = cb * 3 / 4;
+                            strip->setPixelColor(i, strip->Color(cr, cg, cb));
+                        }
+
+                        // Add new sparkles based on density
+                        uint8_t numSparkles = 1 + (rt.bytecodeSpeed / 2);  // More speed = more sparkles
+                        for (int s = 0; s < numSparkles; s++) {
+                            if (random(100) < 30) {  // 30% chance per sparkle slot
+                                int sparkleIdx = random(count);
+                                if (rt.paletteCount > 0) {
+                                    // Use random color from palette
+                                    int colorIdx = random(rt.paletteCount);
+                                    strip->setPixelColor(sparkleIdx, strip->Color(
+                                        rt.palette[colorIdx].r,
+                                        rt.palette[colorIdx].g,
+                                        rt.palette[colorIdx].b));
+                                } else {
+                                    // Use primary color
+                                    strip->setPixelColor(sparkleIdx, strip->Color(
+                                        rt.bytecodeR, rt.bytecodeG, rt.bytecodeB));
+                                }
+                            }
+                        }
+                    }
+                    break;
+
                 default:
                     // Default to solid with bytecode color
                     for (int i = 0; i < count; i++) {
