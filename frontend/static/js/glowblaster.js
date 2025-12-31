@@ -11,7 +11,7 @@ function glowBlasterPage() {
         userMessage: '',
         isLoading: false,
         totalTokens: 0,
-        selectedModel: 'claude-sonnet-4-20250514',
+        selectedModel: 'claude-sonnet-4-5-20250514',
 
         // Device modal
         showDeviceModal: false,
@@ -19,12 +19,48 @@ function glowBlasterPage() {
         selectedDevice: null,
         selectedStripPin: null,
 
+        // Pattern editing state
+        editingPatternId: null,
+        editingPatternName: null,
+
         async init() {
             await Promise.all([
                 this.loadConversations(),
                 this.loadGlowBlasterPatterns(),
                 this.loadDevices()
             ]);
+
+            // Check for patternId URL parameter (editing existing pattern)
+            const urlParams = new URLSearchParams(window.location.search);
+            const patternId = urlParams.get('patternId');
+            if (patternId) {
+                await this.loadPatternForEditing(patternId);
+                // Clean up URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        },
+
+        async loadPatternForEditing(patternId) {
+            // Find the pattern in our loaded patterns
+            const pattern = this.glowBlasterPatterns.find(p => p.patternId === patternId);
+            if (!pattern) {
+                NotificationBanner.error('Pattern not found');
+                return;
+            }
+
+            // Set editing state
+            this.editingPatternId = patternId;
+            this.editingPatternName = pattern.name;
+
+            // Load the LCL from the pattern
+            this.currentLCL = pattern.lclSpec || pattern.intentLayer || '';
+
+            if (this.currentLCL) {
+                await this.updatePreview();
+                NotificationBanner.info(`Editing pattern: ${pattern.name}`);
+            } else {
+                NotificationBanner.warning('Pattern has no GlowBlaster Language data to edit');
+            }
         },
 
         async loadConversations() {
@@ -72,6 +108,9 @@ function glowBlasterPage() {
         },
 
         async startNewConversation() {
+            // Clear any editing state when starting fresh
+            this.clearEditingState();
+
             try {
                 const resp = await fetch('/api/glowblaster/conversations', {
                     method: 'POST',
@@ -107,7 +146,7 @@ function glowBlasterPage() {
                     this.currentLCL = data.data.currentLcl || '';
                     this.currentBytecode = null; // Reset bytecode so updatePreview recompiles
                     this.totalTokens = data.data.totalTokens || 0;
-                    this.selectedModel = data.data.model || 'claude-sonnet-4-20250514';
+                    this.selectedModel = data.data.model || 'claude-sonnet-4-5-20250514';
 
                     console.log('[LoadConversation] State after load:', {
                         currentLCL: this.currentLCL ? `${this.currentLCL.substring(0, 100)}...` : '(empty)',
@@ -295,7 +334,7 @@ function glowBlasterPage() {
             }
         },
 
-        async saveAsPattern() {
+        async saveAsNewPattern() {
             const name = prompt('Pattern name:', this.activeConversation?.title || 'My Pattern');
             if (!name) return;
 
@@ -312,6 +351,9 @@ function glowBlasterPage() {
                 });
                 const data = await resp.json();
                 if (data.success) {
+                    // Set editing state to the new pattern
+                    this.editingPatternId = data.data?.patternId;
+                    this.editingPatternName = name;
                     NotificationBanner.success('Pattern saved!');
                     await this.loadGlowBlasterPatterns();
                 } else {
@@ -319,6 +361,30 @@ function glowBlasterPage() {
                 }
             } catch (err) {
                 NotificationBanner.error('Failed to save pattern');
+            }
+        },
+
+        async updateExistingPattern() {
+            if (!this.editingPatternId) return;
+
+            try {
+                const resp = await fetch(`/api/glowblaster/patterns/${this.editingPatternId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        lcl: this.currentLCL
+                    })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    NotificationBanner.success(`Pattern "${this.editingPatternName}" updated!`);
+                    await this.loadGlowBlasterPatterns();
+                } else {
+                    NotificationBanner.error('Error: ' + (data.error || 'Failed to update'));
+                }
+            } catch (err) {
+                NotificationBanner.error('Failed to update pattern');
             }
         },
 
@@ -364,11 +430,70 @@ function glowBlasterPage() {
             }
         },
 
-        loadPatternToConversation(pattern) {
-            // Create new conversation with this pattern's LCL
+        async loadPatternToConversation(pattern) {
+            // Set editing state for this pattern
+            this.editingPatternId = pattern.patternId;
+            this.editingPatternName = pattern.name;
+
+            // Check if pattern has an associated conversation
+            if (pattern.conversationId) {
+                // Try to load the existing conversation
+                try {
+                    const resp = await fetch(`/api/glowblaster/conversations/${pattern.conversationId}`, {
+                        credentials: 'same-origin'
+                    });
+                    const data = await resp.json();
+
+                    if (data.success && data.data) {
+                        // Conversation exists, load it
+                        this.activeConversation = data.data;
+                        this.currentMessages = data.data.messages || [];
+                        this.currentLCL = data.data.currentLcl || pattern.lclSpec || pattern.intentLayer || '';
+                        this.currentBytecode = null;
+                        this.totalTokens = data.data.totalTokens || 0;
+                        this.selectedModel = data.data.model || 'claude-sonnet-4-5-20250514';
+
+                        if (this.currentLCL) {
+                            await this.updatePreview();
+                        }
+
+                        NotificationBanner.info(`Loaded conversation for: ${pattern.name}`);
+                        this.$nextTick(() => this.scrollToBottom());
+                        return;
+                    }
+                } catch (err) {
+                    console.log('Conversation not found, will create new one');
+                }
+            }
+
+            // No conversation found - create a new one with the pattern loaded
+            await this.startNewConversation();
+
+            // Re-set editing state (startNewConversation clears it)
+            this.editingPatternId = pattern.patternId;
+            this.editingPatternName = pattern.name;
+
+            // Load the pattern's GlowBlaster Language
             this.currentLCL = pattern.lclSpec || pattern.intentLayer || '';
-            this.updatePreview();
+
+            if (this.currentLCL) {
+                await this.updatePreview();
+
+                // Add a system message showing the loaded pattern
+                this.currentMessages.push({
+                    role: 'assistant',
+                    content: `I've loaded the pattern "${pattern.name}" for editing. Here's the current GlowBlaster Language:\n\n\`\`\`lcl\n${this.currentLCL}\n\`\`\`\n\nHow would you like to modify it?`,
+                    timestamp: new Date().toISOString()
+                });
+                this.scrollToBottom();
+            }
+
             NotificationBanner.info(`Loaded pattern: ${pattern.name}`);
+        },
+
+        clearEditingState() {
+            this.editingPatternId = null;
+            this.editingPatternName = null;
         },
 
         onDeviceSelect() {

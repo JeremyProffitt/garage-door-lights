@@ -42,6 +42,7 @@
                 <div style="margin-bottom: 0.5rem;">
                     <label style="font-size: 0.75rem; color: #6b7280;">Model</label>
                     <select x-model="selectedModel" @change="updateConversationModel()" style="width: 100%; padding: 0.35rem; border-radius: 6px; border: 1px solid #e5e7eb; font-size: 0.8rem;">
+                        <option value="claude-sonnet-4-5-20250514">Sonnet 4.5</option>
                         <option value="claude-sonnet-4-20250514">Sonnet 4</option>
                         <option value="claude-3-5-sonnet-20241022">Sonnet 3.5</option>
                         <option value="claude-3-5-haiku-20241022">Haiku (Fast)</option>
@@ -127,7 +128,10 @@
 
                 <!-- Action buttons -->
                 <div class="chat-actions" x-show="currentLCL" style="padding: 0.5rem; gap: 0.5rem;">
-                    <button @click="saveAsPattern()" class="btn btn-secondary btn-sm">Save Pattern</button>
+                    <template x-if="editingPatternId">
+                        <button @click="updateExistingPattern()" class="btn btn-secondary btn-sm" x-text="'Save ' + editingPatternName"></button>
+                    </template>
+                    <button @click="saveAsNewPattern()" class="btn btn-secondary btn-sm">Save as New Pattern</button>
                     <button @click="showDeviceModal = true" class="btn btn-primary btn-sm">Send to Device</button>
                     <button @click="compactConversation()" class="btn btn-sm" style="background: #e5e7eb; color: #374151;">Compact</button>
                 </div>
@@ -143,7 +147,7 @@
                 </div>
 
                 <div x-show="currentLCL" class="lcl-display">
-                    <h4>Current LCL</h4>
+                    <h4>GlowBlaster Language</h4>
                     <pre x-text="currentLCL"></pre>
                 </div>
 
