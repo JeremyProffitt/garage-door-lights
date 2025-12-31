@@ -422,7 +422,17 @@ func (c *LCLCompiler) generateWaveBytecode(parsed *ParsedLCL) {
 
 func (c *LCLCompiler) generateSolidBytecode(parsed *ParsedLCL) {
 	// Parse color - firmware expects: OP_SET_PARAM paramId value for each color component
-	r, g, b := c.parseColor(parsed.Appearance["color"])
+	// Check for 'color' first, then 'colors' (LLM prompt uses 'colors' for consistency)
+	var r, g, b byte = 255, 255, 255 // default white
+
+	if colorStr := parsed.Appearance["color"]; colorStr != "" {
+		r, g, b = c.parseColor(colorStr)
+	} else if colorsStr := parsed.Appearance["colors"]; colorsStr != "" {
+		colors := c.parseColorList(colorsStr)
+		if len(colors) > 0 {
+			r, g, b = colors[0][0], colors[0][1], colors[0][2]
+		}
+	}
 	c.emit(OpSetParam)
 	c.emit(ParamRed)
 	c.emit(r)
@@ -473,7 +483,17 @@ func (c *LCLCompiler) generateBreatheBytecode(parsed *ParsedLCL) {
 	c.emit(byte(rhythm))
 
 	// Parse color - firmware expects: OP_SET_PARAM paramId value for each color component
-	r, g, b := c.parseColor(parsed.Appearance["color"])
+	// Check for 'color' first, then 'colors' (LLM prompt uses 'colors' for consistency)
+	var r, g, b byte = 255, 255, 255 // default white
+
+	if colorStr := parsed.Appearance["color"]; colorStr != "" {
+		r, g, b = c.parseColor(colorStr)
+	} else if colorsStr := parsed.Appearance["colors"]; colorsStr != "" {
+		colors := c.parseColorList(colorsStr)
+		if len(colors) > 0 {
+			r, g, b = colors[0][0], colors[0][1], colors[0][2]
+		}
+	}
 	c.emit(OpSetParam)
 	c.emit(ParamRed)
 	c.emit(r)
