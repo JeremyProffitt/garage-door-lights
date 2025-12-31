@@ -75,6 +75,8 @@ enum PatternType {
 #define PARAM_SPEED      0x05
 #define PARAM_COOLING    0x06
 #define PARAM_SPARKING   0x07
+#define PARAM_HEAD_SIZE  0x08
+#define PARAM_TAIL_LEN   0x09
 
 // Color entry with percentage
 struct ColorEntry {
@@ -122,6 +124,9 @@ struct StripRuntime {
     // Palette support
     PaletteColor palette[MAX_PALETTE_COLORS];
     uint8_t paletteCount;               // Number of colors in palette
+    // Chase effect parameters
+    uint8_t headSize;                   // Size of chase head (LEDs)
+    uint8_t tailLength;                 // Length of chase tail (LEDs)
 };
 
 // =============================================================================
@@ -709,6 +714,8 @@ void parseBytecode(int stripIdx) {
     rt.bytecodeBrightness = 128;
     rt.bytecodeSpeed = 50;
     rt.paletteCount = 0;
+    rt.headSize = 5;       // Default chase head size
+    rt.tailLength = 10;    // Default chase tail length
 
     // Color stack for palette building
     PaletteColor colorStack[MAX_PALETTE_COLORS];
@@ -782,6 +789,8 @@ void parseBytecode(int stripIdx) {
                         case PARAM_BLUE: rt.bytecodeB = value; break;
                         case PARAM_BRIGHTNESS: rt.bytecodeBrightness = value; break;
                         case PARAM_SPEED: rt.bytecodeSpeed = value; break;
+                        case PARAM_HEAD_SIZE: rt.headSize = value; break;
+                        case PARAM_TAIL_LEN: rt.tailLength = value; break;
                     }
                     pc += 3;
                 } else {
@@ -864,9 +873,10 @@ int setBytecode(String command) {
         rt.strip->setBrightness(rt.bytecodeBrightness);
     }
 
-    Serial.printlnf("Strip D%d: bytecode loaded (%d bytes), effect=%d, RGB=(%d,%d,%d), palette=%d colors",
+    Serial.printlnf("Strip D%d: bytecode loaded (%d bytes), effect=%d, RGB=(%d,%d,%d), palette=%d colors, head=%d, tail=%d",
                     pin, rt.bytecodeLen, rt.bytecodeEffect,
-                    rt.bytecodeR, rt.bytecodeG, rt.bytecodeB, rt.paletteCount);
+                    rt.bytecodeR, rt.bytecodeG, rt.bytecodeB, rt.paletteCount,
+                    rt.headSize, rt.tailLength);
 
     // Log palette colors if present
     if (rt.paletteCount > 0) {
@@ -1049,29 +1059,54 @@ void runPattern(int idx) {
                     break;
 
                 case EFFECT_WAVE:
+                    // Chase/Wave effect with distinct palette colors
                     rt.animPosition++;
-                    for (int i = 0; i < count; i++) {
-                        if (rt.paletteCount > 1) {
-                            // Use palette colors - interpolate through palette based on position + animation
-                            float pos = fmod((float)(i + rt.animPosition) * 0.1f, 1.0f);
-                            float scaledPos = pos * (rt.paletteCount - 1);
-                            int idx1 = (int)scaledPos;
-                            int idx2 = idx1 + 1;
-                            if (idx2 >= rt.paletteCount) idx2 = rt.paletteCount - 1;
-                            float blend = scaledPos - idx1;
+                    {
+                        // Calculate chase head position (wraps around)
+                        int headPos = rt.animPosition % count;
+                        int totalChaseLen = rt.headSize + rt.tailLength;
 
-                            // Lerp between two palette colors
-                            r = rt.palette[idx1].r + (rt.palette[idx2].r - rt.palette[idx1].r) * blend;
-                            g = rt.palette[idx1].g + (rt.palette[idx2].g - rt.palette[idx1].g) * blend;
-                            b = rt.palette[idx1].b + (rt.palette[idx2].b - rt.palette[idx1].b) * blend;
-                        } else {
-                            // Single color with brightness wave
-                            uint8_t brightness = (sin((i + rt.animPosition) * 0.5) + 1) * 127;
-                            r = (rt.bytecodeR * brightness) / 255;
-                            g = (rt.bytecodeG * brightness) / 255;
-                            b = (rt.bytecodeB * brightness) / 255;
+                        for (int i = 0; i < count; i++) {
+                            // Calculate distance from head (accounting for wrap)
+                            int distFromHead = headPos - i;
+                            if (distFromHead < 0) distFromHead += count;
+
+                            if (distFromHead < rt.headSize) {
+                                // LED is in the head - show distinct palette color
+                                if (rt.paletteCount > 0) {
+                                    // Distribute palette colors across the head
+                                    int colorIdx = (distFromHead * rt.paletteCount) / rt.headSize;
+                                    if (colorIdx >= rt.paletteCount) colorIdx = rt.paletteCount - 1;
+                                    r = rt.palette[colorIdx].r;
+                                    g = rt.palette[colorIdx].g;
+                                    b = rt.palette[colorIdx].b;
+                                } else {
+                                    r = rt.bytecodeR;
+                                    g = rt.bytecodeG;
+                                    b = rt.bytecodeB;
+                                }
+                            } else if (distFromHead < totalChaseLen) {
+                                // LED is in the tail - fade out
+                                int tailPos = distFromHead - rt.headSize;
+                                uint8_t fadeAmount = 255 - (tailPos * 255 / rt.tailLength);
+
+                                if (rt.paletteCount > 0) {
+                                    // Use last palette color for tail, faded
+                                    int colorIdx = rt.paletteCount - 1;
+                                    r = (rt.palette[colorIdx].r * fadeAmount) / 255;
+                                    g = (rt.palette[colorIdx].g * fadeAmount) / 255;
+                                    b = (rt.palette[colorIdx].b * fadeAmount) / 255;
+                                } else {
+                                    r = (rt.bytecodeR * fadeAmount) / 255;
+                                    g = (rt.bytecodeG * fadeAmount) / 255;
+                                    b = (rt.bytecodeB * fadeAmount) / 255;
+                                }
+                            } else {
+                                // LED is off
+                                r = 0; g = 0; b = 0;
+                            }
+                            strip->setPixelColor(i, strip->Color(r, g, b));
                         }
-                        strip->setPixelColor(i, strip->Color(r, g, b));
                     }
                     break;
 
