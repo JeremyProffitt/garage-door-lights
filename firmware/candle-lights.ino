@@ -67,7 +67,7 @@ enum PatternType {
 #define EFFECT_WAVE     0x09
 #define EFFECT_RAINBOW  0x0A
 
-// Parameter IDs from bytecode
+// Parameter IDs from bytecode (must match lcl_compiler.go)
 #define PARAM_RED        0x01
 #define PARAM_GREEN      0x02
 #define PARAM_BLUE       0x03
@@ -75,8 +75,11 @@ enum PatternType {
 #define PARAM_SPEED      0x05
 #define PARAM_COOLING    0x06
 #define PARAM_SPARKING   0x07
-#define PARAM_HEAD_SIZE  0x08
-#define PARAM_TAIL_LEN   0x09
+#define PARAM_DIRECTION  0x08
+#define PARAM_WAVE_COUNT 0x09
+#define PARAM_HEAD_SIZE  0x0A
+#define PARAM_TAIL_LEN   0x0B
+#define PARAM_DENSITY    0x0C
 
 // Color entry with percentage
 struct ColorEntry {

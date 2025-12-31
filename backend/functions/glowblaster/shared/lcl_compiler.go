@@ -15,18 +15,16 @@ const (
 	LCLHeaderSize = 8
 )
 
-// Effect Type IDs
+// Effect Type IDs (must match firmware candle-lights.ino)
 const (
 	EffectSolid    byte = 0x01
-	EffectGradient byte = 0x02
-	EffectWave     byte = 0x03
-	EffectChase    byte = 0x04
-	EffectSparkle  byte = 0x05
-	EffectBreathe  byte = 0x06
+	EffectPulse    byte = 0x02 // breathing/pulse effect
+	EffectSparkle  byte = 0x04
+	EffectGradient byte = 0x05
 	EffectFire     byte = 0x07
-	EffectPlasma   byte = 0x08
-	EffectRipple   byte = 0x09
-	EffectRainbow  byte = 0x0F
+	EffectCandle   byte = 0x08
+	EffectWave     byte = 0x09
+	EffectRainbow  byte = 0x0A
 )
 
 // Opcodes
@@ -138,14 +136,14 @@ var densityValues = map[string]int{
 
 var effectTypes = map[string]byte{
 	"solid":    EffectSolid,
-	"gradient": EffectGradient,
-	"wave":     EffectWave,
-	"chase":    EffectChase,
+	"pulse":    EffectPulse,
+	"breathe":  EffectPulse, // alias - breathe maps to pulse
 	"sparkle":  EffectSparkle,
-	"breathe":  EffectBreathe,
+	"gradient": EffectGradient,
 	"fire":     EffectFire,
-	"plasma":   EffectPlasma,
-	"ripple":   EffectRipple,
+	"candle":   EffectCandle,
+	"wave":     EffectWave,
+	"chase":    EffectWave, // alias - chase is similar to wave
 	"rainbow":  EffectRainbow,
 }
 

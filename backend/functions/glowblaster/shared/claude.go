@@ -157,6 +157,16 @@ func ExtractLCLFromResponse(text string) string {
 	return ""
 }
 
+// ExtractDescriptionFromLCL extracts the description field from LCL text
+func ExtractDescriptionFromLCL(lclText string) string {
+	re := regexp.MustCompile(`(?m)^description:\s*["']?(.+?)["']?\s*$`)
+	matches := re.FindStringSubmatch(lclText)
+	if len(matches) > 1 {
+		return matches[1]
+	}
+	return ""
+}
+
 // ConvertMessagesToClaudeFormat converts conversation messages to Claude API format
 func ConvertMessagesToClaudeFormat(messages []Message) []ClaudeMessage {
 	claudeMessages := make([]ClaudeMessage, 0, len(messages))

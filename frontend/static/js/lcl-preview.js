@@ -27,7 +27,7 @@ const LCLPreview = {
     EFFECT_METEOR: 0x0B,
     EFFECT_BREATHING: 0x0C,
 
-    // Parameter IDs
+    // Parameter IDs (must match lcl_compiler.go)
     PARAM_RED: 0x01,
     PARAM_GREEN: 0x02,
     PARAM_BLUE: 0x03,
@@ -35,10 +35,10 @@ const LCLPreview = {
     PARAM_SPEED: 0x05,
     PARAM_COOLING: 0x06,
     PARAM_SPARKING: 0x07,
-    PARAM_WAVELENGTH: 0x08,
-    PARAM_AMPLITUDE: 0x09,
-    PARAM_DIRECTION: 0x0A,
-    PARAM_SATURATION: 0x0B,
+    PARAM_DIRECTION: 0x08,
+    PARAM_WAVE_COUNT: 0x09,
+    PARAM_HEAD_SIZE: 0x0A,
+    PARAM_TAIL_LEN: 0x0B,
     PARAM_DENSITY: 0x0C,
 
     // Map effect type ID to LEDSimulator pattern type
@@ -223,17 +223,17 @@ const LCLPreview = {
             case this.PARAM_SPARKING:
                 pattern.sparking = value;
                 break;
-            case this.PARAM_WAVELENGTH:
-                pattern.wavelength = value;
-                break;
-            case this.PARAM_AMPLITUDE:
-                pattern.amplitude = value;
-                break;
             case this.PARAM_DIRECTION:
                 pattern.direction = value;
                 break;
-            case this.PARAM_SATURATION:
-                pattern.saturation = value;
+            case this.PARAM_WAVE_COUNT:
+                pattern.waveCount = value;
+                break;
+            case this.PARAM_HEAD_SIZE:
+                pattern.headSize = value;
+                break;
+            case this.PARAM_TAIL_LEN:
+                pattern.tailLen = value;
                 break;
             case this.PARAM_DENSITY:
                 pattern.density = value;
