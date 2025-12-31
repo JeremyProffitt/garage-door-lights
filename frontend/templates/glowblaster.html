@@ -115,8 +115,7 @@
                 <div class="chat-input-area">
                     <textarea
                         x-model="userMessage"
-                        @keydown.enter.meta="sendMessage()"
-                        @keydown.enter.ctrl="sendMessage()"
+                        @keydown.enter.prevent="if (!$event.shiftKey) sendMessage()"
                         placeholder="Describe the pattern..."
                         rows="2"
                         :disabled="isLoading"></textarea>

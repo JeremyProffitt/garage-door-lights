@@ -1166,6 +1166,39 @@ void runPattern(int idx) {
                     }
                     break;
 
+                case EFFECT_GRADIENT:
+                    // Gradient effect - static palette distribution across strip
+                    {
+                        if (rt.paletteCount > 0) {
+                            // Distribute palette colors across entire strip with smooth blending
+                            for (int i = 0; i < count; i++) {
+                                // Calculate position in the palette (0.0 to paletteCount)
+                                float pos = (float)i * rt.paletteCount / count;
+
+                                // Wrap around (shouldn't be needed for gradient but safety)
+                                while (pos >= rt.paletteCount) pos -= rt.paletteCount;
+
+                                // Get the two colors to blend between
+                                int colorIdx1 = (int)pos;
+                                int colorIdx2 = (colorIdx1 + 1) % rt.paletteCount;
+                                float blend = pos - colorIdx1;  // 0.0 to 1.0
+
+                                // Linear interpolation between colors
+                                r = rt.palette[colorIdx1].r + (rt.palette[colorIdx2].r - rt.palette[colorIdx1].r) * blend;
+                                g = rt.palette[colorIdx1].g + (rt.palette[colorIdx2].g - rt.palette[colorIdx1].g) * blend;
+                                b = rt.palette[colorIdx1].b + (rt.palette[colorIdx2].b - rt.palette[colorIdx1].b) * blend;
+
+                                strip->setPixelColor(i, strip->Color(r, g, b));
+                            }
+                        } else {
+                            // No palette - use primary color
+                            for (int i = 0; i < count; i++) {
+                                strip->setPixelColor(i, strip->Color(rt.bytecodeR, rt.bytecodeG, rt.bytecodeB));
+                            }
+                        }
+                    }
+                    break;
+
                 default:
                     // Default to solid with bytecode color
                     for (int i = 0; i < count; i++) {

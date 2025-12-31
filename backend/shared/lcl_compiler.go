@@ -367,6 +367,8 @@ func (c *LCLCompiler) generateBytecode(effectID byte, parsed *ParsedLCL) {
 		c.generateBreatheBytecode(parsed)
 	case "chase":
 		c.generateChaseBytecode(parsed)
+	case "gradient":
+		c.generateGradientBytecode(parsed)
 	default:
 		c.generateDefaultBytecode(parsed)
 	}
@@ -417,6 +419,11 @@ func (c *LCLCompiler) generateWaveBytecode(parsed *ParsedLCL) {
 	c.emit(ParamWaveCount)
 	c.emit(byte(waveCount))
 
+	c.generatePalette(parsed)
+}
+
+func (c *LCLCompiler) generateGradientBytecode(parsed *ParsedLCL) {
+	// Gradient is a static color distribution - just emit the palette
 	c.generatePalette(parsed)
 }
 
