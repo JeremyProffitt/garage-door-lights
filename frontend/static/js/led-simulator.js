@@ -158,32 +158,61 @@ const LEDSimulator = {
     },
 
     animateWave(leds, pattern, brightness, speed, container) {
+        const palette = pattern.palette;
         const baseR = pattern.red || 0;
         const baseG = pattern.green || 0;
         const baseB = pattern.blue || 0;
         let offset = 0;
 
+        // Helper to get color at position with palette blending
+        const getColorAtPos = (pos, paletteCount) => {
+            while (pos >= paletteCount) pos -= paletteCount;
+            while (pos < 0) pos += paletteCount;
+            const idx1 = Math.floor(pos);
+            const idx2 = (idx1 + 1) % paletteCount;
+            const blend = pos - idx1;
+            return {
+                r: Math.round((palette[idx1].r + (palette[idx2].r - palette[idx1].r) * blend) * brightness),
+                g: Math.round((palette[idx1].g + (palette[idx2].g - palette[idx1].g) * blend) * brightness),
+                b: Math.round((palette[idx1].b + (palette[idx2].b - palette[idx1].b) * blend) * brightness)
+            };
+        };
+
         // Set initial colors immediately
         leds.forEach((led, i) => {
-            const phase = (i / leds.length) * Math.PI * 2;
-            const waveBrightness = brightness * (0.3 + 0.7 * (Math.sin(phase) * 0.5 + 0.5));
-            const r = Math.round(baseR * waveBrightness);
-            const g = Math.round(baseG * waveBrightness);
-            const b = Math.round(baseB * waveBrightness);
+            let r, g, b;
+            if (palette && palette.length > 0) {
+                const pos = (i / leds.length) * palette.length;
+                const c = getColorAtPos(pos, palette.length);
+                r = c.r; g = c.g; b = c.b;
+            } else {
+                const phase = (i / leds.length) * Math.PI * 2;
+                const waveBrightness = brightness * (0.3 + 0.7 * (Math.sin(phase) * 0.5 + 0.5));
+                r = Math.round(baseR * waveBrightness);
+                g = Math.round(baseG * waveBrightness);
+                b = Math.round(baseB * waveBrightness);
+            }
             const color = `rgb(${r}, ${g}, ${b})`;
             led.style.backgroundColor = color;
             led.style.color = color;
         });
 
         const intervalId = setInterval(() => {
-            offset += (speed / 50) * 0.2;
+            offset += (speed / 50) * 0.1;
 
             leds.forEach((led, i) => {
-                const phase = (i / leds.length) * Math.PI * 2 + offset;
-                const waveBrightness = brightness * (0.3 + 0.7 * (Math.sin(phase) * 0.5 + 0.5));
-                const r = Math.round(baseR * waveBrightness);
-                const g = Math.round(baseG * waveBrightness);
-                const b = Math.round(baseB * waveBrightness);
+                let r, g, b;
+                if (palette && palette.length > 0) {
+                    const pos = ((i / leds.length) + offset) * palette.length;
+                    const c = getColorAtPos(pos, palette.length);
+                    r = c.r; g = c.g; b = c.b;
+                } else {
+                    const phase = (i / leds.length) * Math.PI * 2 + offset;
+                    const waveBrightness = brightness * (0.3 + 0.7 * (Math.sin(phase) * 0.5 + 0.5));
+                    r = Math.round(baseR * waveBrightness);
+                    g = Math.round(baseG * waveBrightness);
+                    b = Math.round(baseB * waveBrightness);
+                }
                 const color = `rgb(${r}, ${g}, ${b})`;
                 led.style.backgroundColor = color;
                 led.style.color = color;

@@ -1059,53 +1059,42 @@ void runPattern(int idx) {
                     break;
 
                 case EFFECT_WAVE:
-                    // Chase/Wave effect with distinct palette colors
+                    // Wave effect - palette colors distributed across entire strip, scrolling
                     rt.animPosition++;
                     {
-                        // Calculate chase head position (wraps around)
-                        int headPos = rt.animPosition % count;
-                        int totalChaseLen = rt.headSize + rt.tailLength;
+                        if (rt.paletteCount > 0) {
+                            // Distribute palette colors across entire strip with smooth blending
+                            for (int i = 0; i < count; i++) {
+                                // Calculate position in the palette cycle (0.0 to paletteCount)
+                                // Animation shifts the pattern over time
+                                float pos = (float)(i + rt.animPosition) * rt.paletteCount / count;
 
-                        for (int i = 0; i < count; i++) {
-                            // Calculate distance from head (accounting for wrap)
-                            int distFromHead = headPos - i;
-                            if (distFromHead < 0) distFromHead += count;
+                                // Wrap around
+                                while (pos >= rt.paletteCount) pos -= rt.paletteCount;
+                                while (pos < 0) pos += rt.paletteCount;
 
-                            if (distFromHead < rt.headSize) {
-                                // LED is in the head - show distinct palette color
-                                if (rt.paletteCount > 0) {
-                                    // Distribute palette colors across the head
-                                    int colorIdx = (distFromHead * rt.paletteCount) / rt.headSize;
-                                    if (colorIdx >= rt.paletteCount) colorIdx = rt.paletteCount - 1;
-                                    r = rt.palette[colorIdx].r;
-                                    g = rt.palette[colorIdx].g;
-                                    b = rt.palette[colorIdx].b;
-                                } else {
-                                    r = rt.bytecodeR;
-                                    g = rt.bytecodeG;
-                                    b = rt.bytecodeB;
-                                }
-                            } else if (distFromHead < totalChaseLen) {
-                                // LED is in the tail - fade out
-                                int tailPos = distFromHead - rt.headSize;
-                                uint8_t fadeAmount = 255 - (tailPos * 255 / rt.tailLength);
+                                // Get the two colors to blend between
+                                int colorIdx1 = (int)pos;
+                                int colorIdx2 = (colorIdx1 + 1) % rt.paletteCount;
+                                float blend = pos - colorIdx1;  // 0.0 to 1.0
 
-                                if (rt.paletteCount > 0) {
-                                    // Use last palette color for tail, faded
-                                    int colorIdx = rt.paletteCount - 1;
-                                    r = (rt.palette[colorIdx].r * fadeAmount) / 255;
-                                    g = (rt.palette[colorIdx].g * fadeAmount) / 255;
-                                    b = (rt.palette[colorIdx].b * fadeAmount) / 255;
-                                } else {
-                                    r = (rt.bytecodeR * fadeAmount) / 255;
-                                    g = (rt.bytecodeG * fadeAmount) / 255;
-                                    b = (rt.bytecodeB * fadeAmount) / 255;
-                                }
-                            } else {
-                                // LED is off
-                                r = 0; g = 0; b = 0;
+                                // Linear interpolation between colors
+                                r = rt.palette[colorIdx1].r + (rt.palette[colorIdx2].r - rt.palette[colorIdx1].r) * blend;
+                                g = rt.palette[colorIdx1].g + (rt.palette[colorIdx2].g - rt.palette[colorIdx1].g) * blend;
+                                b = rt.palette[colorIdx1].b + (rt.palette[colorIdx2].b - rt.palette[colorIdx1].b) * blend;
+
+                                strip->setPixelColor(i, strip->Color(r, g, b));
                             }
-                            strip->setPixelColor(i, strip->Color(r, g, b));
+                        } else {
+                            // No palette - use primary color with brightness wave
+                            for (int i = 0; i < count; i++) {
+                                float phase = (float)(i + rt.animPosition) * 2.0 * 3.14159 / count;
+                                float brightness = 0.3 + 0.7 * (sin(phase) * 0.5 + 0.5);
+                                r = rt.bytecodeR * brightness;
+                                g = rt.bytecodeG * brightness;
+                                b = rt.bytecodeB * brightness;
+                                strip->setPixelColor(i, strip->Color(r, g, b));
+                            }
                         }
                     }
                     break;
