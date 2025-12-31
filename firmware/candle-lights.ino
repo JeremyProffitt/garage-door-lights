@@ -48,9 +48,14 @@ enum PatternType {
 #define BYTECODE_HEADER_SIZE 8
 
 // Bytecode opcodes (must match lcl_compiler.go)
+#define OP_PUSH_COLOR  0x05
+#define OP_PALETTE     0x44
 #define OP_SET_PATTERN 0x50
 #define OP_SET_PARAM   0x51
 #define OP_HALT        0x67
+
+// Maximum palette colors
+#define MAX_PALETTE_COLORS 8
 
 // Effect type IDs from bytecode
 #define EFFECT_SOLID    0x01
@@ -92,6 +97,13 @@ struct StripConfig {
     ColorEntry colors[MAX_COLORS_PER_STRIP];  // Color palette with percentages
 };
 
+// Palette color entry
+struct PaletteColor {
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+};
+
 // Runtime strip data
 struct StripRuntime {
     Adafruit_NeoPixel* strip;
@@ -107,6 +119,9 @@ struct StripRuntime {
     uint8_t bytecodeR, bytecodeG, bytecodeB;
     uint8_t bytecodeBrightness;
     uint8_t bytecodeSpeed;
+    // Palette support
+    PaletteColor palette[MAX_PALETTE_COLORS];
+    uint8_t paletteCount;               // Number of colors in palette
 };
 
 // =============================================================================
@@ -693,6 +708,11 @@ void parseBytecode(int stripIdx) {
     rt.bytecodeB = 41;
     rt.bytecodeBrightness = 128;
     rt.bytecodeSpeed = 50;
+    rt.paletteCount = 0;
+
+    // Color stack for palette building
+    PaletteColor colorStack[MAX_PALETTE_COLORS];
+    uint8_t stackSize = 0;
 
     // Execute bytecode instructions
     uint16_t pc = BYTECODE_HEADER_SIZE;
@@ -700,6 +720,49 @@ void parseBytecode(int stripIdx) {
         uint8_t op = rt.bytecode[pc];
 
         switch (op) {
+            case OP_PUSH_COLOR:
+                // Push RGB color onto stack (3 bytes follow: R, G, B)
+                if (pc + 3 < rt.bytecodeLen && stackSize < MAX_PALETTE_COLORS) {
+                    colorStack[stackSize].r = rt.bytecode[pc + 1];
+                    colorStack[stackSize].g = rt.bytecode[pc + 2];
+                    colorStack[stackSize].b = rt.bytecode[pc + 3];
+                    stackSize++;
+                    pc += 4;
+                } else {
+                    pc++;
+                }
+                break;
+
+            case OP_PALETTE:
+                // Pop N colors from stack and set as palette (1 byte follows: count)
+                if (pc + 1 < rt.bytecodeLen) {
+                    uint8_t count = rt.bytecode[pc + 1];
+                    if (count > stackSize) count = stackSize;
+                    if (count > MAX_PALETTE_COLORS) count = MAX_PALETTE_COLORS;
+
+                    // Copy colors from stack to palette
+                    // Colors are pushed in order, take the last N
+                    uint8_t startIdx = (stackSize >= count) ? stackSize - count : 0;
+                    for (uint8_t i = 0; i < count; i++) {
+                        rt.palette[i] = colorStack[startIdx + i];
+                    }
+                    rt.paletteCount = count;
+
+                    // Also set primary color to first palette color
+                    if (count > 0) {
+                        rt.bytecodeR = rt.palette[0].r;
+                        rt.bytecodeG = rt.palette[0].g;
+                        rt.bytecodeB = rt.palette[0].b;
+                    }
+
+                    // Clear stack
+                    stackSize = 0;
+                    pc += 2;
+                } else {
+                    pc++;
+                }
+                break;
+
             case OP_SET_PATTERN:
                 if (pc + 1 < rt.bytecodeLen) {
                     rt.bytecodeEffect = rt.bytecode[pc + 1];
@@ -801,9 +864,18 @@ int setBytecode(String command) {
         rt.strip->setBrightness(rt.bytecodeBrightness);
     }
 
-    Serial.printlnf("Strip D%d: bytecode loaded (%d bytes), effect=%d, RGB=(%d,%d,%d)",
+    Serial.printlnf("Strip D%d: bytecode loaded (%d bytes), effect=%d, RGB=(%d,%d,%d), palette=%d colors",
                     pin, rt.bytecodeLen, rt.bytecodeEffect,
-                    rt.bytecodeR, rt.bytecodeG, rt.bytecodeB);
+                    rt.bytecodeR, rt.bytecodeG, rt.bytecodeB, rt.paletteCount);
+
+    // Log palette colors if present
+    if (rt.paletteCount > 0) {
+        Serial.print("  Palette: ");
+        for (int i = 0; i < rt.paletteCount; i++) {
+            Serial.printf("[%d,%d,%d] ", rt.palette[i].r, rt.palette[i].g, rt.palette[i].b);
+        }
+        Serial.println();
+    }
 
     return rt.bytecodeLen;
 }
@@ -979,10 +1051,26 @@ void runPattern(int idx) {
                 case EFFECT_WAVE:
                     rt.animPosition++;
                     for (int i = 0; i < count; i++) {
-                        uint8_t brightness = (sin((i + rt.animPosition) * 0.5) + 1) * 127;
-                        r = (rt.bytecodeR * brightness) / 255;
-                        g = (rt.bytecodeG * brightness) / 255;
-                        b = (rt.bytecodeB * brightness) / 255;
+                        if (rt.paletteCount > 1) {
+                            // Use palette colors - interpolate through palette based on position + animation
+                            float pos = fmod((float)(i + rt.animPosition) * 0.1f, 1.0f);
+                            float scaledPos = pos * (rt.paletteCount - 1);
+                            int idx1 = (int)scaledPos;
+                            int idx2 = idx1 + 1;
+                            if (idx2 >= rt.paletteCount) idx2 = rt.paletteCount - 1;
+                            float blend = scaledPos - idx1;
+
+                            // Lerp between two palette colors
+                            r = rt.palette[idx1].r + (rt.palette[idx2].r - rt.palette[idx1].r) * blend;
+                            g = rt.palette[idx1].g + (rt.palette[idx2].g - rt.palette[idx1].g) * blend;
+                            b = rt.palette[idx1].b + (rt.palette[idx2].b - rt.palette[idx1].b) * blend;
+                        } else {
+                            // Single color with brightness wave
+                            uint8_t brightness = (sin((i + rt.animPosition) * 0.5) + 1) * 127;
+                            r = (rt.bytecodeR * brightness) / 255;
+                            g = (rt.bytecodeG * brightness) / 255;
+                            b = (rt.bytecodeB * brightness) / 255;
+                        }
                         strip->setPixelColor(i, strip->Color(r, g, b));
                     }
                     break;
@@ -1024,20 +1112,31 @@ void runPattern(int idx) {
                             }
                         }
                         for (int j = 0; j < count; j++) {
-                            // Blend bytecode color with fire temperature
-                            uint8_t t = (rt.heat[j] * 240) / 256;
-                            uint8_t fireR, fireG, fireB;
-                            if (t < 85) {
-                                fireR = t * 3; fireG = 0; fireB = 0;
-                            } else if (t < 170) {
-                                fireR = 255; fireG = (t - 85) * 3; fireB = 0;
+                            uint8_t t = rt.heat[j];
+
+                            if (rt.paletteCount > 1) {
+                                // Use palette colors - interpolate based on heat
+                                float scaledPos = (t / 255.0f) * (rt.paletteCount - 1);
+                                int idx1 = (int)scaledPos;
+                                int idx2 = idx1 + 1;
+                                if (idx2 >= rt.paletteCount) idx2 = rt.paletteCount - 1;
+                                float blend = scaledPos - idx1;
+
+                                // Lerp between two palette colors
+                                r = rt.palette[idx1].r + (rt.palette[idx2].r - rt.palette[idx1].r) * blend;
+                                g = rt.palette[idx1].g + (rt.palette[idx2].g - rt.palette[idx1].g) * blend;
+                                b = rt.palette[idx1].b + (rt.palette[idx2].b - rt.palette[idx1].b) * blend;
                             } else {
-                                fireR = 255; fireG = 255; fireB = (t - 170) * 3;
+                                // Default fire colors
+                                t = (t * 240) / 256;
+                                if (t < 85) {
+                                    r = t * 3; g = 0; b = 0;
+                                } else if (t < 170) {
+                                    r = 255; g = (t - 85) * 3; b = 0;
+                                } else {
+                                    r = 255; g = 255; b = (t - 170) * 3;
+                                }
                             }
-                            // Blend with bytecode color
-                            r = (fireR * rt.bytecodeR) / 255;
-                            g = (fireG * rt.bytecodeG) / 255;
-                            b = (fireB * rt.bytecodeB) / 255;
                             strip->setPixelColor(j, strip->Color(r, g, b));
                         }
                     }

@@ -67,18 +67,21 @@ const (
 	OpGetLEDIndex byte = 0x75
 )
 
-// Parameter IDs for OpSetParam
+// Parameter IDs for OpSetParam - must match firmware defines
 const (
-	ParamCooling   byte = 0x01
-	ParamSparking  byte = 0x02
-	ParamSpeed     byte = 0x03
+	ParamRed       byte = 0x01
+	ParamGreen     byte = 0x02
+	ParamBlue      byte = 0x03
 	ParamBright    byte = 0x04
-	ParamDirection byte = 0x05
-	ParamWaveCount byte = 0x06
-	ParamHeadSize  byte = 0x07
-	ParamTailLen   byte = 0x08
-	ParamDensity   byte = 0x09
-	ParamRhythm    byte = 0x0A
+	ParamSpeed     byte = 0x05
+	ParamCooling   byte = 0x06
+	ParamSparking  byte = 0x07
+	ParamDirection byte = 0x08
+	ParamWaveCount byte = 0x09
+	ParamHeadSize  byte = 0x0A
+	ParamTailLen   byte = 0x0B
+	ParamDensity   byte = 0x0C
+	ParamRhythm    byte = 0x0D
 )
 
 // Semantic value mappings
@@ -376,17 +379,16 @@ func (c *LCLCompiler) generateBytecode(effectID byte, parsed *ParsedLCL) {
 }
 
 func (c *LCLCompiler) generateFireBytecode(parsed *ParsedLCL) {
-	// Set cooling (flame_height)
+	// Set cooling (flame_height) - firmware expects: OP_SET_PARAM paramId value
 	cooling := 100 // default: medium
 	if v, ok := parsed.Behavior["flame_height"]; ok {
 		if val, exists := flameHeightValues[v]; exists {
 			cooling = val
 		}
 	}
-	c.emit(OpPushU8)
-	c.emit(byte(cooling))
 	c.emit(OpSetParam)
 	c.emit(ParamCooling)
+	c.emit(byte(cooling))
 
 	// Set sparking (spark_frequency)
 	sparking := 120 // default: frequent
@@ -395,37 +397,40 @@ func (c *LCLCompiler) generateFireBytecode(parsed *ParsedLCL) {
 			sparking = val
 		}
 	}
-	c.emit(OpPushU8)
-	c.emit(byte(sparking))
 	c.emit(OpSetParam)
 	c.emit(ParamSparking)
+	c.emit(byte(sparking))
 
 	// Set color palette from color_scheme
 	c.generatePalette(parsed)
 }
 
 func (c *LCLCompiler) generateWaveBytecode(parsed *ParsedLCL) {
-	// Set wave count
+	// Set wave count - firmware expects: OP_SET_PARAM paramId value
 	waveCount := 2 // default: few
 	if v, ok := parsed.Behavior["wave_count"]; ok {
 		if val, exists := waveCountValues[v]; exists {
 			waveCount = val
 		}
 	}
-	c.emit(OpPushU8)
-	c.emit(byte(waveCount))
 	c.emit(OpSetParam)
 	c.emit(ParamWaveCount)
+	c.emit(byte(waveCount))
 
 	c.generatePalette(parsed)
 }
 
 func (c *LCLCompiler) generateSolidBytecode(parsed *ParsedLCL) {
-	// Parse color
+	// Parse color - firmware expects: OP_SET_PARAM paramId value for each color component
 	r, g, b := c.parseColor(parsed.Appearance["color"])
-	c.emit(OpPushColor)
+	c.emit(OpSetParam)
+	c.emit(ParamRed)
 	c.emit(r)
+	c.emit(OpSetParam)
+	c.emit(ParamGreen)
 	c.emit(g)
+	c.emit(OpSetParam)
+	c.emit(ParamBlue)
 	c.emit(b)
 }
 
@@ -434,21 +439,20 @@ func (c *LCLCompiler) generateRainbowBytecode(parsed *ParsedLCL) {
 }
 
 func (c *LCLCompiler) generateSparkleBytecode(parsed *ParsedLCL) {
-	// Set density
+	// Set density - firmware expects: OP_SET_PARAM paramId value
 	density := 26 // default: medium
 	if v, ok := parsed.Behavior["density"]; ok {
 		if val, exists := densityValues[v]; exists {
 			density = val
 		}
 	}
-	c.emit(OpPushU8)
-	c.emit(byte(density))
 	c.emit(OpSetParam)
 	c.emit(ParamDensity)
+	c.emit(byte(density))
 }
 
 func (c *LCLCompiler) generateBreatheBytecode(parsed *ParsedLCL) {
-	// Set rhythm
+	// Set rhythm - firmware expects: OP_SET_PARAM paramId value
 	rhythm := 4 // default: medium
 	if v, ok := parsed.Behavior["rhythm"]; ok {
 		switch v {
@@ -464,21 +468,25 @@ func (c *LCLCompiler) generateBreatheBytecode(parsed *ParsedLCL) {
 			rhythm = 1
 		}
 	}
-	c.emit(OpPushU8)
-	c.emit(byte(rhythm))
 	c.emit(OpSetParam)
 	c.emit(ParamRhythm)
+	c.emit(byte(rhythm))
 
-	// Parse color
+	// Parse color - firmware expects: OP_SET_PARAM paramId value for each color component
 	r, g, b := c.parseColor(parsed.Appearance["color"])
-	c.emit(OpPushColor)
+	c.emit(OpSetParam)
+	c.emit(ParamRed)
 	c.emit(r)
+	c.emit(OpSetParam)
+	c.emit(ParamGreen)
 	c.emit(g)
+	c.emit(OpSetParam)
+	c.emit(ParamBlue)
 	c.emit(b)
 }
 
 func (c *LCLCompiler) generateChaseBytecode(parsed *ParsedLCL) {
-	// Set head size
+	// Set head size - firmware expects: OP_SET_PARAM paramId value
 	headSize := 3 // default: small
 	if v, ok := parsed.Behavior["head_size"]; ok {
 		switch v {
@@ -492,10 +500,9 @@ func (c *LCLCompiler) generateChaseBytecode(parsed *ParsedLCL) {
 			headSize = 10
 		}
 	}
-	c.emit(OpPushU8)
-	c.emit(byte(headSize))
 	c.emit(OpSetParam)
 	c.emit(ParamHeadSize)
+	c.emit(byte(headSize))
 
 	// Set tail length
 	tailLen := 10 // default: medium
@@ -513,10 +520,12 @@ func (c *LCLCompiler) generateChaseBytecode(parsed *ParsedLCL) {
 			tailLen = 40
 		}
 	}
-	c.emit(OpPushU8)
-	c.emit(byte(tailLen))
 	c.emit(OpSetParam)
 	c.emit(ParamTailLen)
+	c.emit(byte(tailLen))
+
+	// Generate color palette for chase effect
+	c.generatePalette(parsed)
 }
 
 func (c *LCLCompiler) generateDefaultBytecode(parsed *ParsedLCL) {
@@ -525,32 +534,48 @@ func (c *LCLCompiler) generateDefaultBytecode(parsed *ParsedLCL) {
 }
 
 func (c *LCLCompiler) generateCommonParameters(parsed *ParsedLCL) {
-	// Set brightness
+	// Set brightness - firmware expects: OP_SET_PARAM paramId value
 	brightness := 204 // default: bright
 	if v, ok := parsed.Appearance["brightness"]; ok {
 		if val, exists := brightnessValues[v]; exists {
 			brightness = val
 		}
 	}
-	c.emit(OpPushU8)
-	c.emit(byte(brightness))
 	c.emit(OpSetParam)
 	c.emit(ParamBright)
+	c.emit(byte(brightness))
 
-	// Set speed
+	// Set speed - firmware expects: OP_SET_PARAM paramId value
 	speed := 4 // default: medium
 	if v, ok := parsed.Timing["speed"]; ok {
 		if val, exists := speedValues[v]; exists {
 			speed = val
 		}
 	}
-	c.emit(OpPushU8)
-	c.emit(byte(speed))
 	c.emit(OpSetParam)
 	c.emit(ParamSpeed)
+	c.emit(byte(speed))
 }
 
 func (c *LCLCompiler) generatePalette(parsed *ParsedLCL) {
+	// Check for custom colors list first (takes precedence over color_scheme)
+	if colorsStr, ok := parsed.Appearance["colors"]; ok {
+		customColors := c.parseColorList(colorsStr)
+		if len(customColors) > 0 {
+			// Emit custom palette colors
+			for _, color := range customColors {
+				c.emit(OpPushColor)
+				c.emit(color[0])
+				c.emit(color[1])
+				c.emit(color[2])
+			}
+			c.emit(OpPalette)
+			c.emit(byte(len(customColors)))
+			return
+		}
+	}
+
+	// Fall back to predefined color scheme
 	scheme := "classic_fire"
 	if v, ok := parsed.Appearance["color_scheme"]; ok {
 		scheme = v
@@ -567,6 +592,66 @@ func (c *LCLCompiler) generatePalette(parsed *ParsedLCL) {
 		c.emit(OpPalette)
 		c.emit(byte(len(palette)))
 	}
+}
+
+// parseColorList parses a comma-separated list of colors
+// Supports formats: "#FF0000, #00FF00" or "red, green, blue" or "rgb(255,0,0), rgb(0,255,0)"
+func (c *LCLCompiler) parseColorList(colorsStr string) [][3]byte {
+	var colors [][3]byte
+
+	// Handle bracket notation: ["#FF0000", "#00FF00"]
+	colorsStr = strings.TrimPrefix(colorsStr, "[")
+	colorsStr = strings.TrimSuffix(colorsStr, "]")
+
+	// Split by comma, handling potential rgb() format
+	parts := splitColors(colorsStr)
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		part = strings.Trim(part, "\"'") // Remove quotes
+		if part == "" {
+			continue
+		}
+
+		r, g, b := c.parseColor(part)
+		colors = append(colors, [3]byte{r, g, b})
+	}
+
+	return colors
+}
+
+// splitColors splits a color string by commas, handling rgb() format
+func splitColors(s string) []string {
+	var parts []string
+	var current strings.Builder
+	parenDepth := 0
+
+	for _, ch := range s {
+		switch ch {
+		case '(':
+			parenDepth++
+			current.WriteRune(ch)
+		case ')':
+			parenDepth--
+			current.WriteRune(ch)
+		case ',':
+			if parenDepth == 0 {
+				parts = append(parts, current.String())
+				current.Reset()
+			} else {
+				current.WriteRune(ch)
+			}
+		default:
+			current.WriteRune(ch)
+		}
+	}
+
+	// Don't forget the last part
+	if current.Len() > 0 {
+		parts = append(parts, current.String())
+	}
+
+	return parts
 }
 
 func (c *LCLCompiler) parseColor(colorStr string) (byte, byte, byte) {
@@ -655,3 +740,4 @@ func ValidateLCL(lclText string) (bool, []string) {
 	compiler := NewLCLCompiler()
 	return compiler.Validate(lclText)
 }
+

@@ -9,6 +9,8 @@ const LCLPreview = {
     HEADER_SIZE: 8,
 
     // Opcodes
+    OP_PUSH_COLOR: 0x05,
+    OP_PALETTE: 0x44,
     OP_SET_PATTERN: 0x50,
     OP_SET_PARAM: 0x51,
     OP_HALT: 0x67,
@@ -114,8 +116,12 @@ const LCLPreview = {
             green: 147,
             blue: 41,
             brightness: 128,
-            speed: 50
+            speed: 50,
+            palette: null  // Custom color palette
         };
+
+        // Color stack for palette operations
+        const colorStack = [];
 
         // Execute bytecode instructions
         let pc = header.codeStart;
@@ -123,6 +129,37 @@ const LCLPreview = {
             const opcode = bytecode[pc];
 
             switch (opcode) {
+                case this.OP_PUSH_COLOR:
+                    // Push RGB color onto stack (3 bytes follow)
+                    if (pc + 3 < bytecode.length) {
+                        const r = bytecode[pc + 1];
+                        const g = bytecode[pc + 2];
+                        const b = bytecode[pc + 3];
+                        colorStack.push({ r, g, b });
+                        pc += 4;
+                    } else {
+                        pc++;
+                    }
+                    break;
+
+                case this.OP_PALETTE:
+                    // Pop N colors from stack and set as palette (1 byte follows: count)
+                    if (pc + 1 < bytecode.length) {
+                        const count = bytecode[pc + 1];
+                        // Colors are pushed in order, so take the last N from stack
+                        if (colorStack.length >= count) {
+                            pattern.palette = colorStack.splice(-count, count);
+                        } else {
+                            // Use all available colors if not enough
+                            pattern.palette = [...colorStack];
+                            colorStack.length = 0;
+                        }
+                        pc += 2;
+                    } else {
+                        pc++;
+                    }
+                    break;
+
                 case this.OP_SET_PATTERN:
                     if (pc + 1 < bytecode.length) {
                         const effectType = bytecode[pc + 1];
@@ -286,7 +323,19 @@ const LCLPreview = {
             pattern.green.toString(16).padStart(2, '0') +
             pattern.blue.toString(16).padStart(2, '0');
 
-        return `${pattern.type} pattern (${colorHex}, brightness: ${pattern.brightness}, speed: ${pattern.speed})`;
+        let desc = `${pattern.type} pattern (${colorHex}, brightness: ${pattern.brightness}, speed: ${pattern.speed})`;
+
+        // Add palette info if present
+        if (pattern.palette && pattern.palette.length > 0) {
+            const paletteColors = pattern.palette.map(c =>
+                '#' + c.r.toString(16).padStart(2, '0') +
+                      c.g.toString(16).padStart(2, '0') +
+                      c.b.toString(16).padStart(2, '0')
+            ).join(', ');
+            desc += ` [palette: ${paletteColors}]`;
+        }
+
+        return desc;
     },
 
     /**
