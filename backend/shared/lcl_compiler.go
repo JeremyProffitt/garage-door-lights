@@ -178,12 +178,13 @@ func NewLCLCompiler() *LCLCompiler {
 
 // ParsedLCL represents a parsed LCL pattern
 type ParsedLCL struct {
-	Effect     string
-	Name       string
-	Behavior   map[string]string
-	Appearance map[string]string
-	Timing     map[string]string
-	Spatial    map[string]string
+	Effect      string
+	Name        string
+	Description string
+	Behavior    map[string]string
+	Appearance  map[string]string
+	Timing      map[string]string
+	Spatial     map[string]string
 }
 
 // Compile compiles LCL text to bytecode
@@ -281,6 +282,8 @@ func (c *LCLCompiler) parseLCL(text string) (*ParsedLCL, error) {
 				parsed.Effect = value
 			case "name":
 				parsed.Name = value
+			case "description":
+				parsed.Description = value
 			}
 		} else {
 			// Handle section keys

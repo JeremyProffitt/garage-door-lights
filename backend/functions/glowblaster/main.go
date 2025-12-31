@@ -63,6 +63,8 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 		return handleListGlowBlasterPatterns(ctx, username)
 	case path == "/api/glowblaster/patterns" && method == "POST":
 		return handleSavePattern(ctx, username, request)
+	case patternID != "" && method == "PUT":
+		return handleUpdatePattern(ctx, username, patternID, request)
 	case patternID != "" && method == "DELETE":
 		return handleDeletePattern(ctx, username, patternID)
 
@@ -471,7 +473,7 @@ func handleSavePattern(ctx context.Context, username string, request events.APIG
 	}
 
 	if lcl == "" {
-		return shared.CreateErrorResponse(400, "No LCL pattern to save"), nil
+		return shared.CreateErrorResponse(400, "No GlowBlaster Language pattern to save"), nil
 	}
 
 	// Compile to bytecode
@@ -480,21 +482,28 @@ func handleSavePattern(ctx context.Context, username string, request events.APIG
 		return shared.CreateErrorResponse(400, "Failed to compile pattern: "+compileErr.Error()), nil
 	}
 
+	// Extract description from LCL if not provided in request
+	description := req.Description
+	if description == "" {
+		description = shared.ExtractDescriptionFromLCL(lcl)
+	}
+
 	now := time.Now()
 	pattern := shared.Pattern{
-		PatternID:   uuid.New().String(),
-		UserID:      username,
-		Name:        req.Name,
-		Description: req.Description,
-		Type:        shared.PatternGlowBlaster,
-		Category:    shared.CategoryGlowBlaster,
-		LCLSpec:     lcl,
-		Bytecode:    bytecode,
-		IntentLayer: lcl,
-		Brightness:  204, // bright default
-		Speed:       50,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		PatternID:      uuid.New().String(),
+		UserID:         username,
+		Name:           req.Name,
+		Description:    description,
+		Type:           shared.PatternGlowBlaster,
+		Category:       shared.CategoryGlowBlaster,
+		LCLSpec:        lcl,
+		Bytecode:       bytecode,
+		IntentLayer:    lcl,
+		ConversationID: req.ConversationID, // Link to source conversation
+		Brightness:     204,                // bright default
+		Speed:          50,
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
 
 	if err := shared.PutItem(ctx, patternsTable, pattern); err != nil {
@@ -502,6 +511,69 @@ func handleSavePattern(ctx context.Context, username string, request events.APIG
 	}
 
 	return shared.CreateSuccessResponse(201, pattern), nil
+}
+
+func handleUpdatePattern(ctx context.Context, username string, patternID string, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	key, _ := attributevalue.MarshalMap(map[string]string{
+		"patternId": patternID,
+	})
+
+	// First verify the pattern belongs to this user
+	var pattern shared.Pattern
+	if err := shared.GetItem(ctx, patternsTable, key, &pattern); err != nil {
+		return shared.CreateErrorResponse(500, "Database error"), nil
+	}
+
+	if pattern.PatternID == "" {
+		return shared.CreateErrorResponse(404, "Pattern not found"), nil
+	}
+
+	if pattern.UserID != username {
+		return shared.CreateErrorResponse(403, "Not authorized to update this pattern"), nil
+	}
+
+	// Parse update request
+	var req shared.SavePatternRequest
+	body := shared.GetRequestBody(request)
+	if err := json.Unmarshal([]byte(body), &req); err != nil {
+		return shared.CreateErrorResponse(400, "Invalid request body"), nil
+	}
+
+	// Update LCL if provided
+	if req.LCL != "" {
+		pattern.LCLSpec = req.LCL
+		pattern.IntentLayer = req.LCL
+
+		// Recompile to bytecode
+		bytecode, _, compileErr := shared.CompileLCL(req.LCL)
+		if compileErr != nil {
+			return shared.CreateErrorResponse(400, "Failed to compile pattern: "+compileErr.Error()), nil
+		}
+		pattern.Bytecode = bytecode
+	}
+
+	// Update name if provided
+	if req.Name != "" {
+		pattern.Name = req.Name
+	}
+
+	// Update description if provided, otherwise extract from LCL
+	if req.Description != "" {
+		pattern.Description = req.Description
+	} else if req.LCL != "" {
+		// Extract description from updated LCL
+		if desc := shared.ExtractDescriptionFromLCL(req.LCL); desc != "" {
+			pattern.Description = desc
+		}
+	}
+
+	pattern.UpdatedAt = time.Now()
+
+	if err := shared.PutItem(ctx, patternsTable, pattern); err != nil {
+		return shared.CreateErrorResponse(500, "Failed to update pattern"), nil
+	}
+
+	return shared.CreateSuccessResponse(200, pattern), nil
 }
 
 func handleDeletePattern(ctx context.Context, username string, patternID string) (events.APIGatewayProxyResponse, error) {

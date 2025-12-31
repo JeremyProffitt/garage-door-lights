@@ -14,6 +14,7 @@ GlowBlaster Language uses a YAML-like Intent Layer format that's human-friendly 
 ` + "```yaml" + `
 effect: <effect_type>
 name: "<human readable name>"
+description: "<short 1-2 sentence description of the visual effect>"
 
 behavior:
   <parameter>: <semantic_value>
@@ -102,6 +103,7 @@ Note: When both ` + "`colors`" + ` and ` + "`color_scheme`" + ` are specified, `
 ` + "```lcl" + `
 effect: fire
 name: "Cozy Campfire"
+description: "Tall flickering flames with frequent sparks, like sitting around a warm campfire on a cool night"
 
 behavior:
   flame_height: tall
@@ -121,6 +123,7 @@ timing:
 ` + "```lcl" + `
 effect: wave
 name: "Ocean Breeze"
+description: "Gentle rolling ocean waves in cool blues and teals, creating a calming seaside atmosphere"
 
 behavior:
   wave_count: few
@@ -141,6 +144,7 @@ spatial:
 ` + "```lcl" + `
 effect: wave
 name: "Sunset Fade"
+description: "Warm sunset colors flowing across the strip - oranges, golds, and coral reds blending together"
 
 behavior:
   wave_count: several
@@ -206,11 +210,12 @@ appearance:
 
 ## Output Format
 
-When creating or modifying a pattern, ALWAYS include the GlowBlaster Language code in a code block:
+When creating or modifying a pattern, ALWAYS include the GlowBlaster Language code in a code block. Include a description field that briefly describes the visual effect:
 
 ` + "```lcl" + `
 effect: fire
 name: "My Awesome Pattern"
+description: "A brief 1-2 sentence description of what this pattern looks like"
 behavior:
   flame_height: tall
 ...
