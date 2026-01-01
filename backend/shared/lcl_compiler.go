@@ -1,24 +1,74 @@
 package shared
 
 import (
-	"encoding/binary"
+	"encoding/json"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 )
 
-// LCL Bytecode Header
+// LCL Bytecode Format Version 3 - Fixed Format (no opcodes)
+// This is a simplified format that uses fixed byte positions instead of opcodes.
+//
+// HEADER (8 bytes):
+//   [0-2]   Magic "LCL"
+//   [3]     Version = 0x03
+//   [4-5]   Total length (16-bit big-endian)
+//   [6]     Checksum (XOR of bytes 8+)
+//   [7]     Flags
+//
+// CORE PARAMETERS (8 bytes):
+//   [8]     Effect type
+//   [9]     Brightness (0-255)
+//   [10]    Speed (0-255)
+//   [11]    Param1 (effect-specific: density, rhythm, cooling, wave_count)
+//   [12]    Param2 (effect-specific: sparking)
+//   [13]    Param3 (reserved)
+//   [14]    Direction (0=forward, 1=reverse)
+//   [15]    Reserved
+//
+// PRIMARY COLOR (3 bytes):
+//   [16-18] R, G, B
+//
+// PALETTE (1 + 3*N bytes):
+//   [19]    Color count (0-8)
+//   [20+]   Colors (R, G, B each)
+
 const (
-	LCLMagic      = "LCL"
-	LCLVersion    = 0x02
-	LCLHeaderSize = 8
+	LCLMagic          = "LCL"
+	LCLVersion        = 0x03 // Version 3: Fixed format
+	LCLHeaderSize     = 8
+	LCLCoreParamsSize = 8
+	LCLColorSize      = 3
+	MaxPaletteColors  = 8
 )
 
-// Effect Type IDs (must match firmware candle-lights.ino)
+// Byte offsets in the fixed-format bytecode
+const (
+	OffsetMagic      = 0
+	OffsetVersion    = 3
+	OffsetLength     = 4
+	OffsetChecksum   = 6
+	OffsetFlags      = 7
+	OffsetEffect     = 8
+	OffsetBrightness = 9
+	OffsetSpeed      = 10
+	OffsetParam1     = 11
+	OffsetParam2     = 12
+	OffsetParam3     = 13
+	OffsetDirection  = 14
+	OffsetReserved   = 15
+	OffsetColorR     = 16
+	OffsetColorG     = 17
+	OffsetColorB     = 18
+	OffsetColorCount = 19
+	OffsetPalette    = 20
+)
+
+// Effect Type IDs (must match firmware)
 const (
 	EffectSolid    byte = 0x01
-	EffectPulse    byte = 0x02 // breathing/pulse effect
+	EffectPulse    byte = 0x02
 	EffectSparkle  byte = 0x04
 	EffectGradient byte = 0x05
 	EffectFire     byte = 0x07
@@ -27,113 +77,7 @@ const (
 	EffectRainbow  byte = 0x0A
 )
 
-// Opcodes
-const (
-	OpNOP         byte = 0x00
-	OpPushU8      byte = 0x01
-	OpPushU16     byte = 0x02
-	OpPushColor   byte = 0x05
-	OpPop         byte = 0x06
-	OpDup         byte = 0x07
-	OpSwap        byte = 0x08
-	OpAdd         byte = 0x10
-	OpSub         byte = 0x11
-	OpMul         byte = 0x12
-	OpDiv         byte = 0x13
-	OpMod         byte = 0x14
-	OpSin         byte = 0x30
-	OpCos         byte = 0x31
-	OpClamp       byte = 0x37
-	OpLerp        byte = 0x38
-	OpRGB         byte = 0x40
-	OpHSV         byte = 0x41
-	OpBlend       byte = 0x42
-	OpBrightness  byte = 0x43
-	OpPalette     byte = 0x44
-	OpSetPattern  byte = 0x50
-	OpSetParam    byte = 0x51
-	OpBeginFrame  byte = 0x53
-	OpEndFrame    byte = 0x54
-	OpSetLED      byte = 0x55
-	OpFill        byte = 0x56
-	OpForEachLED  byte = 0x65
-	OpNextLED     byte = 0x66
-	OpHalt        byte = 0x67
-	OpLoadVar     byte = 0x70
-	OpStoreVar    byte = 0x71
-	OpGetTime     byte = 0x72
-	OpGetFrame    byte = 0x73
-	OpGetLEDCount byte = 0x74
-	OpGetLEDIndex byte = 0x75
-)
-
-// Parameter IDs for OpSetParam - must match firmware defines
-const (
-	ParamRed       byte = 0x01
-	ParamGreen     byte = 0x02
-	ParamBlue      byte = 0x03
-	ParamBright    byte = 0x04
-	ParamSpeed     byte = 0x05
-	ParamCooling   byte = 0x06
-	ParamSparking  byte = 0x07
-	ParamDirection byte = 0x08
-	ParamWaveCount byte = 0x09
-	ParamHeadSize  byte = 0x0A
-	ParamTailLen   byte = 0x0B
-	ParamDensity   byte = 0x0C
-	ParamRhythm    byte = 0x0D
-)
-
-// Semantic value mappings
-var speedValues = map[string]int{
-	"frozen":    0,
-	"glacial":   1,
-	"very_slow": 2,
-	"slow":      3,
-	"medium":    4,
-	"fast":      5,
-	"very_fast": 6,
-	"frantic":   7,
-}
-
-var brightnessValues = map[string]int{
-	"dim":    51,  // 20%
-	"medium": 128, // 50%
-	"bright": 204, // 80%
-	"full":   255, // 100%
-}
-
-var flameHeightValues = map[string]int{
-	"very_short": 200,
-	"short":      150,
-	"medium":     100,
-	"tall":       55,
-	"very_tall":  20,
-}
-
-var sparkFrequencyValues = map[string]int{
-	"rare":       30,
-	"occasional": 60,
-	"frequent":   120,
-	"high":       180,
-	"intense":    230,
-}
-
-var waveCountValues = map[string]int{
-	"one":     1,
-	"few":     2,
-	"several": 4,
-	"many":    8,
-}
-
-var densityValues = map[string]int{
-	"sparse": 5,
-	"light":  13,
-	"medium": 26,
-	"dense":  51,
-	"packed": 102,
-}
-
+// Effect type name to ID mapping
 var effectTypes = map[string]byte{
 	"solid":    EffectSolid,
 	"pulse":    EffectPulse,
@@ -143,108 +87,275 @@ var effectTypes = map[string]byte{
 	"fire":     EffectFire,
 	"candle":   EffectCandle,
 	"wave":     EffectWave,
-	"chase":    EffectWave, // alias - chase is similar to wave
+	"chase":    EffectWave, // alias
 	"rainbow":  EffectRainbow,
 }
 
-// Color schemes as RGB palettes
-var colorSchemes = map[string][][3]byte{
-	"classic_fire": {{0, 0, 0}, {51, 17, 0}, {255, 68, 0}, {255, 170, 0}, {255, 255, 255}},
-	"warm_orange":  {{0, 0, 0}, {51, 34, 0}, {255, 136, 0}, {255, 204, 0}, {255, 255, 255}},
-	"blue_gas":     {{0, 0, 0}, {0, 0, 51}, {0, 68, 255}, {0, 255, 255}, {255, 255, 255}},
-	"green_toxic":  {{0, 0, 0}, {0, 51, 0}, {0, 255, 0}, {170, 255, 0}, {255, 255, 255}},
-	"purple_mystical": {{0, 0, 0}, {51, 0, 51}, {255, 0, 255}, {255, 102, 255}, {255, 255, 255}},
-	"rainbow":      {{255, 0, 0}, {255, 127, 0}, {255, 255, 0}, {0, 255, 0}, {0, 0, 255}, {139, 0, 255}},
-	"ocean":        {{0, 0, 51}, {0, 68, 170}, {0, 170, 255}, {0, 255, 255}, {255, 255, 255}},
-	"sunset":       {{255, 68, 0}, {255, 136, 68}, {255, 68, 170}, {68, 0, 102}, {0, 0, 51}},
-	"forest":       {{0, 34, 0}, {0, 102, 0}, {68, 170, 0}, {170, 255, 0}, {255, 255, 102}},
+// PatternSpec is the simplified JSON input format for the LLM
+type PatternSpec struct {
+	Effect     string   `json:"effect"`               // Required: solid, pulse, sparkle, gradient, wave, fire, rainbow
+	Colors     []string `json:"colors"`               // Required: array of hex colors like "#FF0000"
+	Brightness int      `json:"brightness,omitempty"` // Optional: 0-255, default 200
+	Speed      int      `json:"speed,omitempty"`      // Optional: 0-255, default 128
+	Density    int      `json:"density,omitempty"`    // Optional: 0-255, for sparkle
+	Cooling    int      `json:"cooling,omitempty"`    // Optional: 0-255, for fire
+	Sparking   int      `json:"sparking,omitempty"`   // Optional: 0-255, for fire
+	WaveCount  int      `json:"wave_count,omitempty"` // Optional: 1-10, for wave
+	Direction  int      `json:"direction,omitempty"`  // Optional: 0=forward, 1=reverse
 }
 
-// LCLCompiler compiles LCL intent layer to bytecode
-type LCLCompiler struct {
-	bytecode []byte
-	warnings []string
-	errors   []string
-}
-
-// NewLCLCompiler creates a new LCL compiler
-func NewLCLCompiler() *LCLCompiler {
-	return &LCLCompiler{
-		bytecode: make([]byte, 0, 256),
-		warnings: make([]string, 0),
-		errors:   make([]string, 0),
-	}
-}
-
-// ParsedLCL represents a parsed LCL pattern
-type ParsedLCL struct {
-	Effect      string
-	Name        string
-	Description string
-	Behavior    map[string]string
-	Appearance  map[string]string
-	Timing      map[string]string
-	Spatial     map[string]string
-}
-
-// Compile compiles LCL text to bytecode
-func (c *LCLCompiler) Compile(lclText string) ([]byte, []string, error) {
-	c.bytecode = make([]byte, 0, 256)
-	c.warnings = make([]string, 0)
-	c.errors = make([]string, 0)
-
-	// Parse LCL text
-	parsed, err := c.parseLCL(lclText)
-	if err != nil {
-		return nil, nil, fmt.Errorf("parse error: %w", err)
-	}
-
+// CompileLCLv3 compiles a PatternSpec to fixed-format bytecode
+func CompileLCLv3(spec *PatternSpec) ([]byte, error) {
 	// Validate effect type
-	effectID, ok := effectTypes[parsed.Effect]
+	effectID, ok := effectTypes[strings.ToLower(spec.Effect)]
 	if !ok {
-		return nil, nil, fmt.Errorf("unknown effect type: %s", parsed.Effect)
+		return nil, fmt.Errorf("unknown effect type: %s", spec.Effect)
 	}
 
-	// Generate bytecode
-	c.generateBytecode(effectID, parsed)
+	// Validate and parse colors
+	if len(spec.Colors) == 0 {
+		return nil, fmt.Errorf("at least one color is required")
+	}
+	if len(spec.Colors) > MaxPaletteColors {
+		spec.Colors = spec.Colors[:MaxPaletteColors]
+	}
 
-	// Add header
-	finalBytecode := c.addHeader(c.bytecode)
+	colors := make([][3]byte, 0, len(spec.Colors))
+	for _, colorStr := range spec.Colors {
+		r, g, b, err := parseHexColor(colorStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid color %s: %v", colorStr, err)
+		}
+		colors = append(colors, [3]byte{r, g, b})
+	}
 
-	return finalBytecode, c.warnings, nil
+	// Apply defaults
+	brightness := spec.Brightness
+	if brightness <= 0 {
+		brightness = 200
+	}
+	if brightness > 255 {
+		brightness = 255
+	}
+
+	speed := spec.Speed
+	if speed <= 0 {
+		speed = 128
+	}
+	if speed > 255 {
+		speed = 255
+	}
+
+	// Calculate effect-specific params
+	param1, param2 := getEffectParams(effectID, spec)
+
+	// Build bytecode
+	paletteSize := 1 + len(colors)*3
+	totalLen := LCLHeaderSize + LCLCoreParamsSize + LCLColorSize + paletteSize
+	bytecode := make([]byte, totalLen)
+
+	// Header
+	copy(bytecode[OffsetMagic:], LCLMagic)
+	bytecode[OffsetVersion] = LCLVersion
+	bytecode[OffsetLength] = byte((totalLen - LCLHeaderSize) >> 8)
+	bytecode[OffsetLength+1] = byte(totalLen - LCLHeaderSize)
+	bytecode[OffsetFlags] = 0
+
+	// Core parameters
+	bytecode[OffsetEffect] = effectID
+	bytecode[OffsetBrightness] = byte(brightness)
+	bytecode[OffsetSpeed] = byte(speed)
+	bytecode[OffsetParam1] = param1
+	bytecode[OffsetParam2] = param2
+	bytecode[OffsetParam3] = 0
+	bytecode[OffsetDirection] = byte(spec.Direction & 0x01)
+	bytecode[OffsetReserved] = 0
+
+	// Primary color (first color in palette)
+	bytecode[OffsetColorR] = colors[0][0]
+	bytecode[OffsetColorG] = colors[0][1]
+	bytecode[OffsetColorB] = colors[0][2]
+
+	// Palette
+	bytecode[OffsetColorCount] = byte(len(colors))
+	for i, color := range colors {
+		offset := OffsetPalette + i*3
+		bytecode[offset] = color[0]
+		bytecode[offset+1] = color[1]
+		bytecode[offset+2] = color[2]
+	}
+
+	// Calculate checksum (XOR of all bytes after header)
+	checksum := byte(0)
+	for i := LCLHeaderSize; i < len(bytecode); i++ {
+		checksum ^= bytecode[i]
+	}
+	bytecode[OffsetChecksum] = checksum
+
+	return bytecode, nil
 }
 
-// Validate validates LCL without compiling
-func (c *LCLCompiler) Validate(lclText string) (bool, []string) {
-	c.warnings = make([]string, 0)
-	c.errors = make([]string, 0)
+// getEffectParams returns param1 and param2 based on effect type
+func getEffectParams(effectID byte, spec *PatternSpec) (byte, byte) {
+	switch effectID {
+	case EffectSparkle:
+		density := spec.Density
+		if density <= 0 {
+			density = 128 // default medium density
+		}
+		return byte(density), 0
 
-	parsed, err := c.parseLCL(lclText)
-	if err != nil {
-		c.errors = append(c.errors, err.Error())
-		return false, c.errors
+	case EffectPulse:
+		// Param1 = rhythm (higher = slower pulse)
+		rhythm := 128 - spec.Speed/2 // inverse of speed
+		if rhythm < 10 {
+			rhythm = 10
+		}
+		return byte(rhythm), 0
+
+	case EffectFire, EffectCandle:
+		cooling := spec.Cooling
+		if cooling <= 0 {
+			cooling = 55 // default cooling
+		}
+		sparking := spec.Sparking
+		if sparking <= 0 {
+			sparking = 120 // default sparking
+		}
+		return byte(cooling), byte(sparking)
+
+	case EffectWave:
+		waveCount := spec.WaveCount
+		if waveCount <= 0 {
+			waveCount = 3 // default wave count
+		}
+		if waveCount > 10 {
+			waveCount = 10
+		}
+		return byte(waveCount), 0
+
+	default:
+		return 0, 0
 	}
+}
+
+// parseHexColor parses a hex color string like "#FF0000" or "FF0000"
+func parseHexColor(s string) (byte, byte, byte, error) {
+	s = strings.TrimPrefix(s, "#")
+	s = strings.TrimSpace(s)
+
+	if len(s) == 3 {
+		// Short form: "F00" -> "FF0000"
+		s = string(s[0]) + string(s[0]) + string(s[1]) + string(s[1]) + string(s[2]) + string(s[2])
+	}
+
+	if len(s) != 6 {
+		return 0, 0, 0, fmt.Errorf("invalid hex color length")
+	}
+
+	r, err := strconv.ParseUint(s[0:2], 16, 8)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	g, err := strconv.ParseUint(s[2:4], 16, 8)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	b, err := strconv.ParseUint(s[4:6], 16, 8)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+
+	return byte(r), byte(g), byte(b), nil
+}
+
+// Named color map for convenience
+var namedColors = map[string]string{
+	"red":        "#FF0000",
+	"green":      "#00FF00",
+	"blue":       "#0000FF",
+	"yellow":     "#FFFF00",
+	"orange":     "#FFA500",
+	"purple":     "#800080",
+	"magenta":    "#FF00FF",
+	"cyan":       "#00FFFF",
+	"white":      "#FFFFFF",
+	"black":      "#000000",
+	"pink":       "#FFC0CB",
+	"warm_white": "#FFF4E5",
+	"cool_white": "#F4FFFA",
+}
+
+// resolveColor converts named colors to hex
+func resolveColor(s string) string {
+	s = strings.TrimSpace(strings.ToLower(s))
+	if hex, ok := namedColors[s]; ok {
+		return hex
+	}
+	if !strings.HasPrefix(s, "#") {
+		s = "#" + s
+	}
+	return s
+}
+
+// ParsePatternJSON parses JSON pattern specification
+func ParsePatternJSON(jsonStr string) (*PatternSpec, error) {
+	var spec PatternSpec
+	if err := json.Unmarshal([]byte(jsonStr), &spec); err != nil {
+		return nil, fmt.Errorf("invalid JSON: %v", err)
+	}
+
+	// Resolve named colors to hex
+	for i, c := range spec.Colors {
+		spec.Colors[i] = resolveColor(c)
+	}
+
+	return &spec, nil
+}
+
+// ValidatePatternSpec validates a pattern specification
+func ValidatePatternSpec(spec *PatternSpec) []string {
+	var errors []string
 
 	// Check effect type
-	if _, ok := effectTypes[parsed.Effect]; !ok {
-		c.errors = append(c.errors, fmt.Sprintf("unknown effect: %s", parsed.Effect))
+	if _, ok := effectTypes[strings.ToLower(spec.Effect)]; !ok {
+		errors = append(errors, fmt.Sprintf("invalid effect '%s'. Valid: solid, pulse, sparkle, gradient, wave, fire, rainbow", spec.Effect))
 	}
 
-	// Validate parameters based on effect type
-	c.validateParameters(parsed)
+	// Check colors
+	if len(spec.Colors) == 0 {
+		errors = append(errors, "at least one color is required")
+	}
+	for _, c := range spec.Colors {
+		resolved := resolveColor(c)
+		if _, _, _, err := parseHexColor(resolved); err != nil {
+			errors = append(errors, fmt.Sprintf("invalid color '%s'", c))
+		}
+	}
 
-	return len(c.errors) == 0, append(c.errors, c.warnings...)
+	// Check numeric ranges
+	if spec.Brightness < 0 || spec.Brightness > 255 {
+		errors = append(errors, "brightness must be 0-255")
+	}
+	if spec.Speed < 0 || spec.Speed > 255 {
+		errors = append(errors, "speed must be 0-255")
+	}
+
+	return errors
 }
 
-func (c *LCLCompiler) parseLCL(text string) (*ParsedLCL, error) {
-	parsed := &ParsedLCL{
-		Behavior:   make(map[string]string),
-		Appearance: make(map[string]string),
-		Timing:     make(map[string]string),
-		Spatial:    make(map[string]string),
+// =============================================================================
+// LEGACY SUPPORT: Parse old YAML-like LCL format and convert to PatternSpec
+// =============================================================================
+
+// ParseLegacyLCL parses the old YAML-like format and converts to PatternSpec
+func ParseLegacyLCL(lclText string) (*PatternSpec, error) {
+	spec := &PatternSpec{
+		Brightness: 200,
+		Speed:      128,
 	}
 
-	lines := strings.Split(text, "\n")
+	lines := strings.Split(lclText, "\n")
 	currentSection := ""
 
 	for _, line := range lines {
@@ -256,518 +367,252 @@ func (c *LCLCompiler) parseLCL(text string) (*ParsedLCL, error) {
 		// Check for section headers
 		if strings.HasSuffix(line, ":") && !strings.Contains(line, " ") {
 			section := strings.TrimSuffix(line, ":")
-			switch section {
-			case "behavior", "appearance", "timing", "spatial":
+			if section == "behavior" || section == "appearance" || section == "timing" {
 				currentSection = section
-			default:
-				currentSection = ""
+				continue
 			}
-			continue
 		}
 
-		// Parse key: value
+		// Parse key: value pairs
 		parts := strings.SplitN(line, ":", 2)
 		if len(parts) != 2 {
 			continue
 		}
-
 		key := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])
 		value = strings.Trim(value, "\"'")
 
-		// Handle top-level keys
-		if currentSection == "" {
-			switch key {
-			case "effect":
-				parsed.Effect = value
-			case "name":
-				parsed.Name = value
-			case "description":
-				parsed.Description = value
-			}
-		} else {
-			// Handle section keys
-			switch currentSection {
-			case "behavior":
-				parsed.Behavior[key] = value
-			case "appearance":
-				parsed.Appearance[key] = value
-			case "timing":
-				parsed.Timing[key] = value
-			case "spatial":
-				parsed.Spatial[key] = value
-			}
-		}
-	}
-
-	if parsed.Effect == "" {
-		return nil, fmt.Errorf("missing required field: effect")
-	}
-
-	return parsed, nil
-}
-
-func (c *LCLCompiler) validateParameters(parsed *ParsedLCL) {
-	switch parsed.Effect {
-	case "fire":
-		if v, ok := parsed.Behavior["flame_height"]; ok {
-			if _, valid := flameHeightValues[v]; !valid {
-				c.errors = append(c.errors, fmt.Sprintf("invalid flame_height: %s", v))
-			}
-		}
-		if v, ok := parsed.Behavior["spark_frequency"]; ok {
-			if _, valid := sparkFrequencyValues[v]; !valid {
-				c.errors = append(c.errors, fmt.Sprintf("invalid spark_frequency: %s", v))
-			}
-		}
-	case "wave":
-		if v, ok := parsed.Behavior["wave_count"]; ok {
-			if _, valid := waveCountValues[v]; !valid {
-				c.errors = append(c.errors, fmt.Sprintf("invalid wave_count: %s", v))
-			}
-		}
-	case "sparkle":
-		if v, ok := parsed.Behavior["density"]; ok {
-			if _, valid := densityValues[v]; !valid {
-				c.errors = append(c.errors, fmt.Sprintf("invalid density: %s", v))
+		switch key {
+		case "effect":
+			spec.Effect = value
+		case "colors", "color":
+			// Parse color list
+			spec.Colors = parseColorList(value)
+		case "brightness":
+			spec.Brightness = parseBrightnessValue(value)
+		case "speed":
+			spec.Speed = parseSpeedValue(value)
+		case "density":
+			spec.Density = parseDensityValue(value)
+		case "wave_count":
+			spec.WaveCount = parseWaveCountValue(value)
+		case "flame_height":
+			spec.Cooling = parseFlameHeightValue(value)
+		case "spark_frequency":
+			spec.Sparking = parseSparkFrequencyValue(value)
+		case "direction":
+			if value == "reverse" || value == "backward" {
+				spec.Direction = 1
 			}
 		}
 	}
 
-	// Check brightness
-	if v, ok := parsed.Appearance["brightness"]; ok {
-		if _, valid := brightnessValues[v]; !valid {
-			c.warnings = append(c.warnings, fmt.Sprintf("unknown brightness '%s', using 'medium'", v))
-		}
+	if spec.Effect == "" {
+		return nil, fmt.Errorf("effect type is required")
+	}
+	if len(spec.Colors) == 0 {
+		spec.Colors = []string{"#FFFFFF"} // default white
 	}
 
-	// Check speed
-	if v, ok := parsed.Timing["speed"]; ok {
-		if _, valid := speedValues[v]; !valid {
-			c.warnings = append(c.warnings, fmt.Sprintf("unknown speed '%s', using 'medium'", v))
-		}
-	}
+	return spec, nil
 }
 
-func (c *LCLCompiler) generateBytecode(effectID byte, parsed *ParsedLCL) {
-	// Set pattern type
-	c.emit(OpSetPattern)
-	c.emit(effectID)
-
-	// Generate effect-specific bytecode
-	switch parsed.Effect {
-	case "fire":
-		c.generateFireBytecode(parsed)
-	case "wave":
-		c.generateWaveBytecode(parsed)
-	case "solid":
-		c.generateSolidBytecode(parsed)
-	case "rainbow":
-		c.generateRainbowBytecode(parsed)
-	case "sparkle":
-		c.generateSparkleBytecode(parsed)
-	case "breathe":
-		c.generateBreatheBytecode(parsed)
-	case "chase":
-		c.generateChaseBytecode(parsed)
-	case "gradient":
-		c.generateGradientBytecode(parsed)
-	default:
-		c.generateDefaultBytecode(parsed)
-	}
-
-	// Set common parameters
-	c.generateCommonParameters(parsed)
-
-	// End with HALT
-	c.emit(OpHalt)
-}
-
-func (c *LCLCompiler) generateFireBytecode(parsed *ParsedLCL) {
-	// Set cooling (flame_height) - firmware expects: OP_SET_PARAM paramId value
-	cooling := 100 // default: medium
-	if v, ok := parsed.Behavior["flame_height"]; ok {
-		if val, exists := flameHeightValues[v]; exists {
-			cooling = val
+// parseColorList parses comma-separated color values
+func parseColorList(s string) []string {
+	s = strings.Trim(s, "[]")
+	parts := strings.Split(s, ",")
+	colors := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		p = strings.Trim(p, "\"'")
+		if p != "" {
+			colors = append(colors, resolveColor(p))
 		}
 	}
-	c.emit(OpSetParam)
-	c.emit(ParamCooling)
-	c.emit(byte(cooling))
-
-	// Set sparking (spark_frequency)
-	sparking := 120 // default: frequent
-	if v, ok := parsed.Behavior["spark_frequency"]; ok {
-		if val, exists := sparkFrequencyValues[v]; exists {
-			sparking = val
-		}
-	}
-	c.emit(OpSetParam)
-	c.emit(ParamSparking)
-	c.emit(byte(sparking))
-
-	// Set color palette from color_scheme
-	c.generatePalette(parsed)
-}
-
-func (c *LCLCompiler) generateWaveBytecode(parsed *ParsedLCL) {
-	// Set wave count - firmware expects: OP_SET_PARAM paramId value
-	waveCount := 2 // default: few
-	if v, ok := parsed.Behavior["wave_count"]; ok {
-		if val, exists := waveCountValues[v]; exists {
-			waveCount = val
-		}
-	}
-	c.emit(OpSetParam)
-	c.emit(ParamWaveCount)
-	c.emit(byte(waveCount))
-
-	c.generatePalette(parsed)
-}
-
-func (c *LCLCompiler) generateGradientBytecode(parsed *ParsedLCL) {
-	// Gradient is a static color distribution - just emit the palette
-	c.generatePalette(parsed)
-}
-
-func (c *LCLCompiler) generateSolidBytecode(parsed *ParsedLCL) {
-	// Parse color - firmware expects: OP_SET_PARAM paramId value for each color component
-	// Check for 'color' first, then 'colors' (LLM prompt uses 'colors' for consistency)
-	var r, g, b byte = 255, 255, 255 // default white
-
-	if colorStr := parsed.Appearance["color"]; colorStr != "" {
-		r, g, b = c.parseColor(colorStr)
-	} else if colorsStr := parsed.Appearance["colors"]; colorsStr != "" {
-		colors := c.parseColorList(colorsStr)
-		if len(colors) > 0 {
-			r, g, b = colors[0][0], colors[0][1], colors[0][2]
-		}
-	}
-	c.emit(OpSetParam)
-	c.emit(ParamRed)
-	c.emit(r)
-	c.emit(OpSetParam)
-	c.emit(ParamGreen)
-	c.emit(g)
-	c.emit(OpSetParam)
-	c.emit(ParamBlue)
-	c.emit(b)
-}
-
-func (c *LCLCompiler) generateRainbowBytecode(parsed *ParsedLCL) {
-	// Rainbow is self-contained, just set speed
-}
-
-func (c *LCLCompiler) generateSparkleBytecode(parsed *ParsedLCL) {
-	// Set density - firmware expects: OP_SET_PARAM paramId value
-	density := 26 // default: medium
-	if v, ok := parsed.Behavior["density"]; ok {
-		if val, exists := densityValues[v]; exists {
-			density = val
-		}
-	}
-	c.emit(OpSetParam)
-	c.emit(ParamDensity)
-	c.emit(byte(density))
-}
-
-func (c *LCLCompiler) generateBreatheBytecode(parsed *ParsedLCL) {
-	// Set rhythm - firmware expects: OP_SET_PARAM paramId value
-	rhythm := 4 // default: medium
-	if v, ok := parsed.Behavior["rhythm"]; ok {
-		switch v {
-		case "calm":
-			rhythm = 8
-		case "relaxed":
-			rhythm = 6
-		case "steady":
-			rhythm = 4
-		case "energetic":
-			rhythm = 2
-		case "frantic":
-			rhythm = 1
-		}
-	}
-	c.emit(OpSetParam)
-	c.emit(ParamRhythm)
-	c.emit(byte(rhythm))
-
-	// Parse color - firmware expects: OP_SET_PARAM paramId value for each color component
-	// Check for 'color' first, then 'colors' (LLM prompt uses 'colors' for consistency)
-	var r, g, b byte = 255, 255, 255 // default white
-
-	if colorStr := parsed.Appearance["color"]; colorStr != "" {
-		r, g, b = c.parseColor(colorStr)
-	} else if colorsStr := parsed.Appearance["colors"]; colorsStr != "" {
-		colors := c.parseColorList(colorsStr)
-		if len(colors) > 0 {
-			r, g, b = colors[0][0], colors[0][1], colors[0][2]
-		}
-	}
-	c.emit(OpSetParam)
-	c.emit(ParamRed)
-	c.emit(r)
-	c.emit(OpSetParam)
-	c.emit(ParamGreen)
-	c.emit(g)
-	c.emit(OpSetParam)
-	c.emit(ParamBlue)
-	c.emit(b)
-}
-
-func (c *LCLCompiler) generateChaseBytecode(parsed *ParsedLCL) {
-	// Set head size - firmware expects: OP_SET_PARAM paramId value
-	headSize := 3 // default: small
-	if v, ok := parsed.Behavior["head_size"]; ok {
-		switch v {
-		case "tiny":
-			headSize = 1
-		case "small":
-			headSize = 3
-		case "medium":
-			headSize = 5
-		case "large":
-			headSize = 10
-		}
-	}
-	c.emit(OpSetParam)
-	c.emit(ParamHeadSize)
-	c.emit(byte(headSize))
-
-	// Set tail length
-	tailLen := 10 // default: medium
-	if v, ok := parsed.Behavior["tail_length"]; ok {
-		switch v {
-		case "none":
-			tailLen = 0
-		case "short":
-			tailLen = 5
-		case "medium":
-			tailLen = 10
-		case "long":
-			tailLen = 20
-		case "very_long":
-			tailLen = 40
-		}
-	}
-	c.emit(OpSetParam)
-	c.emit(ParamTailLen)
-	c.emit(byte(tailLen))
-
-	// Generate color palette for chase effect
-	c.generatePalette(parsed)
-}
-
-func (c *LCLCompiler) generateDefaultBytecode(parsed *ParsedLCL) {
-	// For unknown effects, just generate palette
-	c.generatePalette(parsed)
-}
-
-func (c *LCLCompiler) generateCommonParameters(parsed *ParsedLCL) {
-	// Set brightness - firmware expects: OP_SET_PARAM paramId value
-	brightness := 204 // default: bright
-	if v, ok := parsed.Appearance["brightness"]; ok {
-		if val, exists := brightnessValues[v]; exists {
-			brightness = val
-		}
-	}
-	c.emit(OpSetParam)
-	c.emit(ParamBright)
-	c.emit(byte(brightness))
-
-	// Set speed - firmware expects: OP_SET_PARAM paramId value
-	speed := 4 // default: medium
-	if v, ok := parsed.Timing["speed"]; ok {
-		if val, exists := speedValues[v]; exists {
-			speed = val
-		}
-	}
-	c.emit(OpSetParam)
-	c.emit(ParamSpeed)
-	c.emit(byte(speed))
-}
-
-func (c *LCLCompiler) generatePalette(parsed *ParsedLCL) {
-	// Check for custom colors list first (takes precedence over color_scheme)
-	if colorsStr, ok := parsed.Appearance["colors"]; ok {
-		customColors := c.parseColorList(colorsStr)
-		if len(customColors) > 0 {
-			// Emit custom palette colors
-			for _, color := range customColors {
-				c.emit(OpPushColor)
-				c.emit(color[0])
-				c.emit(color[1])
-				c.emit(color[2])
-			}
-			c.emit(OpPalette)
-			c.emit(byte(len(customColors)))
-			return
-		}
-	}
-
-	// Fall back to predefined color scheme
-	scheme := "classic_fire"
-	if v, ok := parsed.Appearance["color_scheme"]; ok {
-		scheme = v
-	}
-
-	if palette, ok := colorSchemes[scheme]; ok {
-		// Emit palette colors
-		for _, color := range palette {
-			c.emit(OpPushColor)
-			c.emit(color[0])
-			c.emit(color[1])
-			c.emit(color[2])
-		}
-		c.emit(OpPalette)
-		c.emit(byte(len(palette)))
-	}
-}
-
-// parseColorList parses a comma-separated list of colors
-// Supports formats: "#FF0000, #00FF00" or "red, green, blue" or "rgb(255,0,0), rgb(0,255,0)"
-func (c *LCLCompiler) parseColorList(colorsStr string) [][3]byte {
-	var colors [][3]byte
-
-	// Handle bracket notation: ["#FF0000", "#00FF00"]
-	colorsStr = strings.TrimPrefix(colorsStr, "[")
-	colorsStr = strings.TrimSuffix(colorsStr, "]")
-
-	// Split by comma, handling potential rgb() format
-	parts := splitColors(colorsStr)
-
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		part = strings.Trim(part, "\"'") // Remove quotes
-		if part == "" {
-			continue
-		}
-
-		r, g, b := c.parseColor(part)
-		colors = append(colors, [3]byte{r, g, b})
-	}
-
 	return colors
 }
 
-// splitColors splits a color string by commas, handling rgb() format
-func splitColors(s string) []string {
-	var parts []string
-	var current strings.Builder
-	parenDepth := 0
-
-	for _, ch := range s {
-		switch ch {
-		case '(':
-			parenDepth++
-			current.WriteRune(ch)
-		case ')':
-			parenDepth--
-			current.WriteRune(ch)
-		case ',':
-			if parenDepth == 0 {
-				parts = append(parts, current.String())
-				current.Reset()
-			} else {
-				current.WriteRune(ch)
-			}
-		default:
-			current.WriteRune(ch)
+// Semantic value parsers
+func parseBrightnessValue(s string) int {
+	switch strings.ToLower(s) {
+	case "dim":
+		return 64
+	case "medium":
+		return 128
+	case "bright":
+		return 200
+	case "full":
+		return 255
+	default:
+		if v, err := strconv.Atoi(s); err == nil {
+			return v
 		}
+		return 200
 	}
-
-	// Don't forget the last part
-	if current.Len() > 0 {
-		parts = append(parts, current.String())
-	}
-
-	return parts
 }
 
-func (c *LCLCompiler) parseColor(colorStr string) (byte, byte, byte) {
-	if colorStr == "" {
-		return 255, 255, 255 // default white
-	}
-
-	// Handle hex colors
-	if strings.HasPrefix(colorStr, "#") {
-		hex := strings.TrimPrefix(colorStr, "#")
-		if len(hex) == 3 {
-			// Short form #RGB
-			hex = string(hex[0]) + string(hex[0]) + string(hex[1]) + string(hex[1]) + string(hex[2]) + string(hex[2])
+func parseSpeedValue(s string) int {
+	switch strings.ToLower(s) {
+	case "frozen":
+		return 0
+	case "glacial":
+		return 20
+	case "very_slow":
+		return 40
+	case "slow":
+		return 70
+	case "medium":
+		return 128
+	case "fast":
+		return 180
+	case "very_fast":
+		return 220
+	case "frantic":
+		return 255
+	default:
+		if v, err := strconv.Atoi(s); err == nil {
+			return v
 		}
-		if len(hex) == 6 {
-			r, _ := strconv.ParseUint(hex[0:2], 16, 8)
-			g, _ := strconv.ParseUint(hex[2:4], 16, 8)
-			b, _ := strconv.ParseUint(hex[4:6], 16, 8)
-			return byte(r), byte(g), byte(b)
+		return 128
+	}
+}
+
+func parseDensityValue(s string) int {
+	switch strings.ToLower(s) {
+	case "sparse":
+		return 30
+	case "light":
+		return 60
+	case "medium":
+		return 128
+	case "dense":
+		return 200
+	case "packed":
+		return 255
+	default:
+		if v, err := strconv.Atoi(s); err == nil {
+			return v
 		}
+		return 128
 	}
-
-	// Handle named colors
-	namedColors := map[string][3]byte{
-		"red":        {255, 0, 0},
-		"orange":     {255, 165, 0},
-		"yellow":     {255, 255, 0},
-		"green":      {0, 255, 0},
-		"cyan":       {0, 255, 255},
-		"blue":       {0, 0, 255},
-		"purple":     {128, 0, 128},
-		"magenta":    {255, 0, 255},
-		"pink":       {255, 192, 203},
-		"white":      {255, 255, 255},
-		"warm_white": {255, 244, 229},
-		"cool_white": {244, 255, 250},
-		"black":      {0, 0, 0},
-	}
-
-	if color, ok := namedColors[strings.ToLower(colorStr)]; ok {
-		return color[0], color[1], color[2]
-	}
-
-	// Handle rgb(...) format
-	re := regexp.MustCompile(`rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)`)
-	if matches := re.FindStringSubmatch(colorStr); len(matches) == 4 {
-		r, _ := strconv.Atoi(matches[1])
-		g, _ := strconv.Atoi(matches[2])
-		b, _ := strconv.Atoi(matches[3])
-		return byte(r), byte(g), byte(b)
-	}
-
-	return 255, 255, 255 // default white
 }
 
-func (c *LCLCompiler) emit(b byte) {
-	c.bytecode = append(c.bytecode, b)
+func parseWaveCountValue(s string) int {
+	switch strings.ToLower(s) {
+	case "one":
+		return 1
+	case "few":
+		return 2
+	case "several":
+		return 4
+	case "many":
+		return 8
+	default:
+		if v, err := strconv.Atoi(s); err == nil {
+			return v
+		}
+		return 3
+	}
 }
 
-func (c *LCLCompiler) addHeader(code []byte) []byte {
-	// Calculate checksum (simple XOR)
-	checksum := byte(0)
-	for _, b := range code {
-		checksum ^= b
+func parseFlameHeightValue(s string) int {
+	// Cooling: higher = shorter flames
+	switch strings.ToLower(s) {
+	case "very_tall":
+		return 30
+	case "tall":
+		return 45
+	case "medium":
+		return 55
+	case "short":
+		return 80
+	case "very_short":
+		return 120
+	default:
+		if v, err := strconv.Atoi(s); err == nil {
+			return v
+		}
+		return 55
+	}
+}
+
+func parseSparkFrequencyValue(s string) int {
+	switch strings.ToLower(s) {
+	case "rare":
+		return 50
+	case "occasional":
+		return 80
+	case "frequent":
+		return 120
+	case "high":
+		return 170
+	case "intense":
+		return 220
+	default:
+		if v, err := strconv.Atoi(s); err == nil {
+			return v
+		}
+		return 120
+	}
+}
+
+// =============================================================================
+// MAIN COMPILE FUNCTION - handles both JSON and legacy YAML formats
+// =============================================================================
+
+// CompileLCL is the main entry point - detects format and compiles to bytecode
+func CompileLCL(input string) ([]byte, []string, error) {
+	input = strings.TrimSpace(input)
+	var spec *PatternSpec
+	var err error
+	var warnings []string
+
+	// Try JSON first
+	if strings.HasPrefix(input, "{") {
+		spec, err = ParsePatternJSON(input)
+		if err != nil {
+			return nil, nil, fmt.Errorf("JSON parse error: %v", err)
+		}
+	} else {
+		// Try legacy YAML-like format
+		spec, err = ParseLegacyLCL(input)
+		if err != nil {
+			return nil, nil, fmt.Errorf("LCL parse error: %v", err)
+		}
+		warnings = append(warnings, "Using legacy LCL format - consider switching to JSON")
 	}
 
-	// Create header
-	header := make([]byte, LCLHeaderSize)
-	copy(header[0:3], []byte(LCLMagic)) // "LCL"
-	header[3] = LCLVersion              // Version
-	binary.LittleEndian.PutUint16(header[4:6], uint16(len(code)))
-	header[6] = checksum // Checksum
-	header[7] = 0x00     // Flags
+	// Validate
+	validationErrors := ValidatePatternSpec(spec)
+	if len(validationErrors) > 0 {
+		return nil, nil, fmt.Errorf("validation errors: %s", strings.Join(validationErrors, "; "))
+	}
 
-	return append(header, code...)
+	// Compile to bytecode
+	bytecode, err := CompileLCLv3(spec)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return bytecode, warnings, nil
 }
 
-// CompileLCL is a convenience function to compile LCL text
-func CompileLCL(lclText string) ([]byte, []string, error) {
-	compiler := NewLCLCompiler()
-	return compiler.Compile(lclText)
-}
+// ValidateLCL validates LCL input without compiling
+func ValidateLCL(input string) (bool, []string) {
+	input = strings.TrimSpace(input)
+	var spec *PatternSpec
+	var err error
 
-// ValidateLCL is a convenience function to validate LCL text
-func ValidateLCL(lclText string) (bool, []string) {
-	compiler := NewLCLCompiler()
-	return compiler.Validate(lclText)
-}
+	if strings.HasPrefix(input, "{") {
+		spec, err = ParsePatternJSON(input)
+	} else {
+		spec, err = ParseLegacyLCL(input)
+	}
 
+	if err != nil {
+		return false, []string{err.Error()}
+	}
+
+	errors := ValidatePatternSpec(spec)
+	return len(errors) == 0, errors
+}
