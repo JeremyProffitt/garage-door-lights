@@ -47,7 +47,28 @@ enum PatternType {
 #define MAX_BYTECODE_SIZE 256
 #define BYTECODE_HEADER_SIZE 8
 
-// Bytecode opcodes (must match lcl_compiler.go)
+// LCL Bytecode Version 3 - Fixed byte offsets (no opcodes)
+#define LCL_VERSION_3      0x03
+#define OFFSET_MAGIC       0
+#define OFFSET_VERSION     3
+#define OFFSET_LENGTH      4
+#define OFFSET_CHECKSUM    6
+#define OFFSET_FLAGS       7
+#define OFFSET_EFFECT      8
+#define OFFSET_BRIGHTNESS  9
+#define OFFSET_SPEED       10
+#define OFFSET_PARAM1      11   // density, rhythm, cooling, wave_count
+#define OFFSET_PARAM2      12   // sparking
+#define OFFSET_PARAM3      13   // reserved
+#define OFFSET_DIRECTION   14
+#define OFFSET_RESERVED    15
+#define OFFSET_COLOR_R     16
+#define OFFSET_COLOR_G     17
+#define OFFSET_COLOR_B     18
+#define OFFSET_COLOR_COUNT 19
+#define OFFSET_PALETTE     20
+
+// Legacy bytecode opcodes (for backwards compatibility with v1/v2)
 #define OP_PUSH_COLOR  0x05
 #define OP_PALETTE     0x44
 #define OP_SET_PATTERN 0x50
@@ -120,14 +141,19 @@ struct StripRuntime {
     // Bytecode VM state
     uint8_t bytecode[MAX_BYTECODE_SIZE];
     uint16_t bytecodeLen;
+    uint8_t bytecodeVersion;            // Bytecode version (v3 = fixed format)
     uint8_t bytecodeEffect;             // Parsed effect type from bytecode
     uint8_t bytecodeR, bytecodeG, bytecodeB;
     uint8_t bytecodeBrightness;
     uint8_t bytecodeSpeed;
+    // Effect-specific parameters (v3 fixed format)
+    uint8_t param1;                     // density (sparkle), cooling (fire), wave_count (wave)
+    uint8_t param2;                     // sparking (fire)
+    uint8_t direction;                  // 0=forward, 1=reverse
     // Palette support
     PaletteColor palette[MAX_PALETTE_COLORS];
     uint8_t paletteCount;               // Number of colors in palette
-    // Chase effect parameters
+    // Chase effect parameters (legacy)
     uint8_t headSize;                   // Size of chase head (LEDs)
     uint8_t tailLength;                 // Length of chase tail (LEDs)
 };
@@ -136,7 +162,7 @@ struct StripRuntime {
 // GLOBALS
 // =============================================================================
 
-#define FIRMWARE_VERSION "2.2.0"
+#define FIRMWARE_VERSION "2.3.0"
 
 // Platform name
 #if PLATFORM_ID == PLATFORM_PHOTON
@@ -701,24 +727,48 @@ int getColors(String command) {
     return -1;
 }
 
-// Parse bytecode and extract parameters
-void parseBytecode(int stripIdx) {
+// Parse bytecode v3 (fixed format) - no opcodes, direct byte positions
+void parseBytecodeV3(int stripIdx) {
     StripRuntime& rt = stripRuntime[stripIdx];
 
-    // Validate header
-    if (rt.bytecodeLen < BYTECODE_HEADER_SIZE) return;
-    if (rt.bytecode[0] != 'L' || rt.bytecode[1] != 'C' || rt.bytecode[2] != 'L') return;
+    // Read core parameters from fixed positions
+    rt.bytecodeEffect = rt.bytecode[OFFSET_EFFECT];
+    rt.bytecodeBrightness = rt.bytecode[OFFSET_BRIGHTNESS];
+    rt.bytecodeSpeed = rt.bytecode[OFFSET_SPEED];
+    rt.param1 = rt.bytecode[OFFSET_PARAM1];
+    rt.param2 = rt.bytecode[OFFSET_PARAM2];
+    rt.direction = rt.bytecode[OFFSET_DIRECTION];
 
-    // Set defaults
-    rt.bytecodeEffect = EFFECT_SOLID;
-    rt.bytecodeR = 255;
-    rt.bytecodeG = 147;
-    rt.bytecodeB = 41;
-    rt.bytecodeBrightness = 128;
-    rt.bytecodeSpeed = 50;
-    rt.paletteCount = 0;
-    rt.headSize = 5;       // Default chase head size
-    rt.tailLength = 10;    // Default chase tail length
+    // Read primary color
+    rt.bytecodeR = rt.bytecode[OFFSET_COLOR_R];
+    rt.bytecodeG = rt.bytecode[OFFSET_COLOR_G];
+    rt.bytecodeB = rt.bytecode[OFFSET_COLOR_B];
+
+    // Read palette
+    rt.paletteCount = rt.bytecode[OFFSET_COLOR_COUNT];
+    if (rt.paletteCount > MAX_PALETTE_COLORS) {
+        rt.paletteCount = MAX_PALETTE_COLORS;
+    }
+
+    for (int i = 0; i < rt.paletteCount; i++) {
+        int offset = OFFSET_PALETTE + (i * 3);
+        if (offset + 2 < rt.bytecodeLen) {
+            rt.palette[i].r = rt.bytecode[offset];
+            rt.palette[i].g = rt.bytecode[offset + 1];
+            rt.palette[i].b = rt.bytecode[offset + 2];
+        }
+    }
+
+    Serial.printlnf("  V3: effect=%d, brightness=%d, speed=%d, param1=%d, param2=%d, dir=%d",
+                    rt.bytecodeEffect, rt.bytecodeBrightness, rt.bytecodeSpeed,
+                    rt.param1, rt.param2, rt.direction);
+    Serial.printlnf("  V3: color=(%d,%d,%d), palette=%d colors",
+                    rt.bytecodeR, rt.bytecodeG, rt.bytecodeB, rt.paletteCount);
+}
+
+// Parse legacy bytecode (v1/v2 opcode-based)
+void parseBytcodeLegacy(int stripIdx) {
+    StripRuntime& rt = stripRuntime[stripIdx];
 
     // Color stack for palette building
     PaletteColor colorStack[MAX_PALETTE_COLORS];
@@ -731,7 +781,6 @@ void parseBytecode(int stripIdx) {
 
         switch (op) {
             case OP_PUSH_COLOR:
-                // Push RGB color onto stack (3 bytes follow: R, G, B)
                 if (pc + 3 < rt.bytecodeLen && stackSize < MAX_PALETTE_COLORS) {
                     colorStack[stackSize].r = rt.bytecode[pc + 1];
                     colorStack[stackSize].g = rt.bytecode[pc + 2];
@@ -744,28 +793,20 @@ void parseBytecode(int stripIdx) {
                 break;
 
             case OP_PALETTE:
-                // Pop N colors from stack and set as palette (1 byte follows: count)
                 if (pc + 1 < rt.bytecodeLen) {
                     uint8_t count = rt.bytecode[pc + 1];
                     if (count > stackSize) count = stackSize;
                     if (count > MAX_PALETTE_COLORS) count = MAX_PALETTE_COLORS;
-
-                    // Copy colors from stack to palette
-                    // Colors are pushed in order, take the last N
                     uint8_t startIdx = (stackSize >= count) ? stackSize - count : 0;
                     for (uint8_t i = 0; i < count; i++) {
                         rt.palette[i] = colorStack[startIdx + i];
                     }
                     rt.paletteCount = count;
-
-                    // Also set primary color to first palette color
                     if (count > 0) {
                         rt.bytecodeR = rt.palette[0].r;
                         rt.bytecodeG = rt.palette[0].g;
                         rt.bytecodeB = rt.palette[0].b;
                     }
-
-                    // Clear stack
                     stackSize = 0;
                     pc += 2;
                 } else {
@@ -792,6 +833,11 @@ void parseBytecode(int stripIdx) {
                         case PARAM_BLUE: rt.bytecodeB = value; break;
                         case PARAM_BRIGHTNESS: rt.bytecodeBrightness = value; break;
                         case PARAM_SPEED: rt.bytecodeSpeed = value; break;
+                        case PARAM_COOLING: rt.param1 = value; break;
+                        case PARAM_SPARKING: rt.param2 = value; break;
+                        case PARAM_DIRECTION: rt.direction = value; break;
+                        case PARAM_WAVE_COUNT: rt.param1 = value; break;
+                        case PARAM_DENSITY: rt.param1 = value; break;
                         case PARAM_HEAD_SIZE: rt.headSize = value; break;
                         case PARAM_TAIL_LEN: rt.tailLength = value; break;
                     }
@@ -808,6 +854,39 @@ void parseBytecode(int stripIdx) {
                 pc++;
                 break;
         }
+    }
+}
+
+// Parse bytecode and extract parameters (auto-detects version)
+void parseBytecode(int stripIdx) {
+    StripRuntime& rt = stripRuntime[stripIdx];
+
+    // Validate header
+    if (rt.bytecodeLen < BYTECODE_HEADER_SIZE) return;
+    if (rt.bytecode[0] != 'L' || rt.bytecode[1] != 'C' || rt.bytecode[2] != 'L') return;
+
+    // Set defaults
+    rt.bytecodeVersion = rt.bytecode[OFFSET_VERSION];
+    rt.bytecodeEffect = EFFECT_SOLID;
+    rt.bytecodeR = 255;
+    rt.bytecodeG = 147;
+    rt.bytecodeB = 41;
+    rt.bytecodeBrightness = 200;
+    rt.bytecodeSpeed = 128;
+    rt.param1 = 128;       // Default param1 (density, cooling, wave_count)
+    rt.param2 = 120;       // Default param2 (sparking)
+    rt.direction = 0;      // Default forward
+    rt.paletteCount = 0;
+    rt.headSize = 5;       // Legacy chase head size
+    rt.tailLength = 10;    // Legacy chase tail length
+
+    // Parse based on version
+    if (rt.bytecodeVersion >= LCL_VERSION_3) {
+        // V3 fixed format - read from fixed byte positions
+        parseBytecodeV3(stripIdx);
+    } else {
+        // Legacy opcode-based format
+        parseBytcodeLegacy(stripIdx);
     }
 }
 
@@ -1049,15 +1128,23 @@ void runPattern(int idx) {
                     break;
 
                 case EFFECT_PULSE:
-                    rt.pulseValue += rt.pulseDirection * 5;
-                    if (rt.pulseValue >= 250 || rt.pulseValue <= 5) {
-                        rt.pulseDirection = -rt.pulseDirection;
-                    }
-                    for (int i = 0; i < count; i++) {
-                        r = (rt.bytecodeR * rt.pulseValue) / 255;
-                        g = (rt.bytecodeG * rt.pulseValue) / 255;
-                        b = (rt.bytecodeB * rt.pulseValue) / 255;
-                        strip->setPixelColor(i, strip->Color(r, g, b));
+                    {
+                        // Use param1 for rhythm (higher = slower pulse)
+                        // Map param1 (0-255) to step size (1-10)
+                        uint8_t stepSize = 10 - (rt.param1 * 9 / 255);
+                        if (stepSize < 1) stepSize = 1;
+                        if (stepSize > 10) stepSize = 10;
+
+                        rt.pulseValue += rt.pulseDirection * stepSize;
+                        if (rt.pulseValue >= 250 || rt.pulseValue <= 5) {
+                            rt.pulseDirection = -rt.pulseDirection;
+                        }
+                        for (int i = 0; i < count; i++) {
+                            r = (rt.bytecodeR * rt.pulseValue) / 255;
+                            g = (rt.bytecodeG * rt.pulseValue) / 255;
+                            b = (rt.bytecodeB * rt.pulseValue) / 255;
+                            strip->setPixelColor(i, strip->Color(r, g, b));
+                        }
                     }
                     break;
 
@@ -1065,14 +1152,18 @@ void runPattern(int idx) {
                     // Wave effect - palette colors distributed across entire strip, scrolling
                     rt.animPosition++;
                     {
-                        if (rt.paletteCount > 0) {
-                            // Distribute palette colors across entire strip with smooth blending
-                            for (int i = 0; i < count; i++) {
-                                // Calculate position in the palette cycle (0.0 to paletteCount)
-                                // Animation shifts the pattern over time
-                                float pos = (float)(i + rt.animPosition) * rt.paletteCount / count;
+                        // Use param1 for wave_count (number of complete waves across strip)
+                        uint8_t waveCount = rt.param1 > 0 ? rt.param1 : 3;
+                        if (waveCount > 10) waveCount = 10;
 
-                                // Wrap around
+                        if (rt.paletteCount > 0) {
+                            // Distribute palette colors across strip with waveCount repetitions
+                            for (int i = 0; i < count; i++) {
+                                // Calculate position in the palette cycle
+                                // waveCount determines how many times the palette repeats
+                                float pos = (float)(i + rt.animPosition) * rt.paletteCount * waveCount / count;
+
+                                // Wrap around to palette size
                                 while (pos >= rt.paletteCount) pos -= rt.paletteCount;
                                 while (pos < 0) pos += rt.paletteCount;
 
@@ -1091,7 +1182,7 @@ void runPattern(int idx) {
                         } else {
                             // No palette - use primary color with brightness wave
                             for (int i = 0; i < count; i++) {
-                                float phase = (float)(i + rt.animPosition) * 2.0 * 3.14159 / count;
+                                float phase = (float)(i + rt.animPosition) * 2.0 * 3.14159 * waveCount / count;
                                 float brightness = 0.3 + 0.7 * (sin(phase) * 0.5 + 0.5);
                                 r = rt.bytecodeR * brightness;
                                 g = rt.bytecodeG * brightness;
@@ -1123,8 +1214,9 @@ void runPattern(int idx) {
                 case EFFECT_FIRE:
                 case EFFECT_CANDLE:
                     {
-                        uint8_t cooling = 50;
-                        uint8_t sparking = 120;
+                        // Use param1 for cooling, param2 for sparking (from bytecode)
+                        uint8_t cooling = rt.param1 > 0 ? rt.param1 : 55;
+                        uint8_t sparking = rt.param2 > 0 ? rt.param2 : 120;
                         for (int i = 0; i < count; i++) {
                             int cooldown = random(0, ((cooling * 10) / count) + 2);
                             rt.heat[i] = (rt.heat[i] > cooldown) ? rt.heat[i] - cooldown : 0;
@@ -1205,23 +1297,29 @@ void runPattern(int idx) {
                 case EFFECT_SPARKLE:
                     // Sparkle effect - random LEDs light up briefly
                     {
-                        // Fade all LEDs slightly
+                        // Use param1 for density (0-255, higher = more sparkles)
+                        uint8_t density = rt.param1 > 0 ? rt.param1 : 128;
+
+                        // Fade all LEDs based on speed (faster = quicker fade)
+                        uint8_t fadeAmount = 64 + (rt.bytecodeSpeed / 4);  // 64-127 fade
                         for (int i = 0; i < count; i++) {
                             uint32_t color = strip->getPixelColor(i);
                             uint8_t cr = (color >> 16) & 0xFF;
                             uint8_t cg = (color >> 8) & 0xFF;
                             uint8_t cb = color & 0xFF;
-                            // Fade by 25%
-                            cr = cr * 3 / 4;
-                            cg = cg * 3 / 4;
-                            cb = cb * 3 / 4;
+                            // Fade by fadeAmount/256
+                            cr = (cr * (256 - fadeAmount)) / 256;
+                            cg = (cg * (256 - fadeAmount)) / 256;
+                            cb = (cb * (256 - fadeAmount)) / 256;
                             strip->setPixelColor(i, strip->Color(cr, cg, cb));
                         }
 
                         // Add new sparkles based on density
-                        uint8_t numSparkles = 1 + (rt.bytecodeSpeed / 2);  // More speed = more sparkles
+                        // density 0-255 maps to chance 5-80%
+                        uint8_t sparkleChance = 5 + (density * 75 / 255);
+                        uint8_t numSparkles = 1 + (density / 64);  // 1-5 sparkle attempts per frame
                         for (int s = 0; s < numSparkles; s++) {
-                            if (random(100) < 30) {  // 30% chance per sparkle slot
+                            if (random(100) < sparkleChance) {
                                 int sparkleIdx = random(count);
                                 if (rt.paletteCount > 0) {
                                     // Use random color from palette
