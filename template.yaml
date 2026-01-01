@@ -541,6 +541,12 @@ Resources:
             RestApiId: !Ref WebsiteGateway
             Path: /api/glowblaster/patterns
             Method: POST
+        UpdatePattern:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/glowblaster/patterns/{patternId}
+            Method: PUT
         DeletePattern:
           Type: Api
           Properties:

@@ -450,6 +450,11 @@ function patternsPage() {
             this.form.colors[index].r = parseInt(hex.substr(0, 2), 16);
             this.form.colors[index].g = parseInt(hex.substr(2, 2), 16);
             this.form.colors[index].b = parseInt(hex.substr(4, 2), 16);
+        },
+
+        editInGlowBlaster(pattern) {
+            // Navigate to Glow Blaster with the pattern ID
+            window.location.href = `/glowblaster?patternId=${pattern.patternId}`;
         }
     }
 }

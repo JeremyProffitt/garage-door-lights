@@ -33,11 +33,12 @@ type Pattern struct {
     Brightness  int               `json:"brightness" dynamodbav:"brightness"`
     Speed       int               `json:"speed" dynamodbav:"speed"`
     Metadata    map[string]string `json:"metadata,omitempty" dynamodbav:"metadata"`
-    // Glow Blaster LCL fields
-    Category    string `json:"category,omitempty" dynamodbav:"category,omitempty"`       // "standard" or "glowblaster"
-    LCLSpec     string `json:"lclSpec,omitempty" dynamodbav:"lclSpec,omitempty"`         // LCL specification text
-    Bytecode    []byte `json:"bytecode,omitempty" dynamodbav:"bytecode,omitempty"`       // Compiled bytecode
-    IntentLayer string `json:"intentLayer,omitempty" dynamodbav:"intentLayer,omitempty"` // YAML intent description
+    // Glow Blaster fields
+    Category       string `json:"category,omitempty" dynamodbav:"category,omitempty"`             // "standard" or "glowblaster"
+    LCLSpec        string `json:"lclSpec,omitempty" dynamodbav:"lclSpec,omitempty"`               // GlowBlaster Language specification text
+    Bytecode       []byte `json:"bytecode,omitempty" dynamodbav:"bytecode,omitempty"`             // Compiled bytecode
+    IntentLayer    string `json:"intentLayer,omitempty" dynamodbav:"intentLayer,omitempty"`       // YAML intent description
+    ConversationID string `json:"conversationId,omitempty" dynamodbav:"conversationId,omitempty"` // Source conversation ID
     CreatedAt   time.Time         `json:"createdAt" dynamodbav:"createdAt"`
     UpdatedAt   time.Time         `json:"updatedAt" dynamodbav:"updatedAt"`
 }

@@ -821,7 +821,7 @@ input[type="color"]::-moz-color-swatch {
     display: grid;
     grid-template-columns: 220px 1fr 260px;
     gap: 1rem;
-    min-height: calc(100vh - 140px);
+    min-height: calc(80vh - 112px);
 }
 
 @media (max-width: 1200px) {
@@ -852,7 +852,7 @@ input[type="color"]::-moz-color-swatch {
     border: 1px solid rgba(255,255,255,0.3);
     display: flex;
     flex-direction: column;
-    max-height: calc(100vh - 140px);
+    max-height: calc(80vh - 112px);
     overflow: hidden;
 }
 
@@ -927,7 +927,7 @@ input[type="color"]::-moz-color-swatch {
     border: 1px solid rgba(255,255,255,0.3);
     display: flex;
     flex-direction: column;
-    max-height: calc(100vh - 140px);
+    max-height: calc(80vh - 112px);
     overflow: hidden;
 }
 
@@ -1106,7 +1106,7 @@ input[type="color"]::-moz-color-swatch {
     border: 1px solid rgba(255,255,255,0.3);
     display: flex;
     flex-direction: column;
-    max-height: calc(100vh - 140px);
+    max-height: calc(80vh - 112px);
     overflow: hidden;
 }
 

@@ -52,7 +52,12 @@
                     </div>
                     <div class="buttons">
                         <button @click="simulatePattern(pattern)" class="btn btn-sm btn-primary">Simulate</button>
-                        <button @click="editPattern(pattern)" class="btn btn-sm btn-secondary">Edit</button>
+                        <template x-if="pattern.category === 'glowblaster'">
+                            <button @click="editInGlowBlaster(pattern)" class="btn btn-sm btn-secondary">Edit in Glow Blaster</button>
+                        </template>
+                        <template x-if="pattern.category !== 'glowblaster'">
+                            <button @click="editPattern(pattern)" class="btn btn-sm btn-secondary">Edit</button>
+                        </template>
                         <button @click="deletePattern(pattern.patternId)" class="btn btn-sm btn-danger">Delete</button>
                     </div>
                 </div>

@@ -944,6 +944,17 @@ int setBytecode(String command) {
         return -1;
     }
 
+    // Debug: Log raw bytecode bytes at color positions (16-18)
+    if (rt.bytecodeLen >= 19) {
+        char rawBuf[64];
+        snprintf(rawBuf, sizeof(rawBuf), "RAW:len=%d,hdr=%c%c%c,v=%d,eff=%d,RGB=%d,%d,%d",
+                 rt.bytecodeLen,
+                 rt.bytecode[0], rt.bytecode[1], rt.bytecode[2],
+                 rt.bytecode[3], rt.bytecode[8],
+                 rt.bytecode[16], rt.bytecode[17], rt.bytecode[18]);
+        Particle.publish("bytecode_raw", rawBuf, PRIVATE);
+    }
+
     // Parse the bytecode to extract effect and parameters
     parseBytecode(stripIdx);
 
@@ -968,6 +979,13 @@ int setBytecode(String command) {
         }
         Serial.println();
     }
+
+    // Publish debug event for remote monitoring (visible in Particle console)
+    char debugBuf[128];
+    snprintf(debugBuf, sizeof(debugBuf), "D%d:eff=%d,RGB=(%d,%d,%d),bright=%d,pat=%d,v=%d",
+             pin, rt.bytecodeEffect, rt.bytecodeR, rt.bytecodeG, rt.bytecodeB,
+             rt.bytecodeBrightness, cfg.pattern, rt.bytecodeVersion);
+    Particle.publish("bytecode_debug", debugBuf, PRIVATE);
 
     return rt.bytecodeLen;
 }
