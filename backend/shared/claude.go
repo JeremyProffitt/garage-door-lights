@@ -138,22 +138,17 @@ func (c *ClaudeClient) GetResponseText(resp *ClaudeResponse) string {
 	return ""
 }
 
-// ExtractLCLFromResponse extracts LCL code blocks from the response text
+// ExtractLCLFromResponse extracts JSON code blocks from the response text
+// Only accepts ```json blocks - no YAML or other formats
 func ExtractLCLFromResponse(text string) string {
-	// Look for ```lcl ... ``` code blocks
-	re := regexp.MustCompile("(?s)```lcl\\s*\\n(.+?)\\n```")
+	// Look for ```json ... ``` code blocks ONLY
+	re := regexp.MustCompile("(?s)```json\\s*\\n(.+?)\\n```")
 	matches := re.FindStringSubmatch(text)
 	if len(matches) > 1 {
 		return matches[1]
 	}
 
-	// Also try ```yaml ... ``` for intent layer
-	re = regexp.MustCompile("(?s)```yaml\\s*\\n(effect:.+?)\\n```")
-	matches = re.FindStringSubmatch(text)
-	if len(matches) > 1 {
-		return matches[1]
-	}
-
+	// No fallback to YAML or other formats - JSON only
 	return ""
 }
 
