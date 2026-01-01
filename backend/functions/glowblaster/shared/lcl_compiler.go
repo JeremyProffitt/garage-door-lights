@@ -544,7 +544,17 @@ func (c *LCLCompiler) generateSparkleBytecode(parsed *ParsedLCL) {
 	c.emit(ParamDensity)
 	c.emit(byte(density))
 
-	// Set sparkle color - check for 'color' first, then 'colors'
+	// Check if we have multiple colors - if so, use palette
+	if colorsStr := parsed.Appearance["colors"]; colorsStr != "" {
+		colors := c.parseColorList(colorsStr)
+		if len(colors) > 1 {
+			// Multiple colors - generate palette for multi-color sparkle
+			c.generatePalette(parsed)
+			return
+		}
+	}
+
+	// Single color sparkle - set RGB parameters directly
 	var r, g, b byte = 255, 255, 255 // default white
 	if colorStr := parsed.Appearance["color"]; colorStr != "" {
 		r, g, b = c.parseColor(colorStr)
