@@ -356,7 +356,6 @@ func ParseLegacyLCL(lclText string) (*PatternSpec, error) {
 	}
 
 	lines := strings.Split(lclText, "\n")
-	currentSection := ""
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -364,13 +363,9 @@ func ParseLegacyLCL(lclText string) (*PatternSpec, error) {
 			continue
 		}
 
-		// Check for section headers
+		// Skip section headers (behavior:, appearance:, timing:)
 		if strings.HasSuffix(line, ":") && !strings.Contains(line, " ") {
-			section := strings.TrimSuffix(line, ":")
-			if section == "behavior" || section == "appearance" || section == "timing" {
-				currentSection = section
-				continue
-			}
+			continue
 		}
 
 		// Parse key: value pairs
