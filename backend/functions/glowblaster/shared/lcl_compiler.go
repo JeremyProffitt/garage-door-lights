@@ -353,20 +353,24 @@ func (c *LCLCompiler) generateBytecode(effectID byte, parsed *ParsedLCL) {
 
 	// Generate effect-specific bytecode
 	switch parsed.Effect {
-	case "fire":
-		c.generateFireBytecode(parsed)
-	case "wave":
-		c.generateWaveBytecode(parsed)
 	case "solid":
 		c.generateSolidBytecode(parsed)
-	case "rainbow":
-		c.generateRainbowBytecode(parsed)
-	case "sparkle":
-		c.generateSparkleBytecode(parsed)
+	case "pulse":
+		c.generateBreatheBytecode(parsed) // pulse and breathe use same bytecode
 	case "breathe":
 		c.generateBreatheBytecode(parsed)
+	case "sparkle":
+		c.generateSparkleBytecode(parsed)
+	case "gradient":
+		c.generateGradientBytecode(parsed)
+	case "wave":
+		c.generateWaveBytecode(parsed)
 	case "chase":
-		c.generateChaseBytecode(parsed)
+		c.generateChaseBytecode(parsed) // chase uses wave-like bytecode
+	case "fire", "candle":
+		c.generateFireBytecode(parsed)
+	case "rainbow":
+		c.generateRainbowBytecode(parsed)
 	default:
 		c.generateDefaultBytecode(parsed)
 	}
@@ -417,6 +421,12 @@ func (c *LCLCompiler) generateWaveBytecode(parsed *ParsedLCL) {
 	c.emit(ParamWaveCount)
 	c.emit(byte(waveCount))
 
+	c.generatePalette(parsed)
+}
+
+func (c *LCLCompiler) generateGradientBytecode(parsed *ParsedLCL) {
+	// Gradient uses a palette of colors distributed across the strip
+	// No special behavior parameters needed
 	c.generatePalette(parsed)
 }
 
