@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -187,6 +188,26 @@ func handleSendCommand(ctx context.Context, username string, request events.APIG
 
 	// Otherwise, send custom command
 	log.Printf("No pattern ID, sending custom command: %s with argument: %s", cmdReq.Command, cmdReq.Argument)
+
+	// Debug: If this is a setBytecode command, decode and log the bytecode values
+	if cmdReq.Command == "setBytecode" {
+		parts := strings.SplitN(cmdReq.Argument, ",", 2)
+		if len(parts) == 2 {
+			log.Printf("[setBytecode Debug] Pin: %s, Base64 length: %d", parts[0], len(parts[1]))
+			// Decode base64 to inspect bytecode
+			if decoded, err := base64.StdEncoding.DecodeString(parts[1]); err == nil && len(decoded) >= 23 {
+				log.Printf("[setBytecode Debug] Decoded length: %d", len(decoded))
+				log.Printf("[setBytecode Debug] Header: %02X %02X %02X, Version: %02X",
+					decoded[0], decoded[1], decoded[2], decoded[3])
+				log.Printf("[setBytecode Debug] Effect: %02X, Brightness: %02X",
+					decoded[8], decoded[9])
+				log.Printf("[setBytecode Debug] RGB at [16-18]: R=%02X(%d) G=%02X(%d) B=%02X(%d)",
+					decoded[16], decoded[16], decoded[17], decoded[17], decoded[18], decoded[18])
+			} else if err != nil {
+				log.Printf("[setBytecode Debug] Base64 decode error: %v", err)
+			}
+		}
+	}
 
 	if cmdReq.Command == "" {
 		log.Println("Command missing")

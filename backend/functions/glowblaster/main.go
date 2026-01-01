@@ -473,6 +473,18 @@ func handleCompile(ctx context.Context, request events.APIGatewayProxyRequest) (
 
 	log.Printf("[Compile] Success! Bytecode length: %d, Warnings: %v", len(bytecode), warnings)
 
+	// Debug: Log key bytecode values
+	if len(bytecode) >= 23 {
+		log.Printf("[Compile] Bytecode debug - Header: %02X %02X %02X, Version: %02X",
+			bytecode[0], bytecode[1], bytecode[2], bytecode[3])
+		log.Printf("[Compile] Bytecode debug - Effect: %02X, Brightness: %02X, Speed: %02X",
+			bytecode[8], bytecode[9], bytecode[10])
+		log.Printf("[Compile] Bytecode debug - RGB at [16-18]: R=%02X(%d) G=%02X(%d) B=%02X(%d)",
+			bytecode[16], bytecode[16], bytecode[17], bytecode[17], bytecode[18], bytecode[18])
+		log.Printf("[Compile] Bytecode debug - ColorCount: %d, Palette[0]: %02X %02X %02X",
+			bytecode[19], bytecode[20], bytecode[21], bytecode[22])
+	}
+
 	return shared.CreateSuccessResponse(200, shared.CompileResponse{
 		Success:  true,
 		Bytecode: bytecode,
