@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -263,21 +264,77 @@ func handleChat(ctx context.Context, username, conversationID string, request ev
 	conversation.Messages = append(conversation.Messages, assistantMessage)
 	conversation.TotalTokens += tokensUsed
 
-	// Extract LCL from response
+	// Extract and validate LCL from response, retry if invalid
 	lcl := shared.ExtractLCLFromResponse(responseText)
 	var bytecode []byte
-	if lcl != "" {
-		conversation.CurrentLCL = lcl
-		// Compile to bytecode
-		compiled, warnings, compileErr := shared.CompileLCL(lcl)
-		if compileErr != nil {
-			log.Printf("LCL compile warning: %v", compileErr)
-		} else {
-			bytecode = compiled
-			conversation.CurrentBytecode = bytecode
+	const maxValidationRetries = 2
+
+	for retryCount := 0; lcl != "" && retryCount <= maxValidationRetries; retryCount++ {
+		// Validate LCL against firmware capabilities
+		valid, validationErrors := shared.ValidateLCL(lcl)
+		if valid {
+			// LCL is valid, compile to bytecode
+			compiled, warnings, compileErr := shared.CompileLCL(lcl)
+			if compileErr != nil {
+				log.Printf("LCL compile error: %v", compileErr)
+			} else {
+				bytecode = compiled
+				conversation.CurrentLCL = lcl
+				conversation.CurrentBytecode = bytecode
+			}
+			if len(warnings) > 0 {
+				log.Printf("LCL compile warnings: %v", warnings)
+			}
+			break // Valid, exit retry loop
 		}
-		if len(warnings) > 0 {
-			log.Printf("LCL compile warnings: %v", warnings)
+
+		// LCL is invalid - if we haven't exhausted retries, ask LLM to fix it
+		if retryCount < maxValidationRetries {
+			log.Printf("LCL validation failed (attempt %d): %v", retryCount+1, validationErrors)
+
+			// Build correction request
+			correctionPrompt := fmt.Sprintf(
+				"The LCL code you generated has validation errors:\n%s\n\n"+
+					"Please regenerate the LCL code using ONLY supported parameters. "+
+					"Remove any unsupported sections like 'spatial:' and only use parameters documented in your instructions.",
+				strings.Join(validationErrors, "\n"))
+
+			// Add correction message to conversation
+			correctionMessage := shared.Message{
+				Role:      "user",
+				Content:   correctionPrompt,
+				Timestamp: time.Now(),
+			}
+			conversation.Messages = append(conversation.Messages, correctionMessage)
+
+			// Call Claude API again
+			claudeMessages = shared.ConvertMessagesToClaudeFormat(conversation.Messages)
+			claudeResp, err = client.SendMessage(model, shared.GlowBlasterSystemPrompt, claudeMessages)
+			if err != nil {
+				log.Printf("Claude API error on retry: %v", err)
+				break
+			}
+
+			// Update response and tokens
+			responseText = client.GetResponseText(claudeResp)
+			retryTokens := claudeResp.Usage.InputTokens + claudeResp.Usage.OutputTokens
+			tokensUsed += retryTokens
+
+			// Add assistant response to conversation
+			assistantRetryMessage := shared.Message{
+				Role:      "assistant",
+				Content:   responseText,
+				TokensIn:  claudeResp.Usage.InputTokens,
+				TokensOut: claudeResp.Usage.OutputTokens,
+				Timestamp: time.Now(),
+			}
+			conversation.Messages = append(conversation.Messages, assistantRetryMessage)
+			conversation.TotalTokens += retryTokens
+
+			// Extract new LCL for next validation iteration
+			lcl = shared.ExtractLCLFromResponse(responseText)
+		} else {
+			log.Printf("LCL validation failed after %d retries: %v", maxValidationRetries, validationErrors)
 		}
 	}
 

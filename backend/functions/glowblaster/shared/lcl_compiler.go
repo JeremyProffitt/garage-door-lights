@@ -304,44 +304,118 @@ func (c *LCLCompiler) parseLCL(text string) (*ParsedLCL, error) {
 	return parsed, nil
 }
 
+// Valid effect types supported by firmware
+var validEffects = map[string]bool{
+	"solid": true, "pulse": true, "breathe": true, "sparkle": true,
+	"gradient": true, "wave": true, "chase": true, "fire": true,
+	"candle": true, "rainbow": true,
+}
+
+// Valid behavior parameters per effect type
+var validBehaviorParams = map[string]map[string]bool{
+	"solid":    {},
+	"pulse":    {"rhythm": true},
+	"breathe":  {"rhythm": true},
+	"sparkle":  {"density": true},
+	"gradient": {},
+	"wave":     {"wave_count": true},
+	"chase":    {"wave_count": true, "head_size": true, "tail_length": true},
+	"fire":     {"flame_height": true, "spark_frequency": true},
+	"candle":   {"flame_height": true, "spark_frequency": true},
+	"rainbow":  {},
+}
+
+// Valid appearance parameters
+var validAppearanceParams = map[string]bool{
+	"colors": true, "color": true, "color_scheme": true, "brightness": true,
+}
+
+// Valid timing parameters
+var validTimingParams = map[string]bool{
+	"speed": true,
+}
+
 func (c *LCLCompiler) validateParameters(parsed *ParsedLCL) {
+	// Validate effect type
+	if !validEffects[parsed.Effect] {
+		c.errors = append(c.errors, fmt.Sprintf("unsupported effect type: '%s'. Valid effects: solid, pulse, sparkle, gradient, wave, fire, rainbow", parsed.Effect))
+		return
+	}
+
+	// Validate behavior parameters for this effect
+	validBehavior := validBehaviorParams[parsed.Effect]
+	for param := range parsed.Behavior {
+		if !validBehavior[param] {
+			c.errors = append(c.errors, fmt.Sprintf("unsupported behavior parameter '%s' for effect '%s'", param, parsed.Effect))
+		}
+	}
+
+	// Validate appearance parameters
+	for param := range parsed.Appearance {
+		if !validAppearanceParams[param] {
+			c.errors = append(c.errors, fmt.Sprintf("unsupported appearance parameter '%s'", param))
+		}
+	}
+
+	// Validate timing parameters
+	for param := range parsed.Timing {
+		if !validTimingParams[param] {
+			c.errors = append(c.errors, fmt.Sprintf("unsupported timing parameter '%s'", param))
+		}
+	}
+
+	// Validate spatial section - firmware doesn't support it
+	if len(parsed.Spatial) > 0 {
+		for param := range parsed.Spatial {
+			c.errors = append(c.errors, fmt.Sprintf("unsupported spatial parameter '%s' - spatial section is not supported", param))
+		}
+	}
+
+	// Validate specific parameter values
 	switch parsed.Effect {
-	case "fire":
+	case "fire", "candle":
 		if v, ok := parsed.Behavior["flame_height"]; ok {
 			if _, valid := flameHeightValues[v]; !valid {
-				c.errors = append(c.errors, fmt.Sprintf("invalid flame_height: %s", v))
+				c.errors = append(c.errors, fmt.Sprintf("invalid flame_height value '%s'. Valid values: very_short, short, medium, tall, very_tall", v))
 			}
 		}
 		if v, ok := parsed.Behavior["spark_frequency"]; ok {
 			if _, valid := sparkFrequencyValues[v]; !valid {
-				c.errors = append(c.errors, fmt.Sprintf("invalid spark_frequency: %s", v))
+				c.errors = append(c.errors, fmt.Sprintf("invalid spark_frequency value '%s'. Valid values: rare, occasional, frequent, high, intense", v))
 			}
 		}
-	case "wave":
+	case "wave", "chase":
 		if v, ok := parsed.Behavior["wave_count"]; ok {
 			if _, valid := waveCountValues[v]; !valid {
-				c.errors = append(c.errors, fmt.Sprintf("invalid wave_count: %s", v))
+				c.errors = append(c.errors, fmt.Sprintf("invalid wave_count value '%s'. Valid values: one, few, several, many", v))
 			}
 		}
 	case "sparkle":
 		if v, ok := parsed.Behavior["density"]; ok {
 			if _, valid := densityValues[v]; !valid {
-				c.errors = append(c.errors, fmt.Sprintf("invalid density: %s", v))
+				c.errors = append(c.errors, fmt.Sprintf("invalid density value '%s'. Valid values: sparse, light, medium, dense, packed", v))
+			}
+		}
+	case "pulse", "breathe":
+		if v, ok := parsed.Behavior["rhythm"]; ok {
+			validRhythm := map[string]bool{"calm": true, "relaxed": true, "steady": true, "energetic": true, "frantic": true}
+			if !validRhythm[v] {
+				c.errors = append(c.errors, fmt.Sprintf("invalid rhythm value '%s'. Valid values: calm, relaxed, steady, energetic, frantic", v))
 			}
 		}
 	}
 
-	// Check brightness
+	// Check brightness value
 	if v, ok := parsed.Appearance["brightness"]; ok {
 		if _, valid := brightnessValues[v]; !valid {
-			c.warnings = append(c.warnings, fmt.Sprintf("unknown brightness '%s', using 'medium'", v))
+			c.errors = append(c.errors, fmt.Sprintf("invalid brightness value '%s'. Valid values: dim, medium, bright, full", v))
 		}
 	}
 
-	// Check speed
+	// Check speed value
 	if v, ok := parsed.Timing["speed"]; ok {
 		if _, valid := speedValues[v]; !valid {
-			c.warnings = append(c.warnings, fmt.Sprintf("unknown speed '%s', using 'medium'", v))
+			c.errors = append(c.errors, fmt.Sprintf("invalid speed value '%s'. Valid values: frozen, glacial, very_slow, slow, medium, fast, very_fast, frantic", v))
 		}
 	}
 }
