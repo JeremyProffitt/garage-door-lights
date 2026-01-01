@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -138,17 +139,23 @@ func (c *ClaudeClient) GetResponseText(resp *ClaudeResponse) string {
 	return ""
 }
 
-// ExtractLCLFromResponse extracts JSON code blocks from the response text
-// Only accepts ```json blocks - no YAML or other formats
+// ExtractLCLFromResponse extracts JSON from the response text
+// Tries code blocks first, then falls back to raw JSON objects
 func ExtractLCLFromResponse(text string) string {
-	// Look for ```json ... ``` code blocks ONLY
+	// First try ```json ... ``` code blocks
 	re := regexp.MustCompile("(?s)```json\\s*\\n(.+?)\\n```")
 	matches := re.FindStringSubmatch(text)
 	if len(matches) > 1 {
-		return matches[1]
+		return strings.TrimSpace(matches[1])
 	}
 
-	// No fallback to YAML or other formats - JSON only
+	// Fallback: look for raw JSON object with "effect" field
+	re = regexp.MustCompile(`(?s)\{\s*"effect"\s*:.+?\}`)
+	matches = re.FindStringSubmatch(text)
+	if len(matches) > 0 {
+		return strings.TrimSpace(matches[0])
+	}
+
 	return ""
 }
 
