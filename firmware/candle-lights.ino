@@ -1026,6 +1026,39 @@ void runPattern(int idx) {
                 }
                 break;
 
+            case EFFECT_WAVE:
+                {
+                    // Param1: Wave Count (1-10)
+                    uint8_t waveCount = rt.param1 > 0 ? rt.param1 : 3;
+                    
+                    // Animation step
+                    // Speed 128 = ~1.0 step per frame. 
+                    float step = (float)rt.bytecodeSpeed / 64.0f;
+                    rt.scannerPos += step * rt.scannerDir; // Reusing scannerPos as generic float counter
+                    // Keep it bounded to avoid overflow, though sin() handles large numbers. 
+                    // Let's reset every 2*PI * something.
+                    if (rt.scannerPos > 10000.0f) rt.scannerPos -= 10000.0f;
+                    
+                    for (int i = 0; i < count; i++) {
+                        // Calculate position in wave (0.0 to 1.0)
+                        float pos = (float)i / count;
+                        // Add animation offset
+                        float wavePos = pos * waveCount + (rt.scannerPos / 20.0f);
+                        
+                        // Sine wave: -1 to 1 -> 0 to 1
+                        float val = (sin(wavePos * 2 * PI) + 1.0f) / 2.0f;
+                        
+                        // Lerp between Secondary and Primary
+                        // val=1 -> Primary, val=0 -> Secondary
+                        uint8_t r = (rt.primaryR * val) + (rt.secondaryR * (1.0f - val));
+                        uint8_t g = (rt.primaryG * val) + (rt.secondaryG * (1.0f - val));
+                        uint8_t b = (rt.primaryB * val) + (rt.secondaryB * (1.0f - val));
+                        
+                        strip->setPixelColor(i, strip->Color(r, g, b));
+                    }
+                }
+                break;
+
             default:
                 // Fallback for others (Wave, Fire, etc) - use default colors if possible
                 // Implement minimal fallback here for safety

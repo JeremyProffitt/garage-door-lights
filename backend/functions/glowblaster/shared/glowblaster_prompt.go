@@ -47,7 +47,7 @@ appearance:
 ## Effect Reference & Parameters
 
 ### scanner (Knight Rider / Cylon)
-A moving eye that bounces back and forth.
+A moving eye that bounces back and forth. **Use this for "KITT", "Cylon", or "Knight Rider" requests.**
 - **behavior**:
   - eye_size: tiny | small | medium | large
   - tail_length: none | short | medium | long | ghost
@@ -64,7 +64,7 @@ Realistic flame simulation.
   - color_scheme: classic_fire | blue_gas
 
 ### wave
-Scrolling color wave.
+Scrolling sine wave of color. **Use this for flowing liquids, chases, or scrolling gradients.**
 - **behavior**:
   - wave_count: one | few | many
 - **appearance**:

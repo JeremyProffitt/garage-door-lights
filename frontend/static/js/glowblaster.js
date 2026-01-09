@@ -24,6 +24,11 @@ function glowBlasterPage() {
         showViewModal: false,
         conversationJson: '',
 
+        // Debug/Prompt viewing
+        lastDebugInfo: null,
+        showPromptModal: false,
+        promptJson: '',
+
         // Pattern editing state
         editingPatternId: null,
         editingPatternName: null,
@@ -298,6 +303,11 @@ function glowBlasterPage() {
                     }
 
                     this.totalTokens = data.data.totalTokens || this.totalTokens;
+
+                    // Store debug info
+                    if (data.data.debug) {
+                        this.lastDebugInfo = data.data.debug;
+                    }
 
                     // Refresh conversation list (title may have changed)
                     await this.loadConversations();
@@ -649,6 +659,15 @@ function glowBlasterPage() {
             };
             this.conversationJson = JSON.stringify(exportData, null, 2);
             this.showViewModal = true;
+        },
+
+        viewPrompt() {
+            if (!this.lastDebugInfo) {
+                NotificationBanner.info('No prompt data available. Send a message first.');
+                return;
+            }
+            this.promptJson = JSON.stringify(this.lastDebugInfo, null, 2);
+            this.showPromptModal = true;
         },
 
         downloadConversation() {

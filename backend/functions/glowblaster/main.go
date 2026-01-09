@@ -368,6 +368,10 @@ func handleChat(ctx context.Context, username, conversationID string, request ev
 		Bytecode:    bytecode,
 		TokensUsed:  tokensUsed,
 		TotalTokens: conversation.TotalTokens,
+		Debug: &shared.ChatDebugInfo{
+			SystemPrompt: shared.GlowBlasterSystemPrompt,
+			Messages:     claudeMessages,
+		},
 	}
 
 	return shared.CreateSuccessResponse(200, response), nil
