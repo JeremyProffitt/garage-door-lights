@@ -144,7 +144,7 @@ func (c *ClaudeClient) GetResponseText(resp *ClaudeResponse) string {
 // Tries code blocks first, then falls back to raw YAML-like text
 func ExtractLCLFromResponse(text string) string {
 	// First try ```yaml or ```lcl code blocks
-	re := regexp.MustCompile("(?s)```(?:yaml|lcl)\s*\n(.+?)\n```")
+	re := regexp.MustCompile(`(?s)` + "```(?:yaml|lcl)" + `\s*\n(.+?)\n` + "```")
 	matches := re.FindStringSubmatch(text)
 	if len(matches) > 1 {
 		return strings.TrimSpace(matches[1])
@@ -171,16 +171,6 @@ func ExtractLCLFromResponse(text string) string {
 	}
 
 	return ""
-}
-
-// IsValidModel checks if the model ID is valid
-func IsValidModel(model string) bool {
-	// Allow any model ID that looks like an Anthropic model (starts with claude-)
-	// This allows dynamic models to be used even if not hardcoded here.
-	if len(model) > 7 && model[:7] == "claude-" {
-		return true
-	}
-	return false
 }
 
 // ClaudeModel represents a model returned by the API
