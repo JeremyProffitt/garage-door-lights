@@ -173,14 +173,14 @@ func ExtractLCLFromResponse(text string) string {
 	return ""
 }
 
-// ExtractDescriptionFromLCL extracts the description field from LCL text
-func ExtractDescriptionFromLCL(lclText string) string {
-	re := regexp.MustCompile(`(?m)^description:\s*["']?(.+?)["']?\s*$`)
-	matches := re.FindStringSubmatch(lclText)
-	if len(matches) > 1 {
-		return matches[1]
+// IsValidModel checks if the model ID is valid
+func IsValidModel(model string) bool {
+	// Allow any model ID that looks like an Anthropic model (starts with claude-)
+	// This allows dynamic models to be used even if not hardcoded here.
+	if len(model) > 7 && model[:7] == "claude-" {
+		return true
 	}
-	return ""
+	return false
 }
 
 // ClaudeModel represents a model returned by the API
