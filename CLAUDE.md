@@ -4,12 +4,16 @@
 
 **ALWAYS USE MAXIMUM THINKING RESOURCES** - Use `ultrathink` (extended thinking with maximum tokens) for all decisions, problem-solving, and implementation work. Never use standard thinking when extended thinking is available.
 
+## Branching Policy
+
+**ALWAYS USE THE `main` BRANCH** - All development, bug fixes, and feature implementations must be done directly on the `main` branch. Do not create feature branches or use `v0` unless explicitly requested by the user.
+
 ## Deployment
 
 **NEVER USE `sam deploy` ON THIS PROJECT** - All deployments are via GitHub Actions.
 
 To deploy changes:
-1. Commit and push to the `main` branch
+1. Commit and push to the `main` branch (ALWAYS ensure you are on `main`)
 2. GitHub Actions will automatically build and deploy the stack
 3. **ALWAYS wait for the pipeline to complete** before returning to the user
 4. Monitor the pipeline using `gh run watch` or equivalent
