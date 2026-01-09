@@ -3,7 +3,6 @@ package shared
 import (
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 )
@@ -76,33 +75,36 @@ const (
 	EffectCandle   byte = 0x08
 	EffectWave     byte = 0x09
 	EffectRainbow  byte = 0x0A
+	EffectChase    byte = 0x09 // Chase uses Wave logic for now in v3
+	EffectBreathe  byte = 0x02 // Breathe is Pulse
 )
 
 // Effect type name to ID mapping
 var effectTypes = map[string]byte{
 	"solid":    EffectSolid,
 	"pulse":    EffectPulse,
-	"breathe":  EffectPulse, // alias
+	"breathe":  EffectBreathe,
 	"sparkle":  EffectSparkle,
 	"gradient": EffectGradient,
 	"fire":     EffectFire,
 	"candle":   EffectCandle,
 	"wave":     EffectWave,
-	"chase":    EffectWave, // alias
+	"chase":    EffectChase,
 	"rainbow":  EffectRainbow,
 }
 
-// PatternSpec is the simplified JSON input format for the LLM
+// PatternSpec is the Specification Layer (Intermediate Representation)
+// This maps directly to the compiled bytecode parameters
 type PatternSpec struct {
-	Effect     string   `json:"effect"`               // Required: solid, pulse, sparkle, gradient, wave, fire, rainbow
-	Colors     []string `json:"colors"`               // Required: array of hex colors like "#FF0000"
-	Brightness int      `json:"brightness,omitempty"` // Optional: 0-255, default 200
-	Speed      int      `json:"speed,omitempty"`      // Optional: 0-255, default 128
-	Density    int      `json:"density,omitempty"`    // Optional: 0-255, for sparkle
-	Cooling    int      `json:"cooling,omitempty"`    // Optional: 0-255, for fire
-	Sparking   int      `json:"sparking,omitempty"`   // Optional: 0-255, for fire
-	WaveCount  int      `json:"wave_count,omitempty"` // Optional: 1-10, for wave
-	Direction  int      `json:"direction,omitempty"`  // Optional: 0=forward, 1=reverse
+	Effect     string   `json:"effect"`               // Required
+	Colors     []string `json:"colors"`               // Required: array of hex colors
+	Brightness int      `json:"brightness,omitempty"` // 0-255
+	Speed      int      `json:"speed,omitempty"`      // 0-255
+	Density    int      `json:"density,omitempty"`    // 0-255 (Sparkle)
+	Cooling    int      `json:"cooling,omitempty"`    // 0-255 (Fire: Flame Height)
+	Sparking   int      `json:"sparking,omitempty"`   // 0-255 (Fire: Spark Frequency)
+	WaveCount  int      `json:"wave_count,omitempty"` // 1-10 (Wave)
+	Direction  int      `json:"direction,omitempty"`  // 0=forward, 1=reverse
 }
 
 // CompileLCLv3 compiles a PatternSpec to fixed-format bytecode
@@ -113,9 +115,9 @@ func CompileLCLv3(spec *PatternSpec) ([]byte, error) {
 		return nil, fmt.Errorf("unknown effect type: %s", spec.Effect)
 	}
 
-	// Validate and parse colors
+	// Default colors if missing
 	if len(spec.Colors) == 0 {
-		return nil, fmt.Errorf("at least one color is required")
+		spec.Colors = []string{"#FFFFFF"}
 	}
 	if len(spec.Colors) > MaxPaletteColors {
 		spec.Colors = spec.Colors[:MaxPaletteColors]
@@ -125,9 +127,11 @@ func CompileLCLv3(spec *PatternSpec) ([]byte, error) {
 	for _, colorStr := range spec.Colors {
 		r, g, b, err := parseHexColor(colorStr)
 		if err != nil {
-			return nil, fmt.Errorf("invalid color %s: %v", colorStr, err)
+			// Fallback to white on error
+			colors = append(colors, [3]byte{255, 255, 255})
+		} else {
+			colors = append(colors, [3]byte{r, g, b})
 		}
-		colors = append(colors, [3]byte{r, g, b})
 	}
 
 	// Apply defaults
@@ -151,9 +155,10 @@ func CompileLCLv3(spec *PatternSpec) ([]byte, error) {
 	param1, param2 := getEffectParams(effectID, spec)
 
 	// Build bytecode
-	paletteSize := 1 + len(colors)*3
-	totalLen := LCLHeaderSize + LCLCoreParamsSize + LCLColorSize + paletteSize
-	bytecode := make([]byte, totalLen)
+
+paletteSize := 1 + len(colors)*3
+totalLen := LCLHeaderSize + LCLCoreParamsSize + LCLColorSize + paletteSize
+bytecode := make([]byte, totalLen)
 
 	// Header
 	copy(bytecode[OffsetMagic:], LCLMagic)
@@ -173,9 +178,11 @@ func CompileLCLv3(spec *PatternSpec) ([]byte, error) {
 	bytecode[OffsetReserved] = 0
 
 	// Primary color (first color in palette)
-	bytecode[OffsetColorR] = colors[0][0]
-	bytecode[OffsetColorG] = colors[0][1]
-	bytecode[OffsetColorB] = colors[0][2]
+	if len(colors) > 0 {
+		bytecode[OffsetColorR] = colors[0][0]
+		bytecode[OffsetColorG] = colors[0][1]
+		bytecode[OffsetColorB] = colors[0][2]
+	}
 
 	// Palette
 	bytecode[OffsetColorCount] = byte(len(colors))
@@ -186,7 +193,7 @@ func CompileLCLv3(spec *PatternSpec) ([]byte, error) {
 		bytecode[offset+2] = color[2]
 	}
 
-	// Calculate checksum (XOR of all bytes after header)
+	// Calculate checksum
 	checksum := byte(0)
 	for i := LCLHeaderSize; i < len(bytecode); i++ {
 		checksum ^= bytecode[i]
@@ -202,13 +209,14 @@ func getEffectParams(effectID byte, spec *PatternSpec) (byte, byte) {
 	case EffectSparkle:
 		density := spec.Density
 		if density <= 0 {
-			density = 128 // default medium density
+			density = 128
 		}
 		return byte(density), 0
 
-	case EffectPulse:
+	case EffectPulse, EffectBreathe:
 		// Param1 = rhythm (higher = slower pulse)
-		rhythm := 128 - spec.Speed/2 // inverse of speed
+		// Map speed (0-255) to rhythm (255-0 roughly)
+		rhythm := 255 - spec.Speed
 		if rhythm < 10 {
 			rhythm = 10
 		}
@@ -217,18 +225,18 @@ func getEffectParams(effectID byte, spec *PatternSpec) (byte, byte) {
 	case EffectFire, EffectCandle:
 		cooling := spec.Cooling
 		if cooling <= 0 {
-			cooling = 55 // default cooling
+			cooling = 55
 		}
 		sparking := spec.Sparking
 		if sparking <= 0 {
-			sparking = 120 // default sparking
+			sparking = 120
 		}
 		return byte(cooling), byte(sparking)
 
-	case EffectWave:
+	case EffectWave, EffectChase:
 		waveCount := spec.WaveCount
 		if waveCount <= 0 {
-			waveCount = 3 // default wave count
+			waveCount = 3
 		}
 		if waveCount > 10 {
 			waveCount = 10
@@ -240,13 +248,12 @@ func getEffectParams(effectID byte, spec *PatternSpec) (byte, byte) {
 	}
 }
 
-// parseHexColor parses a hex color string like "#FF0000" or "FF0000"
+// parseHexColor parses a hex color string
 func parseHexColor(s string) (byte, byte, byte, error) {
 	s = strings.TrimPrefix(s, "#")
 	s = strings.TrimSpace(s)
 
 	if len(s) == 3 {
-		// Short form: "F00" -> "FF0000"
 		s = string(s[0]) + string(s[0]) + string(s[1]) + string(s[1]) + string(s[2]) + string(s[2])
 	}
 
@@ -270,326 +277,275 @@ func parseHexColor(s string) (byte, byte, byte, error) {
 	return byte(r), byte(g), byte(b), nil
 }
 
-// Named color map for convenience
-var namedColors = map[string]string{
-	"red":        "#FF0000",
-	"green":      "#00FF00",
-	"blue":       "#0000FF",
-	"yellow":     "#FFFF00",
-	"orange":     "#FFA500",
-	"purple":     "#800080",
-	"magenta":    "#FF00FF",
-	"cyan":       "#00FFFF",
-	"white":      "#FFFFFF",
-	"black":      "#000000",
-	"pink":       "#FFC0CB",
-	"warm_white": "#FFF4E5",
-	"cool_white": "#F4FFFA",
-}
-
-// resolveColor converts named colors to hex
-func resolveColor(s string) string {
-	s = strings.TrimSpace(strings.ToLower(s))
-	if hex, ok := namedColors[s]; ok {
-		return hex
-	}
-	if !strings.HasPrefix(s, "#") {
-		s = "#" + s
-	}
-	return s
-}
-
-// ParsePatternJSON parses JSON pattern specification
-func ParsePatternJSON(jsonStr string) (*PatternSpec, error) {
-	var spec PatternSpec
-	if err := json.Unmarshal([]byte(jsonStr), &spec); err != nil {
-		return nil, fmt.Errorf("invalid JSON: %v", err)
-	}
-
-	// Resolve named colors to hex
-	for i, c := range spec.Colors {
-		spec.Colors[i] = resolveColor(c)
-	}
-
-	return &spec, nil
-}
-
-// ValidatePatternSpec validates a pattern specification
-func ValidatePatternSpec(spec *PatternSpec) []string {
-	var errors []string
-
-	// Check effect type
-	if _, ok := effectTypes[strings.ToLower(spec.Effect)]; !ok {
-		errors = append(errors, fmt.Sprintf("invalid effect '%s'. Valid: solid, pulse, sparkle, gradient, wave, fire, rainbow", spec.Effect))
-	}
-
-	// Check colors
-	if len(spec.Colors) == 0 {
-		errors = append(errors, "at least one color is required")
-	}
-	for _, c := range spec.Colors {
-		resolved := resolveColor(c)
-		if _, _, _, err := parseHexColor(resolved); err != nil {
-			errors = append(errors, fmt.Sprintf("invalid color '%s'", c))
-		}
-	}
-
-	// Check numeric ranges
-	if spec.Brightness < 0 || spec.Brightness > 255 {
-		errors = append(errors, "brightness must be 0-255")
-	}
-	if spec.Speed < 0 || spec.Speed > 255 {
-		errors = append(errors, "speed must be 0-255")
-	}
-
-	return errors
-}
-
 // =============================================================================
-// LEGACY SUPPORT: Parse old YAML-like LCL format and convert to PatternSpec
+// INTENT LAYER PARSER (YAML -> PatternSpec)
 // =============================================================================
 
-// ParseLegacyLCL parses the old YAML-like format and converts to PatternSpec
-func ParseLegacyLCL(lclText string) (*PatternSpec, error) {
+// ParseIntentYAML parses the LCL v2 YAML format and maps it to a PatternSpec
+func ParseIntentYAML(yamlStr string) (*PatternSpec, error) {
 	spec := &PatternSpec{
 		Brightness: 200,
 		Speed:      128,
+		Direction:  0,
 	}
 
-	lines := strings.Split(lclText, "\n")
+	lines := strings.Split(yamlStr, "\n")
 	currentSection := ""
 
 	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
+		// Remove comments
+		if idx := strings.Index(line, "#"); idx != -1 {
+			line = line[:idx]
+		}
+		
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
 			continue
 		}
 
-		// Check for section headers
-		if strings.HasSuffix(line, ":") && !strings.Contains(line, " ") {
-			section := strings.TrimSuffix(line, ":")
-			if section == "behavior" || section == "appearance" || section == "timing" {
-				currentSection = section
-				continue
-			}
+		// Check for section headers (no indentation, ends with :)
+		if strings.HasSuffix(trimmed, ":") && !strings.HasPrefix(line, " ") {
+			currentSection = strings.TrimSuffix(trimmed, ":")
+			continue
 		}
 
-		// Parse key: value pairs
-		parts := strings.SplitN(line, ":", 2)
+		// Parse Key-Value pairs
+		parts := strings.SplitN(trimmed, ":", 2)
 		if len(parts) != 2 {
 			continue
 		}
+
 		key := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])
-		value = strings.Trim(value, "\"'")
+		value = strings.Trim(value, "'"")
 
-		switch key {
-		case "effect":
-			spec.Effect = value
-		case "colors", "color":
-			// Parse color list
-			spec.Colors = parseColorList(value)
-		case "brightness":
-			spec.Brightness = parseBrightnessValue(value)
-		case "speed":
-			spec.Speed = parseSpeedValue(value)
-		case "density":
-			spec.Density = parseDensityValue(value)
-		case "wave_count":
-			spec.WaveCount = parseWaveCountValue(value)
-		case "flame_height":
-			spec.Cooling = parseFlameHeightValue(value)
-		case "spark_frequency":
-			spec.Sparking = parseSparkFrequencyValue(value)
-		case "direction":
-			if value == "reverse" || value == "backward" {
-				spec.Direction = 1
+		// Route based on section
+		switch currentSection {
+		case "", "root":
+			if key == "effect" {
+				spec.Effect = value
 			}
+		case "behavior":
+			mapBehavior(key, value, spec)
+		case "appearance":
+			mapAppearance(key, value, spec)
+		case "timing":
+			mapTiming(key, value, spec)
+		case "spatial":
+			mapSpatial(key, value, spec)
 		}
 	}
 
 	if spec.Effect == "" {
-		return nil, fmt.Errorf("effect type is required")
-	}
-	if len(spec.Colors) == 0 {
-		spec.Colors = []string{"#FFFFFF"} // default white
+		return nil, fmt.Errorf("effect is required in LCL")
 	}
 
 	return spec, nil
 }
 
-// parseColorList parses comma-separated color values
-func parseColorList(s string) []string {
-	s = strings.Trim(s, "[]")
-	parts := strings.Split(s, ",")
-	colors := make([]string, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		p = strings.Trim(p, "\"'")
-		if p != "" {
-			colors = append(colors, resolveColor(p))
-		}
-	}
-	return colors
-}
+// Semantic Mappings
 
-// Semantic value parsers
-func parseBrightnessValue(s string) int {
-	switch strings.ToLower(s) {
-	case "dim":
-		return 64
-	case "medium":
-		return 128
-	case "bright":
-		return 200
-	case "full":
-		return 255
-	default:
-		if v, err := strconv.Atoi(s); err == nil {
-			return v
+func mapBehavior(key, value string, spec *PatternSpec) {
+	switch key {
+	// Fire
+	case "flame_height":
+		// Maps to Cooling (Inverse: Taller = Lower Cooling)
+		switch value {
+		case "very_short", "tiny": spec.Cooling = 120
+		case "short", "small": spec.Cooling = 80
+		case "medium": spec.Cooling = 55
+		case "tall", "large", "high": spec.Cooling = 40
+		case "very_tall", "huge": spec.Cooling = 20
+		default: spec.Cooling = 55
 		}
-		return 200
-	}
-}
+	case "spark_frequency":
+		// Maps to Sparking
+		switch value {
+		case "rare", "few": spec.Sparking = 50
+		case "occasional", "some": spec.Sparking = 80
+		case "frequent": spec.Sparking = 120
+		case "high", "many": spec.Sparking = 170
+		case "intense", "lots": spec.Sparking = 220
+		default: spec.Sparking = 120
+		}
+	
+	// Sparkle
+	case "density":
+		switch value {
+		case "sparse": spec.Density = 30
+		case "light": spec.Density = 60
+		case "medium": spec.Density = 128
+		case "dense": spec.Density = 200
+		case "packed": spec.Density = 255
+		default: spec.Density = 128
+		}
 
-func parseSpeedValue(s string) int {
-	switch strings.ToLower(s) {
-	case "frozen":
-		return 0
-	case "glacial":
-		return 20
-	case "very_slow":
-		return 40
-	case "slow":
-		return 70
-	case "medium":
-		return 128
-	case "fast":
-		return 180
-	case "very_fast":
-		return 220
-	case "frantic":
-		return 255
-	default:
-		if v, err := strconv.Atoi(s); err == nil {
-			return v
+	// Wave
+	case "wave_count":
+		switch value {
+		case "one": spec.WaveCount = 1
+		case "few": spec.WaveCount = 2
+		case "several": spec.WaveCount = 4
+		case "many": spec.WaveCount = 8
+		default: spec.WaveCount = 3
 		}
-		return 128
-	}
-}
 
-func parseDensityValue(s string) int {
-	switch strings.ToLower(s) {
-	case "sparse":
-		return 30
-	case "light":
-		return 60
-	case "medium":
-		return 128
-	case "dense":
-		return 200
-	case "packed":
-		return 255
-	default:
-		if v, err := strconv.Atoi(s); err == nil {
-			return v
+	// Breathe
+	case "rhythm":
+		// Maps to Speed (Inverse logic handled in getEffectParams, but here we map semantics to speed)
+		// "Calm" = Slow Speed
+		switch value {
+		case "calm": spec.Speed = 70
+		case "relaxed": spec.Speed = 100
+		case "steady": spec.Speed = 128
+		case "energetic": spec.Speed = 180
+		case "frantic": spec.Speed = 220
+		default: spec.Speed = 128
 		}
-		return 128
+	
+	// Chase
+	case "head_size":
+		// Not directly supported in v3 bytecode yet, ignored
+	case "tail_length":
+		// Not directly supported in v3 bytecode yet, ignored
 	}
 }
 
-func parseWaveCountValue(s string) int {
-	switch strings.ToLower(s) {
-	case "one":
-		return 1
-	case "few":
-		return 2
-	case "several":
-		return 4
-	case "many":
-		return 8
-	default:
-		if v, err := strconv.Atoi(s); err == nil {
-			return v
+func mapAppearance(key, value string, spec *PatternSpec) {
+	switch key {
+	case "color", "colors":
+		spec.Colors = []string{resolveColor(value)}
+	case "color_scheme":
+		spec.Colors = resolveColorScheme(value)
+	case "brightness":
+		switch value {
+		case "dim", "low": spec.Brightness = 64
+		case "medium": spec.Brightness = 128
+		case "bright", "high": spec.Brightness = 200
+		case "full", "max": spec.Brightness = 255
+		default: 
+			if v, err := strconv.Atoi(value); err == nil {
+				spec.Brightness = v
+			}
 		}
-		return 3
+	case "background":
+		// Append background color as secondary color if needed
+		// For now, simple implementation: ignore or append?
+		// spec.Colors = append(spec.Colors, resolveColor(value))
 	}
 }
 
-func parseFlameHeightValue(s string) int {
-	// Cooling: higher = shorter flames
-	switch strings.ToLower(s) {
-	case "very_tall":
-		return 30
-	case "tall":
-		return 45
-	case "medium":
-		return 55
-	case "short":
-		return 80
-	case "very_short":
-		return 120
-	default:
-		if v, err := strconv.Atoi(s); err == nil {
-			return v
+func mapTiming(key, value string, spec *PatternSpec) {
+	if key == "speed" {
+		switch value {
+		case "frozen": spec.Speed = 0
+		case "glacial": spec.Speed = 20
+		case "very_slow": spec.Speed = 40
+		case "slow": spec.Speed = 70
+		case "medium": spec.Speed = 128
+		case "fast": spec.Speed = 180
+		case "very_fast": spec.Speed = 220
+		case "frantic": spec.Speed = 255
+		default:
+			if v, err := strconv.Atoi(value); err == nil {
+				spec.Speed = v
+			}
 		}
-		return 55
 	}
 }
 
-func parseSparkFrequencyValue(s string) int {
-	switch strings.ToLower(s) {
-	case "rare":
-		return 50
-	case "occasional":
-		return 80
-	case "frequent":
-		return 120
-	case "high":
-		return 170
-	case "intense":
-		return 220
-	default:
-		if v, err := strconv.Atoi(s); err == nil {
-			return v
+func mapSpatial(key, value string, spec *PatternSpec) {
+	if key == "direction" {
+		switch value {
+		case "forward", "up", "right", "clockwise", "outward":
+			spec.Direction = 0
+		case "backward", "reverse", "down", "left", "counterclockwise", "inward":
+			spec.Direction = 1
 		}
-		return 120
 	}
+}
+
+// Helper: Resolve Named Color Schemes
+func resolveColorScheme(scheme string) []string {
+	switch scheme {
+	case "rainbow":
+		return []string{"#FF0000", "#FFA500", "#FFFF00", "#00FF00", "#00FFFF", "#0000FF", "#800080"}
+	case "sunset":
+		return []string{"#FFA500", "#FFC0CB", "#800080", "#00008B"}
+	case "ocean":
+		return []string{"#00008B", "#0000FF", "#00FFFF", "#008080"}
+	case "forest":
+		return []string{"#006400", "#008000", "#32CD32", "#FFFF00"}
+	case "fire", "classic_fire":
+		return []string{"#000000", "#FF0000", "#FFA500", "#FFFF00", "#FFFFFF"}
+	case "ice":
+		return []string{"#FFFFFF", "#00FFFF", "#0000FF", "#00008B"}
+	case "party":
+		return []string{"#FF00FF", "#00FFFF", "#FFFF00", "#FF00FF"}
+	case "warm_orange":
+		return []string{"#8B4500", "#D2691E", "#FFA500", "#FFD700"}
+	case "blue_gas":
+		return []string{"#000000", "#00008B", "#0000FF", "#00FFFF", "#FFFFFF"}
+	default:
+		return []string{"#FFFFFF"}
+	}
+}
+
+// Helper: Resolve Color Name
+func resolveColor(s string) string {
+	s = strings.TrimSpace(strings.ToLower(s))
+	// Basic map
+	colors := map[string]string{
+		"red": "#FF0000", "green": "#00FF00", "blue": "#0000FF",
+		"yellow": "#FFFF00", "orange": "#FFA500", "purple": "#800080",
+		"cyan": "#00FFFF", "magenta": "#FF00FF", "pink": "#FFC0CB",
+		"white": "#FFFFFF", "black": "#000000", "warm_white": "#FFF4E5",
+		"cool_white": "#F4FFFA", "gold": "#FFD700", "teal": "#008080",
+		"crimson": "#DC143C", "coral": "#FF7F50", "navy": "#000080",
+	}
+	if hex, ok := colors[s]; ok {
+		return hex
+	}
+	if !strings.HasPrefix(s, "#") {
+		// Assume hex without hash if valid length
+		if len(s) == 3 || len(s) == 6 {
+			return "#" + s
+		}
+	}
+	return s
 }
 
 // =============================================================================
-// MAIN COMPILE FUNCTION - handles both JSON and legacy YAML formats
+// MAIN ENTRY POINT
 // =============================================================================
 
-// CompileLCL is the main entry point - detects format and compiles to bytecode
+// CompileLCL compiles LCL text (YAML or JSON) to bytecode
 func CompileLCL(input string) ([]byte, []string, error) {
 	input = strings.TrimSpace(input)
 	var spec *PatternSpec
 	var err error
 	var warnings []string
 
-	// Try JSON first
+	// Detect format
 	if strings.HasPrefix(input, "{") {
-		spec, err = ParsePatternJSON(input)
-		if err != nil {
+		// JSON (Legacy or Specification Layer)
+		if err := json.Unmarshal([]byte(input), &spec); err != nil {
 			return nil, nil, fmt.Errorf("JSON parse error: %v", err)
 		}
 	} else {
-		// Try legacy YAML-like format
-		spec, err = ParseLegacyLCL(input)
+		// YAML (Intent Layer)
+		spec, err = ParseIntentYAML(input)
 		if err != nil {
 			return nil, nil, fmt.Errorf("LCL parse error: %v", err)
 		}
-		warnings = append(warnings, "Using legacy LCL format - consider switching to JSON")
 	}
 
 	// Validate
-	validationErrors := ValidatePatternSpec(spec)
-	if len(validationErrors) > 0 {
-		return nil, nil, fmt.Errorf("validation errors: %s", strings.Join(validationErrors, "; "))
+	if spec.Effect == "" {
+		return nil, nil, fmt.Errorf("effect is required")
 	}
 
-	// Compile to bytecode
+	// Compile
 	bytecode, err := CompileLCLv3(spec)
 	if err != nil {
 		return nil, nil, err
@@ -598,61 +554,26 @@ func CompileLCL(input string) ([]byte, []string, error) {
 	return bytecode, warnings, nil
 }
 
-// ValidateLCL validates LCL input without compiling
+// ValidateLCL validates without compiling
 func ValidateLCL(input string) (bool, []string) {
-	input = strings.TrimSpace(input)
-	var spec *PatternSpec
-	var err error
-
-	if strings.HasPrefix(input, "{") {
-		spec, err = ParsePatternJSON(input)
-	} else {
-		spec, err = ParseLegacyLCL(input)
-	}
-
+	_, _, err := CompileLCL(input)
 	if err != nil {
 		return false, []string{err.Error()}
 	}
-
-	errors := ValidatePatternSpec(spec)
-	return len(errors) == 0, errors
+	return true, nil
 }
 
-// ExtractLCLFromResponse extracts LCL/JSON from Claude response text
-func ExtractLCLFromResponse(text string) string {
-	// Try JSON code block first
-	reJSON := regexp.MustCompile("(?s)```json\\s*\\n(.+?)\\n```")
-	if matches := reJSON.FindStringSubmatch(text); len(matches) > 1 {
-		return strings.TrimSpace(matches[1])
-	}
-
-	// Try LCL code block
-	reLCL := regexp.MustCompile("(?s)```lcl\\s*\\n(.+?)\\n```")
-	if matches := reLCL.FindStringSubmatch(text); len(matches) > 1 {
-		return strings.TrimSpace(matches[1])
-	}
-
-	// Try YAML code block with effect:
-	reYAML := regexp.MustCompile("(?s)```yaml\\s*\\n(effect:.+?)\\n```")
-	if matches := reYAML.FindStringSubmatch(text); len(matches) > 1 {
-		return strings.TrimSpace(matches[1])
-	}
-
-	// Try plain JSON object
-	reJSONPlain := regexp.MustCompile(`(?s)\{[^{}]*"effect"[^{}]*\}`)
-	if matches := reJSONPlain.FindString(text); matches != "" {
-		return strings.TrimSpace(matches)
-	}
-
-	return ""
-}
-
-// ExtractDescriptionFromLCL extracts description from LCL (for legacy support)
+// ExtractDescriptionFromLCL extracts description (name) from LCL
 func ExtractDescriptionFromLCL(lclText string) string {
-	re := regexp.MustCompile(`(?m)^description:\s*["']?(.+?)["']?\s*$`)
-	matches := re.FindStringSubmatch(lclText)
-	if len(matches) > 1 {
-		return matches[1]
+	lines := strings.Split(lclText, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "name:") {
+			parts := strings.SplitN(line, ":", 2)
+			if len(parts) == 2 {
+				return strings.Trim(strings.TrimSpace(parts[1]), "'"")
+			}
+		}
 	}
 	return ""
 }

@@ -215,7 +215,7 @@ set "COMP_OUTPUT=%~2"
 
 echo [INFO] Compiling firmware for %COMP_PLATFORM%...
 
-particle compile "%COMP_PLATFORM%" "%FIRMWARE_FILE%" --saveTo "%COMP_OUTPUT%"
+particle compile "%COMP_PLATFORM%" . --saveTo "%COMP_OUTPUT%"
 if errorlevel 1 exit /b 1
 
 echo [SUCCESS] Compiled successfully: %COMP_OUTPUT%

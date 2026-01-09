@@ -295,8 +295,8 @@ func handleChat(ctx context.Context, username, conversationID string, request ev
 			// Build correction request
 			correctionPrompt := fmt.Sprintf(
 				"The LCL code you generated has validation errors:\n%s\n\n"+
-					"Please regenerate the LCL code using ONLY supported parameters. "+
-					"Remove any unsupported sections like 'spatial:' and only use parameters documented in your instructions.",
+					"Please regenerate the LCL code ensuring it is valid YAML. "+
+					"Use semantic values (e.g., 'tall', 'medium') instead of raw numbers where possible, and check that all parameters are supported.",
 				strings.Join(validationErrors, "\n"))
 
 			// Add correction message to conversation

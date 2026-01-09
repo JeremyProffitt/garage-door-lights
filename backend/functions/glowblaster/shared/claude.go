@@ -139,21 +139,34 @@ func (c *ClaudeClient) GetResponseText(resp *ClaudeResponse) string {
 	return ""
 }
 
-// ExtractLCLFromResponse extracts JSON from the response text
-// Tries code blocks first, then falls back to raw JSON objects
+// ExtractLCLFromResponse extracts YAML/LCL from the response text
+// Tries code blocks first, then falls back to raw YAML-like text
 func ExtractLCLFromResponse(text string) string {
-	// First try ```json ... ``` code blocks
-	re := regexp.MustCompile("(?s)```json\\s*\\n(.+?)\\n```")
+	// First try ```yaml or ```lcl code blocks
+	re := regexp.MustCompile("(?s)```(?:yaml|lcl)\\s*\\n(.+?)\\n```")
 	matches := re.FindStringSubmatch(text)
 	if len(matches) > 1 {
 		return strings.TrimSpace(matches[1])
 	}
 
-	// Fallback: look for raw JSON object with "effect" field
-	re = regexp.MustCompile(`(?s)\{\s*"effect"\s*:.+?\}`)
-	matches = re.FindStringSubmatch(text)
-	if len(matches) > 0 {
-		return strings.TrimSpace(matches[0])
+	// Fallback: look for raw YAML with "effect:" and "behavior:" or "appearance:"
+	re = regexp.MustCompile(`(?s)effect:\s*[a-z]+.*?(?:behavior|appearance):`)
+	if re.MatchString(text) {
+		// Try to capture the block assuming it starts with effect: and usually ends with empty line or EOF
+		// This is a rough heuristic
+		start := strings.Index(text, "effect:")
+		if start != -1 {
+			// Find end - look for double newline or end of string
+			rest := text[start:]
+			// We take the whole rest of the string or up to a clear delimiter
+			// But since we want to be safe, let's just assume the block ends at the next double newline
+			// if it's far enough away
+			end := strings.Index(rest, "\n\n")
+			if end != -1 && end > 20 {
+				return strings.TrimSpace(rest[:end])
+			}
+			return strings.TrimSpace(rest)
+		}
 	}
 
 	return ""

@@ -1,6 +1,6 @@
 // Particle WS2812B LED Controller - Multi-Pin + Multi-Color Support
 // Features: Multiple LED strips, per-strip patterns, multi-color with percentages, EEPROM persistence
-// Version 2.2.0 - Full config readable via cloud variables
+// Version 2.4.0 - Fix bytecode color rendering (use local vars to avoid compiler quirk)
 
 #include "Particle.h"
 #include "neopixel.h"
@@ -162,7 +162,7 @@ struct StripRuntime {
 // GLOBALS
 // =============================================================================
 
-#define FIRMWARE_VERSION "2.3.0"
+#define FIRMWARE_VERSION "2.4.0"
 
 // Platform name
 #if PLATFORM_ID == PLATFORM_PHOTON
@@ -944,17 +944,6 @@ int setBytecode(String command) {
         return -1;
     }
 
-    // Debug: Log raw bytecode bytes at color positions (16-18)
-    if (rt.bytecodeLen >= 19) {
-        char rawBuf[64];
-        snprintf(rawBuf, sizeof(rawBuf), "RAW:len=%d,hdr=%c%c%c,v=%d,eff=%d,RGB=%d,%d,%d",
-                 rt.bytecodeLen,
-                 rt.bytecode[0], rt.bytecode[1], rt.bytecode[2],
-                 rt.bytecode[3], rt.bytecode[8],
-                 rt.bytecode[16], rt.bytecode[17], rt.bytecode[18]);
-        Particle.publish("bytecode_raw", rawBuf, PRIVATE);
-    }
-
     // Parse the bytecode to extract effect and parameters
     parseBytecode(stripIdx);
 
@@ -979,13 +968,6 @@ int setBytecode(String command) {
         }
         Serial.println();
     }
-
-    // Publish debug event for remote monitoring (visible in Particle console)
-    char debugBuf[128];
-    snprintf(debugBuf, sizeof(debugBuf), "D%d:eff=%d,RGB=(%d,%d,%d),bright=%d,pat=%d,v=%d",
-             pin, rt.bytecodeEffect, rt.bytecodeR, rt.bytecodeG, rt.bytecodeB,
-             rt.bytecodeBrightness, cfg.pattern, rt.bytecodeVersion);
-    Particle.publish("bytecode_debug", debugBuf, PRIVATE);
 
     return rt.bytecodeLen;
 }
@@ -1140,8 +1122,12 @@ void runPattern(int idx) {
             // Map bytecode effect to native patterns using parsed parameters
             switch (rt.bytecodeEffect) {
                 case EFFECT_SOLID:
+                    // Use local vars to avoid compiler quirk with struct member access
+                    r = rt.bytecodeR;
+                    g = rt.bytecodeG;
+                    b = rt.bytecodeB;
                     for (int i = 0; i < count; i++) {
-                        strip->setPixelColor(i, strip->Color(rt.bytecodeR, rt.bytecodeG, rt.bytecodeB));
+                        strip->setPixelColor(i, strip->Color(r, g, b));
                     }
                     break;
 
@@ -1305,8 +1291,11 @@ void runPattern(int idx) {
                             }
                         } else {
                             // No palette - use primary color
+                            r = rt.bytecodeR;
+                            g = rt.bytecodeG;
+                            b = rt.bytecodeB;
                             for (int i = 0; i < count; i++) {
-                                strip->setPixelColor(i, strip->Color(rt.bytecodeR, rt.bytecodeG, rt.bytecodeB));
+                                strip->setPixelColor(i, strip->Color(r, g, b));
                             }
                         }
                     }
@@ -1342,14 +1331,16 @@ void runPattern(int idx) {
                                 if (rt.paletteCount > 0) {
                                     // Use random color from palette
                                     int colorIdx = random(rt.paletteCount);
-                                    strip->setPixelColor(sparkleIdx, strip->Color(
-                                        rt.palette[colorIdx].r,
-                                        rt.palette[colorIdx].g,
-                                        rt.palette[colorIdx].b));
+                                    r = rt.palette[colorIdx].r;
+                                    g = rt.palette[colorIdx].g;
+                                    b = rt.palette[colorIdx].b;
+                                    strip->setPixelColor(sparkleIdx, strip->Color(r, g, b));
                                 } else {
                                     // Use primary color
-                                    strip->setPixelColor(sparkleIdx, strip->Color(
-                                        rt.bytecodeR, rt.bytecodeG, rt.bytecodeB));
+                                    r = rt.bytecodeR;
+                                    g = rt.bytecodeG;
+                                    b = rt.bytecodeB;
+                                    strip->setPixelColor(sparkleIdx, strip->Color(r, g, b));
                                 }
                             }
                         }
@@ -1358,8 +1349,11 @@ void runPattern(int idx) {
 
                 default:
                     // Default to solid with bytecode color
+                    r = rt.bytecodeR;
+                    g = rt.bytecodeG;
+                    b = rt.bytecodeB;
                     for (int i = 0; i < count; i++) {
-                        strip->setPixelColor(i, strip->Color(rt.bytecodeR, rt.bytecodeG, rt.bytecodeB));
+                        strip->setPixelColor(i, strip->Color(r, g, b));
                     }
                     break;
             }
