@@ -19,6 +19,10 @@ function glowBlasterPage() {
         selectedDevice: null,
         selectedStripPin: null,
 
+        // View Conversation modal
+        showViewModal: false,
+        conversationJson: '',
+
         // Pattern editing state
         editingPatternId: null,
         editingPatternName: null,
@@ -582,6 +586,50 @@ function glowBlasterPage() {
             if (diff < 604800000) return Math.floor(diff / 86400000) + 'd ago';
 
             return date.toLocaleDateString();
+        },
+
+        viewConversation() {
+            if (!this.activeConversation) return;
+            // Prepare JSON
+            const exportData = {
+                conversationId: this.activeConversation.conversationId,
+                title: this.activeConversation.title,
+                model: this.activeConversation.model,
+                createdAt: this.activeConversation.createdAt,
+                updatedAt: this.activeConversation.updatedAt,
+                messages: this.currentMessages
+            };
+            this.conversationJson = JSON.stringify(exportData, null, 2);
+            this.showViewModal = true;
+        },
+
+        downloadConversation() {
+            if (!this.activeConversation) return;
+            const exportData = {
+                conversationId: this.activeConversation.conversationId,
+                title: this.activeConversation.title,
+                model: this.activeConversation.model,
+                messages: this.currentMessages
+            };
+            const jsonStr = JSON.stringify(exportData, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `glowblaster-chat-${this.activeConversation.conversationId.substring(0, 8)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        },
+
+        copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                NotificationBanner.success('Copied to clipboard');
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+                NotificationBanner.error('Failed to copy');
+            });
         },
 
         scrollToBottom() {

@@ -87,6 +87,19 @@
 
             <!-- Center: Chat interface -->
             <div class="chat-container">
+                <!-- Chat Header with Actions -->
+                <div class="chat-header" style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; border-bottom: 1px solid #e5e7eb; background: #fff;">
+                    <div style="font-weight: 500; color: #374151;" x-text="activeConversation ? activeConversation.title : 'New Conversation'"></div>
+                    <div style="display: flex; gap: 0.5rem;" x-show="activeConversation">
+                        <button @click="viewConversation()" class="btn btn-sm" style="background: #f3f4f6; color: #4b5563;" title="View Raw JSON">
+                            <span style="font-size: 1.1em;">👁️</span>
+                        </button>
+                        <button @click="downloadConversation()" class="btn btn-sm" style="background: #f3f4f6; color: #4b5563;" title="Download JSON">
+                            <span style="font-size: 1.1em;">⬇️</span>
+                        </button>
+                    </div>
+                </div>
+
                 <div class="chat-messages" x-ref="chatMessages">
                     <!-- Welcome message -->
                     <div x-show="currentMessages.length === 0" class="chat-welcome">
@@ -184,6 +197,22 @@
                 <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
                     <button @click="showDeviceModal = false" class="btn btn-secondary">Cancel</button>
                     <button @click="sendToDevice()" class="btn btn-primary" :disabled="!selectedDeviceId">Send</button>
+                </div>
+            </div>
+        </div>
+        <!-- View Conversation Modal -->
+        <div x-show="showViewModal" class="modal" style="display: none;" @click.self="showViewModal = false">
+            <div class="modal-content" style="max-width: 800px; height: 80vh; display: flex; flex-direction: column;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h2>Conversation Data</h2>
+                    <button @click="showViewModal = false" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">&times;</button>
+                </div>
+                <div style="flex: 1; overflow: auto; background: #f9fafb; padding: 1rem; border-radius: 8px; border: 1px solid #e5e7eb;">
+                    <pre x-text="conversationJson" style="margin: 0; font-family: monospace; font-size: 0.85rem; white-space: pre-wrap; word-break: break-all;"></pre>
+                </div>
+                <div style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem;">
+                    <button @click="copyToClipboard(conversationJson)" class="btn btn-secondary">Copy to Clipboard</button>
+                    <button @click="showViewModal = false" class="btn btn-primary">Close</button>
                 </div>
             </div>
         </div>

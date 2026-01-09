@@ -284,6 +284,7 @@ Resources:
     Properties:
       CodeUri: backend/functions/auth/
       Handler: bootstrap
+      MemorySize: 1024
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref UsersTable
