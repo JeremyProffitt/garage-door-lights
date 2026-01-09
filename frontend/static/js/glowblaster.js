@@ -12,6 +12,7 @@ function glowBlasterPage() {
         isLoading: false,
         totalTokens: 0,
         selectedModel: 'claude-sonnet-4-20250514',
+        models: [],
 
         // Device modal
         showDeviceModal: false,
@@ -29,6 +30,7 @@ function glowBlasterPage() {
 
         async init() {
             await Promise.all([
+                this.loadModels(),
                 this.loadConversations(),
                 this.loadGlowBlasterPatterns(),
                 this.loadDevices()
@@ -41,6 +43,52 @@ function glowBlasterPage() {
                 await this.loadPatternForEditing(patternId);
                 // Clean up URL
                 window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        },
+
+        async loadModels() {
+            try {
+                const resp = await fetch('/api/glowblaster/models', {
+                    credentials: 'same-origin'
+                });
+                const data = await resp.json();
+                if (data.success && data.data) {
+                    // Convert map to array of objects for easier iteration
+                    this.models = Object.entries(data.data).map(([family, id]) => {
+                        // Extract version from ID (e.g., "3-5" -> "3.5", "4" -> "4")
+                        // claude-3-5-sonnet-20241022 -> 3.5
+                        let version = '';
+                        const match = id.match(/claude-(\d+(?:-\d+)?)/);
+                        if (match) {
+                            version = match[1].replace('-', '.');
+                        }
+
+                        let displayName = id;
+                        if (family === 'opus') displayName = `Opus ${version} (Best)`;
+                        else if (family === 'sonnet') displayName = `Sonnet ${version} (Balanced)`;
+                        else if (family === 'haiku') displayName = `Haiku ${version} (Fast)`;
+                        
+                        return { id: id, name: displayName, family: family };
+                    }).sort((a, b) => {
+                        // Sort order: opus, sonnet, haiku
+                        const order = { 'opus': 1, 'sonnet': 2, 'haiku': 3 };
+                        return (order[a.family] || 99) - (order[b.family] || 99);
+                    });
+                    
+                    // Set default model if current selected is not in list (or if it's the hardcoded default)
+                    const sonnetModel = this.models.find(m => m.family === 'sonnet');
+                    if (sonnetModel) {
+                        this.selectedModel = sonnetModel.id;
+                    } else if (this.models.length > 0) {
+                        this.selectedModel = this.models[0].id;
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to load models:', err);
+                // Fallback models if API fails
+                this.models = [
+                    { id: 'claude-3-5-sonnet-20241022', name: 'Sonnet 3.5', family: 'sonnet' }
+                ];
             }
         },
 

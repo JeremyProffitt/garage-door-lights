@@ -124,6 +124,7 @@ func setupRoutes(app *fiber.App) {
     app.Post("/api/glowblaster/compile", middleware.APIAuthMiddleware, handlers.GlowBlasterCompileHandler)
     app.Get("/api/glowblaster/patterns", middleware.APIAuthMiddleware, handlers.GetGlowBlasterPatternsHandler)
     app.Post("/api/glowblaster/patterns", middleware.APIAuthMiddleware, handlers.SaveGlowBlasterPatternHandler)
+    app.Get("/api/glowblaster/models", middleware.APIAuthMiddleware, handlers.GetGlowBlasterModelsHandler)
 }
 
 func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {

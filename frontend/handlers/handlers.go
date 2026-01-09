@@ -185,6 +185,10 @@ func SaveGlowBlasterPatternHandler(c *fiber.Ctx) error {
     return proxyRequest(c, "POST", "/api/glowblaster/patterns", body)
 }
 
+func GetGlowBlasterModelsHandler(c *fiber.Ctx) error {
+    return proxyRequest(c, "GET", "/api/glowblaster/models", nil)
+}
+
 func proxyRequest(c *fiber.Ctx, method, path string, body []byte) error {
     sessionID := c.Cookies("session_id")
     if sessionID == "" {
