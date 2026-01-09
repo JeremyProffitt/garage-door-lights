@@ -35,12 +35,19 @@ type ChatRequest struct {
 
 // ChatResponse represents the response from a chat message
 type ChatResponse struct {
-	Message     string   `json:"message"`               // AI response text
-	LCL         string   `json:"lcl,omitempty"`         // Updated LCL if pattern changed
-	Bytecode    []byte   `json:"bytecode,omitempty"`    // Compiled bytecode for preview
-	TokensUsed  int      `json:"tokensUsed"`            // Tokens used in this request
-	TotalTokens int      `json:"totalTokens"`           // Total tokens in conversation
-	Suggestions []string `json:"suggestions,omitempty"` // Follow-up suggestions
+	Message     string         `json:"message"`               // AI response text
+	LCL         string         `json:"lcl,omitempty"`         // Updated LCL if pattern changed
+	Bytecode    []byte         `json:"bytecode,omitempty"`    // Compiled bytecode for preview
+	TokensUsed  int            `json:"tokensUsed"`            // Tokens used in this request
+	TotalTokens int            `json:"totalTokens"`           // Total tokens in conversation
+	Suggestions []string       `json:"suggestions,omitempty"` // Follow-up suggestions
+	Debug       *ChatDebugInfo `json:"debug,omitempty"`       // Debug info (prompt, messages)
+}
+
+// ChatDebugInfo contains debug information about the chat request
+type ChatDebugInfo struct {
+	SystemPrompt string          `json:"systemPrompt"`
+	Messages     []ClaudeMessage `json:"messages"`
 }
 
 // CompileRequest represents a request to compile LCL
