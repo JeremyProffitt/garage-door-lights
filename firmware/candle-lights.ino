@@ -13,12 +13,12 @@
 #define MAX_STRIPS 4           // Maximum number of LED strips supported
 #define MAX_LEDS_PER_STRIP 60  // Maximum LEDs per strip
 #define MAX_COLORS_PER_STRIP 8 // Maximum colors per strip
-#define PIXEL_TYPE WS2812B     // LED type for all strips
+#define PIXEL_TYPE WS2812B     // LED type
 
 // Default values
 #define DEFAULT_RED 255
-#define DEFAULT_GREEN 100
-#define DEFAULT_BLUE 0
+#define DEFAULT_GREEN 147
+#define DEFAULT_BLUE 41
 #define DEFAULT_BRIGHTNESS 128
 #define DEFAULT_SPEED 50
 
@@ -889,7 +889,6 @@ void runPattern(int idx) {
     if (strip == nullptr || !cfg.enabled) return;
 
     int count = cfg.ledCount;
-    uint8_t r, g, b;
 
     // Built-in patterns (Legacy support)
     if (cfg.pattern != PATTERN_BYTECODE) {
@@ -899,6 +898,14 @@ void runPattern(int idx) {
     }
 
     if (cfg.pattern == PATTERN_BYTECODE) {
+        static uint8_t lastEffect = 255;
+        if (rt.bytecodeEffect != lastEffect) {
+            Serial.printlnf("Effect: %d, RGB=(%d,%d,%d), Bg=(%d,%d,%d), Speed=%d", 
+                rt.bytecodeEffect, rt.primaryR, rt.primaryG, rt.primaryB, 
+                rt.secondaryR, rt.secondaryG, rt.secondaryB, rt.bytecodeSpeed);
+            lastEffect = rt.bytecodeEffect;
+        }
+        
         switch (rt.bytecodeEffect) {
             case EFFECT_SOLID:
                 for (int i = 0; i < count; i++) {
@@ -911,34 +918,38 @@ void runPattern(int idx) {
                     // Param2: Eye Size (1-10)
                     float eyeSize = (rt.param2 > 0) ? rt.param2 : 2.0f;
                     // Param3: Tail Length (Fade Rate)
-                    uint8_t tailFade = (rt.param3 > 0) ? (255 / (rt.param3 + 1)) : 80;
+                    // If tailLength is long (8), fade should be small. 
+                    // Let's use a better mapping:
+                    uint8_t fadeRate = 100; // Default
+                    if (rt.param3 > 0) {
+                        fadeRate = 255 / (rt.param3 + 2); 
+                    }
+                    if (fadeRate < 10) fadeRate = 10;
                     
-                    // Fade out all pixels (tail effect)
+                    // 1. Fade out all pixels (tail effect)
                     for(int i = 0; i < count; i++) {
                         uint32_t c = strip->getPixelColor(i);
                         uint8_t cr = (c >> 16) & 0xFF;
                         uint8_t cg = (c >> 8) & 0xFF;
                         uint8_t cb = c & 0xFF;
                         
-                        // Fade to secondary color (background) instead of black
-                        // Simple fade to black for now:
-                        cr = (cr * (255 - tailFade)) / 256;
-                        cg = (cg * (255 - tailFade)) / 256;
-                        cb = (cb * (255 - tailFade)) / 256;
+                        // Fade towards secondary color
+                        if (cr > rt.secondaryR) { cr = (cr > fadeRate) ? cr - fadeRate : rt.secondaryR; }
+                        else if (cr < rt.secondaryR) { cr = (cr + fadeRate < rt.secondaryR) ? cr + fadeRate : rt.secondaryR; }
                         
-                        // If we have secondary color, blend towards it
-                        if (rt.secondaryR > 0 || rt.secondaryG > 0 || rt.secondaryB > 0) {
-                            if (cr < rt.secondaryR) cr++; 
-                            if (cg < rt.secondaryG) cg++;
-                            if (cb < rt.secondaryB) cb++;
-                        }
+                        if (cg > rt.secondaryG) { cg = (cg > fadeRate) ? cg - fadeRate : rt.secondaryG; }
+                        else if (cg < rt.secondaryG) { cg = (cg + fadeRate < rt.secondaryG) ? cg + fadeRate : rt.secondaryG; }
+                        
+                        if (cb > rt.secondaryB) { cb = (cb > fadeRate) ? cb - fadeRate : rt.secondaryB; }
+                        else if (cb < rt.secondaryB) { cb = (cb + fadeRate < rt.secondaryB) ? cb + fadeRate : rt.secondaryB; }
                         
                         strip->setPixelColor(i, strip->Color(cr, cg, cb));
                     }
 
-                    // Move scanner
-                    float speed = (float)rt.bytecodeSpeed / 255.0f; 
-                    rt.scannerPos += speed * rt.scannerDir;
+                    // 2. Move scanner
+                    float step = (float)rt.bytecodeSpeed / 128.0f; 
+                    if (step < 0.1f) step = 0.5f;
+                    rt.scannerPos += step * rt.scannerDir;
 
                     if (rt.scannerPos >= count - 1) {
                         rt.scannerPos = count - 1;
@@ -948,19 +959,17 @@ void runPattern(int idx) {
                         rt.scannerDir = 1;
                     }
 
-                    // Draw Eye (Anti-aliased)
+                    // 3. Draw Eye (Anti-aliased)
                     int center = (int)rt.scannerPos;
-                    // Draw center pixel
                     strip->setPixelColor(center, strip->Color(rt.primaryR, rt.primaryG, rt.primaryB));
                     
-                    // Draw neighbors based on eye size
-                    for (int i = 1; i < eyeSize; i++) {
-                        uint8_t dim = 255 / (i + 1);
+                    for (int i = 1; i <= (int)eyeSize; i++) {
+                        float intensity = 1.0f - ((float)i / (eyeSize + 1.0f));
                         if (center + i < count) {
-                            strip->setPixelColor(center + i, strip->Color((rt.primaryR * dim)/255, (rt.primaryG * dim)/255, (rt.primaryB * dim)/255));
+                            strip->setPixelColor(center + i, strip->Color(rt.primaryR * intensity, rt.primaryG * intensity, rt.primaryB * intensity));
                         }
                         if (center - i >= 0) {
-                            strip->setPixelColor(center - i, strip->Color((rt.primaryR * dim)/255, (rt.primaryG * dim)/255, (rt.primaryB * dim)/255));
+                            strip->setPixelColor(center - i, strip->Color(rt.primaryR * intensity, rt.primaryG * intensity, rt.primaryB * intensity));
                         }
                     }
                 }
