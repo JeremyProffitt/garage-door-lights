@@ -80,7 +80,7 @@ func (c *ClaudeClient) SendMessage(model, systemPrompt string, messages []Claude
 	}
 
 	// Validate model
-	if !ValidModels[model] {
+	if !IsValidModel(model) {
 		model = DefaultModel
 	}
 

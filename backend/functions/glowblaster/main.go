@@ -122,7 +122,7 @@ func handleCreateConversation(ctx context.Context, username string, request even
 	if req.Title == "" {
 		req.Title = "New Pattern"
 	}
-	if req.Model == "" || !shared.ValidModels[req.Model] {
+	if req.Model == "" || !shared.IsValidModel(req.Model) {
 		req.Model = shared.DefaultModel
 	}
 
@@ -229,7 +229,7 @@ func handleChat(ctx context.Context, username, conversationID string, request ev
 
 	// Determine model to use
 	model := conversation.Model
-	if req.Model != "" && shared.ValidModels[req.Model] {
+	if req.Model != "" && shared.IsValidModel(req.Model) {
 		model = req.Model
 		conversation.Model = model
 	}
