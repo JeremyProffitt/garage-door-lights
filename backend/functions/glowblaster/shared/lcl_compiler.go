@@ -7,62 +7,62 @@ import (
 	"strings"
 )
 
-// LCL Bytecode Format Version 3 - Fixed Format (no opcodes)
-// This is a simplified format that uses fixed byte positions instead of opcodes.
+// LCL Bytecode Format Version 4 - Expanded Fixed Format
+// This is an expanded format that uses fixed byte positions instead of opcodes.
 //
 // HEADER (8 bytes):
 //   [0-2]   Magic "LCL"
-//   [3]     Version = 0x03
+//   [3]     Version = 0x04
 //   [4-5]   Total length (16-bit big-endian)
 //   [6]     Checksum (XOR of bytes 8+)
 //   [7]     Flags
 //
-// CORE PARAMETERS (8 bytes):
+// CORE PARAMETERS (16 bytes):
 //   [8]     Effect type
 //   [9]     Brightness (0-255)
 //   [10]    Speed (0-255)
-//   [11]    Param1 (effect-specific: density, rhythm, cooling, wave_count)
-//   [12]    Param2 (effect-specific: sparking)
-//   [13]    Param3 (reserved)
-//   [14]    Direction (0=forward, 1=reverse)
-//   [15]    Reserved
+//   [11]    Param1 (density, rhythm, cooling, wave_count)
+//   [12]    Param2 (sparking, width, eye_size)
+//   [13]    Param3 (tail_length, fade_rate)
+//   [14]    Param4 (direction, style)
+//   [15]    ColorMode (0=Palette, 1=Dual, 2=Texture)
+//   [16-23] Reserved / Secondary Color indices? -> Let's keep reserved for now
 //
-// PRIMARY COLOR (3 bytes):
-//   [16-18] R, G, B
-//
-// PALETTE (1 + 3*N bytes):
-//   [19]    Color count (0-8)
-//   [20+]   Colors (R, G, B each)
+// COLORS (Starts at 24):
+//   [24-26] Primary Color (R, G, B)
+//   [27-29] Secondary Color (R, G, B)
+//   [30]    Palette Count (0-8)
+//   [31+]   Palette Colors (R, G, B each)
 
 const (
 	LCLMagic          = "LCL"
-	LCLVersion        = 0x03 // Version 3: Fixed format
+	LCLVersion        = 0x04 // Version 4: Expanded Fixed format
 	LCLHeaderSize     = 8
-	LCLCoreParamsSize = 8
-	LCLColorSize      = 3
+	LCLCoreParamsSize = 16
+	LCLColorBlockSize = 7 // Primary(3) + Secondary(3) + Count(1)
 	MaxPaletteColors  = 8
 )
 
 // Byte offsets in the fixed-format bytecode
 const (
-	OffsetMagic      = 0
-	OffsetVersion    = 3
-	OffsetLength     = 4
-	OffsetChecksum   = 6
-	OffsetFlags      = 7
-	OffsetEffect     = 8
-	OffsetBrightness = 9
-	OffsetSpeed      = 10
-	OffsetParam1     = 11
-	OffsetParam2     = 12
-	OffsetParam3     = 13
-	OffsetDirection  = 14
-	OffsetReserved   = 15
-	OffsetColorR     = 16
-	OffsetColorG     = 17
-	OffsetColorB     = 18
-	OffsetColorCount = 19
-	OffsetPalette    = 20
+	OffsetMagic           = 0
+	OffsetVersion         = 3
+	OffsetLength          = 4
+	OffsetChecksum        = 6
+	OffsetFlags           = 7
+	OffsetEffect          = 8
+	OffsetBrightness      = 9
+	OffsetSpeed           = 10
+	OffsetParam1          = 11
+	OffsetParam2          = 12
+	OffsetParam3          = 13
+	OffsetParam4          = 14
+	OffsetColorMode       = 15
+	OffsetReservedStart   = 16
+	OffsetPrimaryColor    = 24
+	OffsetSecondaryColor  = 27
+	OffsetColorCount      = 30
+	OffsetPalette         = 31
 )
 
 // Effect Type IDs (must match firmware)
@@ -75,7 +75,9 @@ const (
 	EffectCandle   byte = 0x08
 	EffectWave     byte = 0x09
 	EffectRainbow  byte = 0x0A
-	EffectChase    byte = 0x09 // Chase uses Wave logic for now in v3
+	EffectScanner  byte = 0x0B // New Scanner Effect (Larson Scanner)
+	EffectWipe     byte = 0x0C // New Wipe Effect
+	EffectChase    byte = 0x09 // Chase uses Wave logic for now in v3 (v4 might map to scanner?)
 	EffectBreathe  byte = 0x02 // Breathe is Pulse
 )
 
@@ -89,26 +91,41 @@ var effectTypes = map[string]byte{
 	"fire":     EffectFire,
 	"candle":   EffectCandle,
 	"wave":     EffectWave,
-	"chase":    EffectChase,
+	"chase":    EffectWave,    // Map chase to Wave for now, unless we want strict chase
+	"scanner":  EffectScanner, // Knight Rider!
+	"wipe":     EffectWipe,
 	"rainbow":  EffectRainbow,
 }
 
 // PatternSpec is the Specification Layer (Intermediate Representation)
 // This maps directly to the compiled bytecode parameters
 type PatternSpec struct {
-	Effect     string   `json:"effect"`               // Required
-	Colors     []string `json:"colors"`               // Required: array of hex colors
-	Brightness int      `json:"brightness,omitempty"` // 0-255
-	Speed      int      `json:"speed,omitempty"`      // 0-255
+	Effect          string   `json:"effect"`               // Required
+	Colors          []string `json:"colors"`               // Required: array of hex colors
+	BackgroundColor string   `json:"background_color"`     // Optional: secondary color
+	Brightness      int      `json:"brightness,omitempty"` // 0-255
+	Speed           int      `json:"speed,omitempty"`      // 0-255
+	
+	// Param1
 	Density    int      `json:"density,omitempty"`    // 0-255 (Sparkle)
 	Cooling    int      `json:"cooling,omitempty"`    // 0-255 (Fire: Flame Height)
-	Sparking   int      `json:"sparking,omitempty"`   // 0-255 (Fire: Spark Frequency)
 	WaveCount  int      `json:"wave_count,omitempty"` // 1-10 (Wave)
+	Rhythm     int      `json:"rhythm,omitempty"`     // 0-255 (Pulse)
+
+	// Param2
+	Sparking   int      `json:"sparking,omitempty"`   // 0-255 (Fire: Spark Frequency)
+	EyeSize    int      `json:"eye_size,omitempty"`   // 1-10 (Scanner)
+
+	// Param3
+	TailLength int      `json:"tail_length,omitempty"` // 0-20 (Scanner/Chase)
+	
+	// Param4
 	Direction  int      `json:"direction,omitempty"`  // 0=forward, 1=reverse
+	Style      int      `json:"style,omitempty"`      // 0=smooth, 1=bounce...
 }
 
-// CompileLCLv3 compiles a PatternSpec to fixed-format bytecode
-func CompileLCLv3(spec *PatternSpec) ([]byte, error) {
+// CompileLCLv4 compiles a PatternSpec to fixed-format bytecode
+func CompileLCLv4(spec *PatternSpec) ([]byte, error) {
 	// Validate effect type
 	effectID, ok := effectTypes[strings.ToLower(spec.Effect)]
 	if !ok {
@@ -123,42 +140,50 @@ func CompileLCLv3(spec *PatternSpec) ([]byte, error) {
 		spec.Colors = spec.Colors[:MaxPaletteColors]
 	}
 
+	// Parse primary colors
 	colors := make([][3]byte, 0, len(spec.Colors))
 	for _, colorStr := range spec.Colors {
 		r, g, b, err := parseHexColor(colorStr)
 		if err != nil {
-			// Fallback to white on error
 			colors = append(colors, [3]byte{255, 255, 255})
 		} else {
 			colors = append(colors, [3]byte{r, g, b})
 		}
 	}
 
+	// Parse secondary/background color
+	secondaryColor := [3]byte{0, 0, 0}
+	if spec.BackgroundColor != "" {
+		r, g, b, err := parseHexColor(spec.BackgroundColor)
+		if err == nil {
+			secondaryColor = [3]byte{r, g, b}
+		}
+	} else if len(colors) > 1 {
+		// If no background specified but palette has 2+ colors, use 2nd as secondary
+		// secondaryColor = colors[1] // Actually, let's keep secondary explicit or default black
+	}
+
 	// Apply defaults
 	brightness := spec.Brightness
-	if brightness <= 0 {
-		brightness = 200
-	}
-	if brightness > 255 {
-		brightness = 255
-	}
+	if brightness <= 0 { brightness = 200 }
+	if brightness > 255 { brightness = 255 }
 
 	speed := spec.Speed
-	if speed <= 0 {
-		speed = 128
-	}
-	if speed > 255 {
-		speed = 255
-	}
+	if speed <= 0 { speed = 128 }
+	if speed > 255 { speed = 255 }
 
 	// Calculate effect-specific params
-	param1, param2 := getEffectParams(effectID, spec)
+	param1, param2, param3, param4 := getEffectParamsV4(effectID, spec)
 
 	// Build bytecode
-
-paletteSize := 1 + len(colors)*3
-totalLen := LCLHeaderSize + LCLCoreParamsSize + LCLColorSize + paletteSize
-bytecode := make([]byte, totalLen)
+	paletteSize := 0
+	if len(colors) > 0 {
+		paletteSize = len(colors) * 3
+	}
+	
+	// Total length: Header(8) + Core(16) + Primary(3) + Secondary(3) + Count(1) + Palette(N*3)
+	totalLen := LCLHeaderSize + LCLCoreParamsSize + LCLColorBlockSize + paletteSize
+	bytecode := make([]byte, totalLen)
 
 	// Header
 	copy(bytecode[OffsetMagic:], LCLMagic)
@@ -173,16 +198,26 @@ bytecode := make([]byte, totalLen)
 	bytecode[OffsetSpeed] = byte(speed)
 	bytecode[OffsetParam1] = param1
 	bytecode[OffsetParam2] = param2
-	bytecode[OffsetParam3] = 0
-	bytecode[OffsetDirection] = byte(spec.Direction & 0x01)
-	bytecode[OffsetReserved] = 0
-
-	// Primary color (first color in palette)
+	bytecode[OffsetParam3] = param3
+	bytecode[OffsetParam4] = param4
+	bytecode[OffsetColorMode] = 0 // Default palette mode for now
+	
+	// Direction override if Param4 didn't handle it
+	// Actually direction is mapped to Param4 usually, or handled here?
+	// Let's OR it in if Param4 is used for style, or use Param4 purely for direction/style combo
+	// For simplicity, Param4 IS direction/style
+	
+	// Primary Color
 	if len(colors) > 0 {
-		bytecode[OffsetColorR] = colors[0][0]
-		bytecode[OffsetColorG] = colors[0][1]
-		bytecode[OffsetColorB] = colors[0][2]
+		bytecode[OffsetPrimaryColor] = colors[0][0]
+		bytecode[OffsetPrimaryColor+1] = colors[0][1]
+		bytecode[OffsetPrimaryColor+2] = colors[0][2]
 	}
+
+	// Secondary Color
+	bytecode[OffsetSecondaryColor] = secondaryColor[0]
+	bytecode[OffsetSecondaryColor+1] = secondaryColor[1]
+	bytecode[OffsetSecondaryColor+2] = secondaryColor[2]
 
 	// Palette
 	bytecode[OffsetColorCount] = byte(len(colors))
@@ -203,49 +238,51 @@ bytecode := make([]byte, totalLen)
 	return bytecode, nil
 }
 
-// getEffectParams returns param1 and param2 based on effect type
-func getEffectParams(effectID byte, spec *PatternSpec) (byte, byte) {
+// getEffectParamsV4 returns param1, param2, param3, param4 based on effect type
+func getEffectParamsV4(effectID byte, spec *PatternSpec) (byte, byte, byte, byte) {
+	p1, p2, p3, p4 := byte(0), byte(0), byte(0), byte(0)
+
+	// Common Direction mapping for P4
+	p4 = byte(spec.Direction & 0x01) // Default
+
 	switch effectID {
 	case EffectSparkle:
-		density := spec.Density
-		if density <= 0 {
-			density = 128
-		}
-		return byte(density), 0
+		if spec.Density <= 0 { spec.Density = 128 }
+		p1 = byte(spec.Density)
 
 	case EffectPulse, EffectBreathe:
-		// Param1 = rhythm (higher = slower pulse)
-		// Map speed (0-255) to rhythm (255-0 roughly)
 		rhythm := 255 - spec.Speed
-		if rhythm < 10 {
-			rhythm = 10
-		}
-		return byte(rhythm), 0
+		if spec.Rhythm > 0 { rhythm = spec.Rhythm } // Allow override
+		if rhythm < 10 { rhythm = 10 }
+		p1 = byte(rhythm)
 
 	case EffectFire, EffectCandle:
-		cooling := spec.Cooling
-		if cooling <= 0 {
-			cooling = 55
-		}
-		sparking := spec.Sparking
-		if sparking <= 0 {
-			sparking = 120
-		}
-		return byte(cooling), byte(sparking)
+		if spec.Cooling <= 0 { spec.Cooling = 55 }
+		if spec.Sparking <= 0 { spec.Sparking = 120 }
+		p1 = byte(spec.Cooling)
+		p2 = byte(spec.Sparking)
 
 	case EffectWave, EffectChase:
-		waveCount := spec.WaveCount
-		if waveCount <= 0 {
-			waveCount = 3
-		}
-		if waveCount > 10 {
-			waveCount = 10
-		}
-		return byte(waveCount), 0
-
-	default:
-		return 0, 0
+		if spec.WaveCount <= 0 { spec.WaveCount = 3 }
+		if spec.WaveCount > 10 { spec.WaveCount = 10 }
+		p1 = byte(spec.WaveCount)
+		// Chase could use P2/P3 for head/tail
+		p2 = byte(spec.EyeSize)
+		p3 = byte(spec.TailLength)
+	
+	case EffectScanner: // Knight Rider
+		// P1: Reserved? Maybe speed modifier?
+		// P2: Eye Size (Width)
+		// P3: Tail Length (Fade)
+		// P4: Direction/Bounce
+		if spec.EyeSize <= 0 { spec.EyeSize = 2 }
+		if spec.TailLength <= 0 { spec.TailLength = 4 }
+		p2 = byte(spec.EyeSize)
+		p3 = byte(spec.TailLength)
+		// Direction handled by default p4
 	}
+
+	return p1, p2, p3, p4
 }
 
 // parseHexColor parses a hex color string
@@ -317,7 +354,7 @@ func ParseIntentYAML(yamlStr string) (*PatternSpec, error) {
 
 		key := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])
-		value = strings.Trim(value, "'"")
+		value = strings.Trim(value, "'\"")
 
 		// Route based on section
 		switch currentSection {
@@ -349,7 +386,6 @@ func mapBehavior(key, value string, spec *PatternSpec) {
 	switch key {
 	// Fire
 	case "flame_height":
-		// Maps to Cooling (Inverse: Taller = Lower Cooling)
 		switch value {
 		case "very_short", "tiny": spec.Cooling = 120
 		case "short", "small": spec.Cooling = 80
@@ -359,7 +395,6 @@ func mapBehavior(key, value string, spec *PatternSpec) {
 		default: spec.Cooling = 55
 		}
 	case "spark_frequency":
-		// Maps to Sparking
 		switch value {
 		case "rare", "few": spec.Sparking = 50
 		case "occasional", "some": spec.Sparking = 80
@@ -392,8 +427,6 @@ func mapBehavior(key, value string, spec *PatternSpec) {
 
 	// Breathe
 	case "rhythm":
-		// Maps to Speed (Inverse logic handled in getEffectParams, but here we map semantics to speed)
-		// "Calm" = Slow Speed
 		switch value {
 		case "calm": spec.Speed = 70
 		case "relaxed": spec.Speed = 100
@@ -403,11 +436,36 @@ func mapBehavior(key, value string, spec *PatternSpec) {
 		default: spec.Speed = 128
 		}
 	
-	// Chase
-	case "head_size":
-		// Not directly supported in v3 bytecode yet, ignored
+	// Scanner / Chase (New in v4)
+	case "eye_size", "head_size":
+		switch value {
+		case "tiny": spec.EyeSize = 1
+		case "small": spec.EyeSize = 2
+		case "medium": spec.EyeSize = 3
+		case "large": spec.EyeSize = 5
+		case "huge": spec.EyeSize = 8
+		default: 
+			if v, err := strconv.Atoi(value); err == nil {
+				spec.EyeSize = v
+			} else {
+				spec.EyeSize = 3
+			}
+		}
+
 	case "tail_length":
-		// Not directly supported in v3 bytecode yet, ignored
+		switch value {
+		case "none": spec.TailLength = 0
+		case "short": spec.TailLength = 2
+		case "medium": spec.TailLength = 4
+		case "long": spec.TailLength = 8
+		case "ghost": spec.TailLength = 16
+		default:
+			if v, err := strconv.Atoi(value); err == nil {
+				spec.TailLength = v
+			} else {
+				spec.TailLength = 4
+			}
+		}
 	}
 }
 
@@ -428,10 +486,8 @@ func mapAppearance(key, value string, spec *PatternSpec) {
 				spec.Brightness = v
 			}
 		}
-	case "background":
-		// Append background color as secondary color if needed
-		// For now, simple implementation: ignore or append?
-		// spec.Colors = append(spec.Colors, resolveColor(value))
+	case "background", "background_color":
+		spec.BackgroundColor = resolveColor(value)
 	}
 }
 
@@ -486,6 +542,8 @@ func resolveColorScheme(scheme string) []string {
 		return []string{"#8B4500", "#D2691E", "#FFA500", "#FFD700"}
 	case "blue_gas":
 		return []string{"#000000", "#00008B", "#0000FF", "#00FFFF", "#FFFFFF"}
+	case "knight_rider", "scanner_red":
+		return []string{"#FF0000"} // Basic Red
 	default:
 		return []string{"#FFFFFF"}
 	}
@@ -545,8 +603,8 @@ func CompileLCL(input string) ([]byte, []string, error) {
 		return nil, nil, fmt.Errorf("effect is required")
 	}
 
-	// Compile
-	bytecode, err := CompileLCLv3(spec)
+	// Compile - USE V4
+	bytecode, err := CompileLCLv4(spec)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -571,7 +629,7 @@ func ExtractDescriptionFromLCL(lclText string) string {
 		if strings.HasPrefix(line, "name:") {
 			parts := strings.SplitN(line, ":", 2)
 			if len(parts) == 2 {
-				return strings.Trim(strings.TrimSpace(parts[1]), "'"")
+				return strings.Trim(strings.TrimSpace(parts[1]), "'\"")
 			}
 		}
 	}

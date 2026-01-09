@@ -86,6 +86,24 @@ func handleLogin(ctx context.Context, request events.APIGatewayProxyRequest) (ev
 
     log.Printf("handleLogin: Password validated successfully for user: %s", user.Username)
 
+    // Check if password needs re-hashing (migration from cost 14 to 10)
+    if shared.NeedsRehash(user.PasswordHash) {
+        log.Printf("handleLogin: Migrating password hash for user: %s", user.Username)
+        newHash, err := shared.HashPassword(loginReq.Password)
+        if err == nil {
+            user.PasswordHash = newHash
+            user.UpdatedAt = time.Now()
+            if err := shared.PutItem(ctx, usersTable, user); err != nil {
+                log.Printf("handleLogin: Failed to update user password hash: %v", err)
+                // Continue login even if update fails
+            } else {
+                log.Printf("handleLogin: Successfully migrated password hash for user: %s", user.Username)
+            }
+        } else {
+            log.Printf("handleLogin: Failed to generate new hash for migration: %v", err)
+        }
+    }
+
     // Create session
     userAgent := request.Headers["User-Agent"]
     ipAddress := request.RequestContext.Identity.SourceIP

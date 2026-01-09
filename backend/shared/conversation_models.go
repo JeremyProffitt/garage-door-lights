@@ -77,17 +77,15 @@ type CompactRequest struct {
 
 // Available Claude models for Glow Blaster
 const (
-	ModelClaudeOpus45   = "claude-opus-4-5-20251101"
-	ModelClaudeSonnet4  = "claude-sonnet-4-20250514"
+	ModelClaude37Sonnet = "claude-3-7-sonnet-20250219"
 	ModelClaude35Sonnet = "claude-3-5-sonnet-20241022"
 	ModelClaude35Haiku  = "claude-3-5-haiku-20241022"
-	DefaultModel        = ModelClaudeSonnet4
+	DefaultModel        = ModelClaude37Sonnet
 )
 
 // ValidModels is the list of valid model identifiers
 var ValidModels = map[string]bool{
-	ModelClaudeOpus45:   true,
-	ModelClaudeSonnet4:  true,
+	ModelClaude37Sonnet: true,
 	ModelClaude35Sonnet: true,
 	ModelClaude35Haiku:  true,
 }
@@ -95,10 +93,8 @@ var ValidModels = map[string]bool{
 // GetModelDisplayName returns a human-readable name for the model
 func GetModelDisplayName(model string) string {
 	switch model {
-	case ModelClaudeOpus45:
-		return "Claude Opus 4.5"
-	case ModelClaudeSonnet4:
-		return "Claude Sonnet 4"
+	case ModelClaude37Sonnet:
+		return "Claude 3.7 Sonnet"
 	case ModelClaude35Sonnet:
 		return "Claude 3.5 Sonnet"
 	case ModelClaude35Haiku:
