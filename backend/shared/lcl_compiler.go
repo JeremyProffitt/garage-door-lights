@@ -77,21 +77,21 @@ const (
 	EffectRainbow  byte = 0x0A
 	EffectScanner  byte = 0x0B // New Scanner Effect (Larson Scanner)
 	EffectWipe     byte = 0x0C // New Wipe Effect
-	EffectChase    byte = 0x09 // Chase uses Wave logic for now in v3 (v4 might map to scanner?)
-	EffectBreathe  byte = 0x02 // Breathe is Pulse
+	// EffectChase    byte = 0x09 // REMOVED: Duplicate of Wave
+	// EffectBreathe  byte = 0x02 // REMOVED: Duplicate of Pulse
 )
 
 // Effect type name to ID mapping
 var effectTypes = map[string]byte{
 	"solid":    EffectSolid,
 	"pulse":    EffectPulse,
-	"breathe":  EffectBreathe,
+	"breathe":  EffectPulse, // Map string "breathe" to Pulse ID
 	"sparkle":  EffectSparkle,
 	"gradient": EffectGradient,
 	"fire":     EffectFire,
 	"candle":   EffectCandle,
 	"wave":     EffectWave,
-	"chase":    EffectWave,    // Map chase to Wave for now, unless we want strict chase
+	"chase":    EffectWave,    // Map string "chase" to Wave ID
 	"scanner":  EffectScanner, // Knight Rider!
 	"wipe":     EffectWipe,
 	"rainbow":  EffectRainbow,
@@ -250,7 +250,7 @@ func getEffectParamsV4(effectID byte, spec *PatternSpec) (byte, byte, byte, byte
 		if spec.Density <= 0 { spec.Density = 128 }
 		p1 = byte(spec.Density)
 
-	case EffectPulse, EffectBreathe:
+	case EffectPulse: // Removed EffectBreathe case
 		rhythm := 255 - spec.Speed
 		if spec.Rhythm > 0 { rhythm = spec.Rhythm } // Allow override
 		if rhythm < 10 { rhythm = 10 }
@@ -262,7 +262,7 @@ func getEffectParamsV4(effectID byte, spec *PatternSpec) (byte, byte, byte, byte
 		p1 = byte(spec.Cooling)
 		p2 = byte(spec.Sparking)
 
-	case EffectWave, EffectChase:
+	case EffectWave: // Removed EffectChase case
 		if spec.WaveCount <= 0 { spec.WaveCount = 3 }
 		if spec.WaveCount > 10 { spec.WaveCount = 10 }
 		p1 = byte(spec.WaveCount)

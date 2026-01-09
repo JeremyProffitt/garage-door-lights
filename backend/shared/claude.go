@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -79,7 +80,7 @@ func (c *ClaudeClient) SendMessage(model, systemPrompt string, messages []Claude
 	}
 
 	// Validate model
-	if !ValidModels[model] {
+	if !IsValidModel(model) {
 		model = DefaultModel
 	}
 
@@ -143,7 +144,7 @@ func (c *ClaudeClient) GetResponseText(resp *ClaudeResponse) string {
 // Tries code blocks first, then falls back to raw YAML-like text
 func ExtractLCLFromResponse(text string) string {
 	// First try ```yaml or ```lcl code blocks
-	re := regexp.MustCompile("(?s)```(?:yaml|lcl)\\s*\\n(.+?)\\n```")
+	re := regexp.MustCompile("(?s)```(?:yaml|lcl)\s*\n(.+?)\n```")
 	matches := re.FindStringSubmatch(text)
 	if len(matches) > 1 {
 		return strings.TrimSpace(matches[1])
@@ -172,24 +173,232 @@ func ExtractLCLFromResponse(text string) string {
 	return ""
 }
 
-// ExtractDescriptionFromLCL extracts the description field from LCL text
-func ExtractDescriptionFromLCL(lclText string) string {
-	re := regexp.MustCompile(`(?m)^description:\s*["']?(.+?)["']?\s*$`)
-	matches := re.FindStringSubmatch(lclText)
-	if len(matches) > 1 {
-		return matches[1]
+// IsValidModel checks if the model ID is valid
+func IsValidModel(model string) bool {
+	// Allow any model ID that looks like an Anthropic model (starts with claude-)
+	// This allows dynamic models to be used even if not hardcoded here.
+	if len(model) > 7 && model[:7] == "claude-" {
+		return true
 	}
-	return ""
+	return false
 }
 
-// ConvertMessagesToClaudeFormat converts conversation messages to Claude API format
-func ConvertMessagesToClaudeFormat(messages []Message) []ClaudeMessage {
-	claudeMessages := make([]ClaudeMessage, 0, len(messages))
-	for _, msg := range messages {
-		claudeMessages = append(claudeMessages, ClaudeMessage{
-			Role:    msg.Role,
-			Content: msg.Content,
-		})
+// ClaudeModel represents a model returned by the API
+
+type ClaudeModel struct {
+
+	ID          string `json:"id"`
+
+	DisplayName string `json:"display_name"`
+
+	Created     int64  `json:"created_at"`
+
+}
+
+
+
+// ClaudeModelListResponse represents the response from the models endpoint
+
+type ClaudeModelListResponse struct {
+
+	Data []ClaudeModel `json:"data"`
+
+}
+
+
+
+// FetchLatestModels fetches available models and returns the latest ID for each family (opus, sonnet, haiku)
+
+func (c *ClaudeClient) FetchLatestModels() (map[string]string, error) {
+
+	if c.apiKey == "" {
+
+		return nil, fmt.Errorf("CLAUDE_API_KEY environment variable not set")
+
 	}
+
+
+
+	req, err := http.NewRequest("GET", "https://api.anthropic.com/v1/models", nil)
+
+	if err != nil {
+
+		return nil, fmt.Errorf("failed to create request: %w", err)
+
+	}
+
+
+
+	req.Header.Set("x-api-key", c.apiKey)
+	req.Header.Set("anthropic-version", ClaudeAPIVersion)
+
+
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+
+		return nil, fmt.Errorf("failed to fetch models: %w", err)
+
+	}
+	defer resp.Body.Close()
+
+
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+
+	}
+
+
+
+	if resp.StatusCode != http.StatusOK {
+
+		return nil, fmt.Errorf("failed to list models: status %d - %s", resp.StatusCode, string(body))
+
+	}
+
+
+
+	var listResp ClaudeModelListResponse
+	if err := json.Unmarshal(body, &listResp); err != nil {
+
+		return nil, fmt.Errorf("failed to decode models response: %w", err)
+
+	}
+
+
+
+	// Logic to find latest models
+
+	latestModels := make(map[string]string)
+	
+families := []string{"opus", "sonnet", "haiku"}
+	
+
+	// Helper to calculate score based on user algorithm
+
+	getScore := func(id string) float64 {
+		// "claude-3-5-sonnet-20241022"
+		
+
+		// 1. Remove anything but numbers and dashes
+
+		reg := regexp.MustCompile("[^0-9-]")
+
+		clean := reg.ReplaceAllString(id, "")
+		
+
+		// 2. Remove leading/trailing dashes
+
+		clean = strings.Trim(clean, "-")
+		
+
+		// 3. Replace dashes with periods
+
+		// "3-5--20241022" -> "3.5..20241022"
+
+		clean = strings.ReplaceAll(clean, "-", ".")
+		
+
+		// 4. Convert to float
+
+		// Ensure only one decimal point for valid float parsing? 
+
+		// Or assume the user wants "3.5" to be the float. 
+
+		// "3.5.2024..."
+
+		// We'll normalize multiple dots to ensure it parses. 
+
+		// Keep first dot, remove others.
+
+		parts := strings.Split(clean, ".")
+	if len(parts) == 0 { return 0 }
+		
+
+		floatStr := parts[0]
+	if len(parts) > 1 {
+			// Join the rest without dots? Or keep decimal precision?
+
+			// "3.5" vs "3.7". 
+
+			// If we have "3.5.2024", this is 3.52024
+
+			floatStr += "." + strings.Join(parts[1:], "")
+
+		}
+		
+
+		f, _ := strconv.ParseFloat(floatStr, 64)
+
+		return f
+
+	}
+
+
+
+	for _, family := range families {
+
+		var bestID string
+
+		var bestScore float64 = -1.0
+
+
+
+		for _, m := range listResp.Data {
+
+			if strings.Contains(m.ID, family) {
+
+				score := getScore(m.ID)
+
+				if score > bestScore {
+
+					bestScore = score
+
+					bestID = m.ID
+
+				}
+
+			}
+
+		}
+
+		if bestID != "" {
+
+			latestModels[family] = bestID
+
+		}
+
+	}
+
+
+
+	return latestModels, nil
+
+}
+
+
+
+// ConvertMessagesToClaudeFormat converts conversation messages to Claude API format
+
+func ConvertMessagesToClaudeFormat(messages []Message) []ClaudeMessage {
+
+	claudeMessages := make([]ClaudeMessage, 0, len(messages))
+
+	for _, msg := range messages {
+
+		claudeMessages = append(claudeMessages, ClaudeMessage{
+
+			Role:    msg.Role,
+
+			Content: msg.Content,
+
+		})
+
+	}
+
 	return claudeMessages
+
 }
