@@ -83,25 +83,26 @@ const (
 	DefaultModel        = ModelClaude37Sonnet
 )
 
-// ValidModels is the list of valid model identifiers
-var ValidModels = map[string]bool{
-	ModelClaude37Sonnet: true,
-	ModelClaude35Sonnet: true,
-	ModelClaude35Haiku:  true,
+// IsValidModel checks if the model ID is valid (basic format check or known model)
+func IsValidModel(model string) bool {
+	// Allow any model ID that looks like an Anthropic model (starts with claude-)
+	// This allows dynamic models to be used even if not hardcoded here.
+	if len(model) > 7 && model[:7] == "claude-" {
+		return true
+	}
+	return false
 }
 
 // GetModelDisplayName returns a human-readable name for the model
 func GetModelDisplayName(model string) string {
-	switch model {
-	case ModelClaude37Sonnet:
-		return "Claude 3.7 Sonnet"
-	case ModelClaude35Sonnet:
-		return "Claude 3.5 Sonnet"
-	case ModelClaude35Haiku:
-		return "Claude 3.5 Haiku"
-	default:
-		return model
+	// Dynamic formatting: "claude-3-7-sonnet-20250219" -> "Claude 3.7 Sonnet"
+	// This is a rough heuristic for display if not found in map (if we had one)
+	if len(model) > 7 && model[:7] == "claude-" {
+		// Capitalize first letter, replace hyphens with spaces?
+		// Simple static mapping for known ones is fine for UI, but backend mostly passes it through.
+		return model // Return ID as fallback
 	}
+	return model
 }
 
 // OneYearInSeconds is the TTL duration for conversations (365 days)

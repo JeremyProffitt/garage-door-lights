@@ -59,6 +59,10 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
 	case path == "/api/glowblaster/compile" && method == "POST":
 		return handleCompile(ctx, request)
 
+	// Model endpoint
+	case path == "/api/glowblaster/models" && method == "GET":
+		return handleListModels(ctx)
+
 	// Pattern endpoints
 	case path == "/api/glowblaster/patterns" && method == "GET":
 		return handleListGlowBlasterPatterns(ctx, username)
@@ -673,6 +677,16 @@ func handleDeletePattern(ctx context.Context, username string, patternID string)
 		"message":   "Pattern deleted",
 		"patternId": patternID,
 	}), nil
+}
+
+func handleListModels(ctx context.Context) (events.APIGatewayProxyResponse, error) {
+	client := shared.NewClaudeClient()
+	models, err := client.FetchLatestModels()
+	if err != nil {
+		log.Printf("Failed to fetch models: %v", err)
+		return shared.CreateErrorResponse(500, "Failed to retrieve models: "+err.Error()), nil
+	}
+	return shared.CreateSuccessResponse(200, models), nil
 }
 
 func truncate(s string, maxLen int) string {
