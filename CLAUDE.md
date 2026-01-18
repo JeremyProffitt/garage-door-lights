@@ -76,6 +76,17 @@ When a GitHub Actions pipeline fails:
 
 ## Firmware
 
+### Firmware Deployment
+
+**ALWAYS flash the device when firmware changes are made.** Do not ask for confirmation - automatically flash after any modification to `firmware/candle-lights.ino`.
+
+To flash:
+```bash
+cd firmware && particle flash garage-door-lights .
+```
+
+The `garage-door-lights` device is a Photon. The project.properties file specifies the neopixel library dependency, so flash from the firmware directory to include it.
+
 ### RGB Channel Order
 
 **NEVER question the RGB channel order in the firmware.** The hardware uses a specific LED chip with a known channel configuration. When debugging LED color issues (especially white LEDs appearing as the wrong color), the problem is **never** the RGB channel order. Look for issues in:
