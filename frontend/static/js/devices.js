@@ -227,12 +227,19 @@ function devicesPage() {
         },
 
         async sendPatternToStrip(deviceId, pin, pattern) {
+            console.log('[sendPatternToStrip] Starting for pattern:', pattern.name);
+            console.log('[sendPatternToStrip] Has wledState:', !!pattern.wledState, 'length:', pattern.wledState?.length || 0);
+            console.log('[sendPatternToStrip] Has wledBinary:', !!pattern.wledBinary);
+            console.log('[sendPatternToStrip] Has bytecode:', !!pattern.bytecode);
+
             // Check if pattern already has WLED state or binary
             if (pattern.wledState || pattern.wledBinary || pattern.bytecode) {
                 let bytecode = pattern.wledBinary || pattern.bytecode;
+                console.log('[sendPatternToStrip] Inside WLED block, bytecode available:', !!bytecode);
 
                 // If we have WLED JSON but no binary, compile it
                 if (!bytecode && pattern.wledState) {
+                    console.log('[sendPatternToStrip] Compiling wledState...');
                     const compileResp = await fetch('/api/glowblaster/compile', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
@@ -240,18 +247,23 @@ function devicesPage() {
                         body: JSON.stringify({ lcl: pattern.wledState })
                     });
                     const compileData = await compileResp.json();
+                    console.log('[sendPatternToStrip] Compile response:', compileData);
                     if (compileData.success && compileData.data?.bytecode) {
                         bytecode = compileData.data.bytecode;
+                        console.log('[sendPatternToStrip] Compiled bytecode length:', bytecode.length);
                     } else {
                         throw new Error('Failed to compile pattern: ' + (compileData.data?.errors?.join(', ') || 'Unknown error'));
                     }
                 }
 
                 if (bytecode) {
+                    console.log('[sendPatternToStrip] Sending bytecode to strip...');
                     await this.sendBytecodeToStrip(deviceId, pin, bytecode);
+                    console.log('[sendPatternToStrip] Bytecode sent successfully');
                     return;
                 }
             }
+            console.log('[sendPatternToStrip] Falling through to legacy path (no WLED data)');
 
             // Build WLED JSON from pattern fields
             const effectMap = {

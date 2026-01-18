@@ -115,6 +115,15 @@ func handleListPatterns(ctx context.Context, username string) (events.APIGateway
         return shared.CreateErrorResponse(500, "Failed to retrieve patterns"), nil
     }
 
+    // Debug: Log pattern details including WLED state
+    for _, p := range patterns {
+        hasWLEDState := p.WLEDState != ""
+        hasWLEDBinary := len(p.WLEDBinary) > 0
+        hasBytecode := len(p.Bytecode) > 0
+        log.Printf("[ListPatterns] Pattern: %s, Type: %s, FormatVersion: %d, HasWLEDState: %v (len=%d), HasWLEDBinary: %v, HasBytecode: %v",
+            p.Name, p.Type, p.FormatVersion, hasWLEDState, len(p.WLEDState), hasWLEDBinary, hasBytecode)
+    }
+
     return shared.CreateSuccessResponse(200, patterns), nil
 }
 
