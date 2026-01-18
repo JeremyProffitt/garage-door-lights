@@ -149,66 +149,135 @@ function dashboard() {
             }
         },
 
+        async sendBytecodeToStrip(deviceId, pin, bytecode) {
+            const resp = await fetch('/api/particle/command', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    deviceId,
+                    command: 'setBytecode',
+                    argument: `${pin},${bytecode}`
+                })
+            });
+            const data = await resp.json();
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to send bytecode');
+            }
+        },
+
         async sendPatternToStrip(deviceId, pin, pattern) {
-            // Map pattern type to firmware number
-            const patternMap = {
-                'candle': 1,
-                'solid': 2,
-                'pulse': 3,
-                'wave': 4,
-                'rainbow': 5,
-                'fire': 6
+            console.log('[sendPatternToStrip] Starting for pattern:', pattern.name);
+            console.log('[sendPatternToStrip] Has wledState:', !!pattern.wledState, 'length:', pattern.wledState?.length || 0);
+            console.log('[sendPatternToStrip] Has wledBinary:', !!pattern.wledBinary);
+            console.log('[sendPatternToStrip] Has bytecode:', !!pattern.bytecode);
+
+            // Check if pattern already has WLED state or binary
+            if (pattern.wledState || pattern.wledBinary || pattern.bytecode) {
+                let bytecode = pattern.wledBinary || pattern.bytecode;
+                console.log('[sendPatternToStrip] Inside WLED block, bytecode available:', !!bytecode);
+
+                // If we have WLED JSON but no binary, compile it
+                if (!bytecode && pattern.wledState) {
+                    console.log('[sendPatternToStrip] Compiling wledState...');
+                    const compileResp = await fetch('/api/glowblaster/compile', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ lcl: pattern.wledState })
+                    });
+                    const compileData = await compileResp.json();
+                    console.log('[sendPatternToStrip] Compile response:', compileData);
+                    if (compileData.success && compileData.data?.bytecode) {
+                        bytecode = compileData.data.bytecode;
+                        console.log('[sendPatternToStrip] Compiled bytecode length:', bytecode.length);
+                    } else {
+                        throw new Error('Failed to compile pattern: ' + (compileData.data?.errors?.join(', ') || 'Unknown error'));
+                    }
+                }
+
+                if (bytecode) {
+                    console.log('[sendPatternToStrip] Sending bytecode to strip...');
+                    await this.sendBytecodeToStrip(deviceId, pin, bytecode);
+                    console.log('[sendPatternToStrip] Bytecode sent successfully');
+                    return;
+                }
+            }
+            console.log('[sendPatternToStrip] Falling through to legacy path (no WLED data)');
+
+            // Build WLED JSON from pattern fields (legacy patterns without wledState)
+            const effectMap = {
+                'solid': 0,
+                'pulse': 2,
+                'wave': 67,
+                'rainbow': 9,
+                'fire': 66,
+                'candle': 71
             };
-            const patternNum = patternMap[pattern.type] || 2;
 
-            // Send pattern command: "pin,pattern,speed"
-            await fetch('/api/particle/command', {
+            // Helper to clamp values to 0-255 range
+            const clamp = (val) => Math.max(0, Math.min(255, val || 0));
+
+            // Read effectId from metadata first, then fall back to type mapping
+            const effectId = pattern.metadata?.effectId
+                ? parseInt(pattern.metadata.effectId)
+                : (effectMap[pattern.type] || 71);
+
+            // Read speed/intensity/custom1 from metadata (stored as 0-255) or fall back to defaults
+            const speed = pattern.metadata?.speed
+                ? parseInt(pattern.metadata.speed)
+                : 128;
+            const intensity = pattern.metadata?.intensity
+                ? parseInt(pattern.metadata.intensity)
+                : 128;
+            const custom1 = pattern.metadata?.custom1
+                ? parseInt(pattern.metadata.custom1)
+                : 128;
+
+            // Build colors array with clamped RGB values
+            const colors = pattern.colors?.map(c => [
+                clamp(c.r), clamp(c.g), clamp(c.b)
+            ]) || [[
+                clamp(pattern.red || 255),
+                clamp(pattern.green || 100),
+                clamp(pattern.blue || 0)
+            ]];
+
+            const wledJson = JSON.stringify({
+                on: true,
+                bri: clamp(pattern.brightness || 200),
+                seg: [{
+                    id: 0,
+                    start: 0,
+                    stop: 8,
+                    fx: effectId,
+                    sx: clamp(speed),
+                    ix: clamp(intensity),
+                    c1: clamp(custom1),
+                    col: colors,
+                    on: true
+                }]
+            });
+
+            console.log('[sendPatternToStrip] Built WLED JSON:', wledJson);
+
+            // Compile WLED JSON to binary
+            const compileResp = await fetch('/api/glowblaster/compile', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 credentials: 'same-origin',
-                body: JSON.stringify({
-                    deviceId,
-                    command: 'setPattern',
-                    argument: `${pin},${patternNum},${pattern.speed || 50}`
-                })
+                body: JSON.stringify({ lcl: wledJson })
             });
+            const compileData = await compileResp.json();
 
-            // Send color command: "pin,R,G,B"
-            const color = pattern.colors?.[0] || { r: pattern.red || 255, g: pattern.green || 100, b: pattern.blue || 0 };
-            await fetch('/api/particle/command', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                credentials: 'same-origin',
-                body: JSON.stringify({
-                    deviceId,
-                    command: 'setColor',
-                    argument: `${pin},${color.r},${color.g},${color.b}`
-                })
-            });
+            if (!compileData.success || !compileData.data?.bytecode) {
+                throw new Error('Failed to compile pattern: ' + (compileData.data?.errors?.join(', ') || 'Unknown error'));
+            }
 
-            // Send brightness command: "pin,brightness"
-            await fetch('/api/particle/command', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                credentials: 'same-origin',
-                body: JSON.stringify({
-                    deviceId,
-                    command: 'setBright',
-                    argument: `${pin},${pattern.brightness || 128}`
-                })
-            });
+            console.log('[sendPatternToStrip] Compiled, sending bytecode...');
 
-            // Save to device EEPROM
-            await fetch('/api/particle/command', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                credentials: 'same-origin',
-                body: JSON.stringify({
-                    deviceId,
-                    command: 'saveConfig',
-                    argument: '1'
-                })
-            });
+            // Send bytecode to device
+            await this.sendBytecodeToStrip(deviceId, pin, compileData.data.bytecode);
         }
     }
 }
