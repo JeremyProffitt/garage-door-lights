@@ -39,6 +39,7 @@ type ChatRequest struct {
 // ChatResponse represents the response from a chat message
 type ChatResponse struct {
 	Message     string         `json:"message"`               // AI response text
+	PatternName string         `json:"patternName,omitempty"` // Suggested pattern name from LLM
 	LCL         string         `json:"lcl,omitempty"`         // Updated LCL if pattern changed (legacy)
 	Bytecode    []byte         `json:"bytecode,omitempty"`    // Compiled bytecode for preview (legacy LCL or WLED)
 	WLED        string         `json:"wled,omitempty"`        // WLED JSON state

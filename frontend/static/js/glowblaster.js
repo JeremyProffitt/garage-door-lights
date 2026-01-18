@@ -8,6 +8,7 @@ function glowBlasterPage() {
         currentMessages: [],
         currentWLED: '',      // WLED JSON state
         currentBytecode: null,
+        suggestedPatternName: '', // Pattern name suggested by LLM
         userMessage: '',
         isLoading: false,
         totalTokens: 0,
@@ -308,6 +309,11 @@ function glowBlasterPage() {
                         this.updatePreview();
                     }
 
+                    // Store suggested pattern name if provided
+                    if (data.data.patternName) {
+                        this.suggestedPatternName = data.data.patternName;
+                    }
+
                     this.totalTokens = data.data.totalTokens || this.totalTokens;
 
                     // Store debug info
@@ -404,7 +410,8 @@ function glowBlasterPage() {
         },
 
         async saveAsNewPattern() {
-            const name = prompt('Pattern name:', this.activeConversation?.title || 'My Pattern');
+            const defaultName = this.suggestedPatternName || this.activeConversation?.title || 'My Pattern';
+            const name = prompt('Pattern name:', defaultName);
             if (!name) return;
 
             try {
@@ -572,6 +579,7 @@ function glowBlasterPage() {
         clearEditingState() {
             this.editingPatternId = null;
             this.editingPatternName = null;
+            this.suggestedPatternName = '';
         },
 
         onDeviceSelect() {

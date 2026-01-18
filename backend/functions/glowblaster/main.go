@@ -406,9 +406,13 @@ func handleChat(ctx context.Context, username, conversationID string, request ev
 		return shared.CreateErrorResponse(500, "Failed to save conversation"), nil
 	}
 
+	// Extract pattern name from response
+	patternName := shared.ExtractPatternName(responseText)
+
 	// Build response
 	response := shared.ChatResponse{
 		Message:     responseText,
+		PatternName: patternName,
 		WLED:        wledJSON,
 		WLEDBinary:  wledBinary,
 		Bytecode:    wledBinary, // Also set legacy field for backwards compatibility

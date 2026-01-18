@@ -357,6 +357,31 @@ func ExtractWLEDFromResponse(response string) string {
 	return ""
 }
 
+// ExtractPatternName extracts pattern name from LLM response text
+// Looks for "**Pattern:**" followed by the name
+func ExtractPatternName(response string) string {
+	// Look for **Pattern:** Name format
+	patternNameRegex := regexp.MustCompile(`\*\*Pattern:\*\*\s*(.+?)(?:\n|$)`)
+	matches := patternNameRegex.FindStringSubmatch(response)
+	if len(matches) > 1 {
+		name := strings.TrimSpace(matches[1])
+		// Remove any trailing asterisks or markdown formatting
+		name = strings.TrimRight(name, "*")
+		name = strings.TrimSpace(name)
+		return name
+	}
+
+	// Fallback: look for "Pattern:" without bold
+	simplePatternRegex := regexp.MustCompile(`(?i)Pattern:\s*(.+?)(?:\n|$)`)
+	matches = simplePatternRegex.FindStringSubmatch(response)
+	if len(matches) > 1 {
+		name := strings.TrimSpace(matches[1])
+		return name
+	}
+
+	return ""
+}
+
 // IsWLEDBinary checks if the given bytes are in WLEDb format
 func IsWLEDBinary(data []byte) bool {
 	if len(data) < 4 {
