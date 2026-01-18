@@ -454,6 +454,12 @@ Resources:
             RestApiId: !Ref WebsiteGateway
             Path: /api/particle/device/{deviceId}
             Method: GET
+        GetDeviceVariables:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/particle/devices/{deviceId}/variables
+            Method: GET
         RefreshDevices:
           Type: Api
           Properties:
