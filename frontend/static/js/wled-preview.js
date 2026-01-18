@@ -108,16 +108,6 @@ const WLEDPreview = {
     },
 
     /**
-     * Check if binary data is in LCL format
-     * @param {Uint8Array} data - Binary data
-     * @returns {boolean} True if LCL format
-     */
-    isLCLFormat(data) {
-        if (!data || data.length < 3) return false;
-        return data[0] === 0x4C && data[1] === 0x43 && data[2] === 0x4C; // "LCL"
-    },
-
-    /**
      * Parse WLEDb binary header
      * @param {Uint8Array} bytecode - Raw bytecode array
      * @returns {Object|null} Header info or null if invalid
@@ -546,10 +536,10 @@ const WLEDPreview = {
     },
 };
 
-// Auto-detect and render function (works with both LCL and WLED formats)
+// PatternPreview for WLED format
 const PatternPreview = {
     /**
-     * Render bytecode, auto-detecting format
+     * Render bytecode
      * @param {HTMLElement} container - Container element
      * @param {Array|Uint8Array|string} bytecode - Compiled bytecode
      * @param {number} ledCount - Number of LEDs to display
@@ -569,51 +559,24 @@ const PatternPreview = {
             bytes = WLEDPreview.normalizeBytecode(bytecode);
         }
 
-        if (WLEDPreview.isWLEDFormat(bytes)) {
-            WLEDPreview.render(container, bytes, ledCount);
-        } else if (WLEDPreview.isLCLFormat(bytes)) {
-            // Use LCL preview for legacy format
-            if (typeof LCLPreview !== 'undefined') {
-                LCLPreview.render(container, bytes, ledCount);
-            } else {
-                console.warn('PatternPreview: LCL format detected but LCLPreview not available');
-                WLEDPreview.render(container, bytes, ledCount);
-            }
-        } else {
-            console.warn('PatternPreview: Unknown format, using default');
-            WLEDPreview.render(container, bytes, ledCount);
-        }
+        WLEDPreview.render(container, bytes, ledCount);
     },
 
     /**
-     * Describe bytecode, auto-detecting format
+     * Describe bytecode
      * @param {Array|Uint8Array|string} bytecode - Compiled bytecode
      * @returns {string} Description
      */
     describe(bytecode) {
-        const bytes = WLEDPreview.normalizeBytecode(bytecode);
-
-        if (WLEDPreview.isWLEDFormat(bytes)) {
-            return WLEDPreview.describe(bytes);
-        } else if (WLEDPreview.isLCLFormat(bytes) && typeof LCLPreview !== 'undefined') {
-            return LCLPreview.describe(bytes);
-        }
-        return 'Unknown format';
+        return WLEDPreview.describe(bytecode);
     },
 
     /**
-     * Validate bytecode, auto-detecting format
+     * Validate bytecode
      * @param {Array|Uint8Array|string} bytecode - Bytecode to validate
      * @returns {Object} Validation result
      */
     validate(bytecode) {
-        const bytes = WLEDPreview.normalizeBytecode(bytecode);
-
-        if (WLEDPreview.isWLEDFormat(bytes)) {
-            return WLEDPreview.validate(bytes);
-        } else if (WLEDPreview.isLCLFormat(bytes) && typeof LCLPreview !== 'undefined') {
-            return LCLPreview.validate(bytes);
-        }
-        return { valid: false, errors: ['Unknown format'] };
+        return WLEDPreview.validate(bytecode);
     },
 };

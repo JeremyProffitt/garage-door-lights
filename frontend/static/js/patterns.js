@@ -368,13 +368,11 @@ function patternsPage() {
                 const container = document.getElementById('previewContainer');
                 if (!container) return;
 
-                // Use bytecode preview if available
+                // Use WLED bytecode preview if available
                 if (pattern.wledBinary || pattern.bytecode) {
                     const bytecode = pattern.wledBinary || pattern.bytecode;
-                    if (typeof PatternPreview !== 'undefined') {
-                        PatternPreview.render(container, bytecode, 12);
-                    } else if (typeof LCLPreview !== 'undefined') {
-                        LCLPreview.render(container, bytecode, 12);
+                    if (typeof WLEDPreview !== 'undefined') {
+                        WLEDPreview.render(container, bytecode, 12);
                     }
                 } else {
                     // Standard LEDSimulator

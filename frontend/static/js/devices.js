@@ -151,7 +151,7 @@ function devicesPage() {
             }
         },
 
-        // Rainbow Bytecode Test - known-working LCL bytecode pattern
+        // Rainbow Bytecode Test - known-working test pattern
         RAINBOW_BYTECODE_TEST: 'TENMAgAI8gBQClEDBFEEzGc=',
 
         async applyStripPattern(device, pin) {
@@ -179,10 +179,10 @@ function devicesPage() {
             }
 
             try {
-                // Check if this is a Glow Blaster pattern with bytecode
-                if (pattern.category === 'glowblaster' && pattern.bytecode) {
-                    await this.sendBytecodeToStrip(device.deviceId, pin, pattern.bytecode);
-                    NotificationBanner.success(`Pattern "${pattern.name}" (bytecode) applied to strip D${pin}`);
+                // Check if this is a Glow Blaster pattern with WLED binary
+                if (pattern.category === 'glowblaster' && (pattern.wledBinary || pattern.bytecode)) {
+                    await this.sendBytecodeToStrip(device.deviceId, pin, pattern.wledBinary || pattern.bytecode);
+                    NotificationBanner.success(`Pattern "${pattern.name}" applied to strip D${pin}`);
                     return;
                 }
 
