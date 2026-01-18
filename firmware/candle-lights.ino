@@ -1261,36 +1261,39 @@ void wledColorwaves(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt
 }
 
 // Run WLED Sparkle effect
+// Uses ALL colors for sparkles, fades to black for better color visibility
 void wledSparkle(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
     uint8_t density = seg.intensity;
-    uint8_t fade = 64 + (seg.speed / 4);
+    uint8_t fade = 32 + (seg.speed / 8);  // Slower fade for longer sparkle trails
 
-    // Secondary color (background)
-    uint8_t bgR = 0, bgG = 0, bgB = 0;
-    if (seg.colorCount > 1) {
-        bgR = seg.colors[1][0];
-        bgG = seg.colors[1][1];
-        bgB = seg.colors[1][2];
-    }
-
-    // Fade existing
+    // Fade existing pixels toward black (not background color)
     for (int i = seg.start; i < seg.stop; i++) {
         uint32_t c = strip->getPixelColor(i);
         uint8_t r = (c >> 16) & 0xFF;
         uint8_t g = (c >> 8) & 0xFF;
         uint8_t b = c & 0xFF;
 
-        r = (r * (255 - fade) + bgR * fade) / 256;
-        g = (g * (255 - fade) + bgG * fade) / 256;
-        b = (b * (255 - fade) + bgB * fade) / 256;
+        r = (r * (255 - fade)) / 256;
+        g = (g * (255 - fade)) / 256;
+        b = (b * (255 - fade)) / 256;
 
         strip->setPixelColor(i, strip->Color(r, g, b));
     }
 
-    // Sparkle
-    if (random(255) < density) {
-        int pos = seg.start + random(seg.stop - seg.start);
-        strip->setPixelColor(pos, strip->Color(seg.colors[0][0], seg.colors[0][1], seg.colors[0][2]));
+    // Sparkle - cycle through ALL provided colors randomly
+    // Number of sparkles scales with density and strip length
+    int numSparkles = 1 + (density * (seg.stop - seg.start)) / 512;
+    for (int s = 0; s < numSparkles; s++) {
+        if (random(255) < density) {
+            int pos = seg.start + random(seg.stop - seg.start);
+            // Pick a random color from all available colors
+            int colorIdx = random(seg.colorCount > 0 ? seg.colorCount : 1);
+            strip->setPixelColor(pos, strip->Color(
+                seg.colors[colorIdx][0],
+                seg.colors[colorIdx][1],
+                seg.colors[colorIdx][2]
+            ));
+        }
     }
 }
 
