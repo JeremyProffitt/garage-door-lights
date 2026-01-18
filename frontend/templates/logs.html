@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logs - Candle Lights Controller</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <style>
+        .logs-container {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        .log-entry {
+            padding: 8px 12px;
+            border-bottom: 1px solid #2d2d2d;
+            display: flex;
+            gap: 12px;
+        }
+        .log-entry:hover {
+            background: #1a1a2e;
+        }
+        .log-timestamp {
+            color: #6b7280;
+            white-space: nowrap;
+            min-width: 180px;
+        }
+        .log-message {
+            color: #e5e5e5;
+            white-space: pre-wrap;
+            word-break: break-word;
+            flex: 1;
+        }
+        .log-message.error {
+            color: #ef4444;
+        }
+        .log-message.warn {
+            color: #f59e0b;
+        }
+        .log-message.info {
+            color: #3b82f6;
+        }
+        .log-message.debug {
+            color: #8b5cf6;
+        }
+        .time-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .time-btn {
+            padding: 8px 16px;
+            border: 2px solid #4f46e5;
+            background: transparent;
+            color: #4f46e5;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .time-btn:hover {
+            background: #4f46e5;
+            color: white;
+        }
+        .time-btn.active {
+            background: #4f46e5;
+            color: white;
+        }
+        .function-select {
+            padding: 10px 16px;
+            border: 2px solid #374151;
+            background: #1f2937;
+            color: white;
+            border-radius: 8px;
+            font-size: 14px;
+            min-width: 200px;
+        }
+        .function-select:focus {
+            outline: none;
+            border-color: #4f46e5;
+        }
+        .logs-wrapper {
+            background: #0f0f23;
+            border-radius: 12px;
+            overflow: hidden;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .logs-header {
+            background: #1a1a2e;
+            padding: 12px 16px;
+            border-bottom: 1px solid #2d2d2d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .logs-header span {
+            color: #9ca3af;
+            font-size: 13px;
+        }
+        .log-count {
+            background: #4f46e5;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .loading-spinner {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+            color: #9ca3af;
+        }
+        .no-logs {
+            padding: 40px;
+            text-align: center;
+            color: #6b7280;
+        }
+        .controls-row {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        .refresh-btn {
+            padding: 10px 20px;
+            background: #10b981;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .refresh-btn:hover {
+            background: #059669;
+        }
+        .refresh-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand"><a href="/dashboard" style="color: inherit; text-decoration: none;">🕯️ Candle Lights</a></div>
+        <div class="nav-menu">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/patterns">Patterns</a>
+            <a href="/glowblaster">Glow Blaster</a>
+            <a href="/devices">Devices</a>
+            <a href="/settings">Settings</a>
+            <a href="/logs" class="active">Logs</a>
+            <a href="/auth/logout">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container" x-data="logsPage()">
+        <h1 style="color: white;">CloudWatch Logs</h1>
+
+        <div class="card">
+            <div class="controls-row">
+                <select class="function-select" x-model="selectedFunction" @change="loadLogs()">
+                    <option value="">Select a Lambda function...</option>
+                    <template x-for="fn in functions" :key="fn.id">
+                        <option :value="fn.id" x-text="`${fn.name} - ${fn.description}`"></option>
+                    </template>
+                </select>
+
+                <div class="time-buttons">
+                    <template x-for="h in timeOptions" :key="h">
+                        <button
+                            class="time-btn"
+                            :class="{ 'active': hours === h }"
+                            @click="setHours(h)"
+                            x-text="h + 'h'"
+                        ></button>
+                    </template>
+                </div>
+
+                <button class="refresh-btn" @click="loadLogs()" :disabled="isLoading || !selectedFunction">
+                    <span x-show="isLoading">Loading...</span>
+                    <span x-show="!isLoading">Refresh</span>
+                </button>
+            </div>
+
+            <div class="logs-wrapper">
+                <div class="logs-header" x-show="logs.length > 0 || logGroupName">
+                    <span x-text="logGroupName"></span>
+                    <span class="log-count" x-text="logs.length + ' entries'"></span>
+                </div>
+
+                <div class="loading-spinner" x-show="isLoading">
+                    Loading logs...
+                </div>
+
+                <div class="no-logs" x-show="!isLoading && selectedFunction && logs.length === 0">
+                    <p>No logs found for the selected time range.</p>
+                    <p style="font-size: 12px; margin-top: 8px;">Try selecting a longer time range or a different function.</p>
+                </div>
+
+                <div class="no-logs" x-show="!selectedFunction && !isLoading">
+                    <p>Select a Lambda function to view its logs.</p>
+                </div>
+
+                <div class="logs-container" x-show="!isLoading && logs.length > 0">
+                    <template x-for="(log, index) in logs" :key="index">
+                        <div class="log-entry">
+                            <span class="log-timestamp" x-text="formatTimestamp(log.timestamp)"></span>
+                            <span class="log-message" :class="getLogLevel(log.message)" x-text="formatMessage(log.message)"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function logsPage() {
+            return {
+                functions: [],
+                selectedFunction: '',
+                hours: 1,
+                timeOptions: [1, 4, 12, 24, 48],
+                logs: [],
+                logGroupName: '',
+                isLoading: false,
+
+                async init() {
+                    await this.loadFunctions();
+                },
+
+                async loadFunctions() {
+                    try {
+                        const resp = await fetch('/api/logs/functions', {
+                            credentials: 'same-origin'
+                        });
+                        const data = await resp.json();
+                        if (data.success) {
+                            this.functions = data.data;
+                        }
+                    } catch (err) {
+                        console.error('Failed to load functions:', err);
+                    }
+                },
+
+                setHours(h) {
+                    this.hours = h;
+                    if (this.selectedFunction) {
+                        this.loadLogs();
+                    }
+                },
+
+                async loadLogs() {
+                    if (!this.selectedFunction) return;
+
+                    this.isLoading = true;
+                    this.logs = [];
+
+                    try {
+                        const resp = await fetch(`/api/logs?function=${this.selectedFunction}&hours=${this.hours}`, {
+                            credentials: 'same-origin'
+                        });
+                        const data = await resp.json();
+
+                        if (data.success) {
+                            this.logs = data.data.logs || [];
+                            this.logGroupName = data.data.logGroupName || '';
+                        } else {
+                            console.error('Failed to load logs:', data.error);
+                        }
+                    } catch (err) {
+                        console.error('Failed to load logs:', err);
+                    } finally {
+                        this.isLoading = false;
+                    }
+                },
+
+                formatTimestamp(ts) {
+                    const date = new Date(ts);
+                    return date.toLocaleString('en-US', {
+                        month: 'short',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                    });
+                },
+
+                formatMessage(msg) {
+                    // Remove leading timestamp patterns that CloudWatch sometimes adds
+                    return msg.replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z\s*/, '')
+                              .replace(/^(START|END|REPORT) RequestId:.*$/gm, '')
+                              .trim();
+                },
+
+                getLogLevel(msg) {
+                    const lower = msg.toLowerCase();
+                    if (lower.includes('error') || lower.includes('fatal') || lower.includes('panic')) {
+                        return 'error';
+                    }
+                    if (lower.includes('warn')) {
+                        return 'warn';
+                    }
+                    if (lower.includes('info') || lower.includes('===')) {
+                        return 'info';
+                    }
+                    if (lower.includes('debug')) {
+                        return 'debug';
+                    }
+                    return '';
+                }
+            }
+        }
+    </script>
+</body>
+</html>

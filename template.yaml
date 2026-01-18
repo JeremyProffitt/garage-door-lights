@@ -638,6 +638,7 @@ Resources:
       Environment:
         Variables:
           API_ENDPOINT: !Sub https://${DomainName}
+          STACK_NAME: !Ref AWS::StackName
       Policies:
         - Statement:
             - Effect: Allow
@@ -647,6 +648,13 @@ Resources:
               Resource:
                 - !GetAtt UsersTable.Arn
                 - !GetAtt SessionsTable.Arn
+            - Effect: Allow
+              Action:
+                - logs:FilterLogEvents
+                - logs:GetLogEvents
+                - logs:DescribeLogStreams
+              Resource:
+                - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}-*:*
       Events:
         Root:
           Type: Api

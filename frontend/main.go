@@ -84,6 +84,7 @@ func setupRoutes(app *fiber.App) {
     app.Get("/glowblaster", middleware.AuthMiddleware, handlers.GlowBlasterHandler)
     app.Get("/devices", middleware.AuthMiddleware, handlers.DevicesHandler)
     app.Get("/settings", middleware.AuthMiddleware, handlers.SettingsHandler)
+    app.Get("/logs", middleware.AuthMiddleware, handlers.LogsHandler)
 
     // Auth routes (form submissions)
     app.Post("/auth/login", handlers.LoginHandler)
@@ -125,6 +126,10 @@ func setupRoutes(app *fiber.App) {
     app.Get("/api/glowblaster/patterns", middleware.APIAuthMiddleware, handlers.GetGlowBlasterPatternsHandler)
     app.Post("/api/glowblaster/patterns", middleware.APIAuthMiddleware, handlers.SaveGlowBlasterPatternHandler)
     app.Get("/api/glowblaster/models", middleware.APIAuthMiddleware, handlers.GetGlowBlasterModelsHandler)
+
+    // API routes for logs (protected)
+    app.Get("/api/logs", middleware.APIAuthMiddleware, handlers.GetLogsHandler)
+    app.Get("/api/logs/functions", middleware.APIAuthMiddleware, handlers.ListLogFunctionsHandler)
 }
 
 func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
