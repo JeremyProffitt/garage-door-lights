@@ -1165,7 +1165,7 @@ void wledFire2012(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) 
 
     // Spark at bottom
     if (random8() < sparking) {
-        int y = random8(7);
+        int y = random8(0, 7);
         if (y < segLen) {
             rt.heat[y] = qadd8(rt.heat[y], random8(160, 255));
         }
@@ -1197,7 +1197,7 @@ void wledRainbow(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
 
     for (int i = 0; i < segLen; i++) {
         uint16_t hue = ((i * 65536L / segLen) + rt.animPosition) & 0xFFFF;
-        uint32_t color = strip->ColorHSV(hue);
+        uint32_t color = ColorHSV(hue, 255, 255);
         strip->setPixelColor(seg.start + i, color);
     }
 }
@@ -1395,6 +1395,28 @@ uint8_t random8(uint8_t min, uint8_t max) {
 
 uint8_t random8() {
     return random(256);
+}
+
+// HSV to RGB conversion (hue 0-65535, sat/val 0-255)
+uint32_t ColorHSV(uint16_t hue, uint8_t sat, uint8_t val) {
+    uint8_t r, g, b;
+    // Simple HSV to RGB for rainbow effects
+    uint8_t region = hue / 10923; // 65536 / 6 = 10922.67
+    uint16_t remainder = (hue - (region * 10923)) * 6;
+
+    uint8_t p = (val * (255 - sat)) >> 8;
+    uint8_t q = (val * (255 - ((sat * remainder) >> 16))) >> 8;
+    uint8_t t = (val * (255 - ((sat * (65535 - remainder)) >> 16))) >> 8;
+
+    switch (region) {
+        case 0: r = val; g = t; b = p; break;
+        case 1: r = q; g = val; b = p; break;
+        case 2: r = p; g = val; b = t; break;
+        case 3: r = p; g = q; b = val; break;
+        case 4: r = t; g = p; b = val; break;
+        default: r = val; g = p; b = q; break;
+    }
+    return ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
 }
 
 // =============================================================================
