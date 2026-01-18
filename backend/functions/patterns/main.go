@@ -82,23 +82,48 @@ type EffectResponse struct {
 
 func handleListEffects() (events.APIGatewayProxyResponse, error) {
     effects := []EffectResponse{
+        // Basic Effects
         {ID: 0, Name: "Solid", Description: "Static solid color", MinColors: 1, MaxColors: 1},
+        {ID: 1, Name: "Blink", Description: "Simple on/off blinking", HasSpeed: true, HasIntensity: true, MinColors: 1, MaxColors: 2, SpeedDesc: "Blink rate", IntensDesc: "Duty cycle"},
         {ID: 2, Name: "Breathe", Description: "Smooth pulsing brightness", HasSpeed: true, HasIntensity: true, MinColors: 1, MaxColors: 2, SpeedDesc: "Breath rate", IntensDesc: "Min brightness"},
         {ID: 3, Name: "Wipe", Description: "Color wipe across strip", HasSpeed: true, MinColors: 1, MaxColors: 2, SpeedDesc: "Wipe speed"},
-        {ID: 10, Name: "Scan", Description: "Single dot bouncing back and forth", HasSpeed: true, HasIntensity: true, MinColors: 1, MaxColors: 2, SpeedDesc: "Scan speed", IntensDesc: "Dot width"},
-        {ID: 20, Name: "Sparkle", Description: "Random twinkling pixels", HasSpeed: true, HasIntensity: true, MinColors: 1, MaxColors: 2, SpeedDesc: "Sparkle rate", IntensDesc: "Sparkle density"},
-        {ID: 39, Name: "Scanner", Description: "Knight Rider style scanner with trail", HasSpeed: true, HasIntensity: true, HasCustom1: true, MinColors: 1, MaxColors: 2, SpeedDesc: "Scan speed", IntensDesc: "Eye width", Custom1Desc: "Trail length"},
-        {ID: 9, Name: "Rainbow", Description: "Moving rainbow gradient", HasSpeed: true, MinColors: 0, MaxColors: 0, SpeedDesc: "Cycle speed"},
-        {ID: 50, Name: "Colorwaves", Description: "Smooth flowing color waves", HasSpeed: true, HasIntensity: true, MinColors: 2, MaxColors: 3, SpeedDesc: "Wave speed", IntensDesc: "Wave spread"},
-        {ID: 49, Name: "Fire 2012", Description: "Realistic fire simulation", HasSpeed: true, HasIntensity: true, HasCustom1: true, MinColors: 3, MaxColors: 3, SpeedDesc: "Flame speed", IntensDesc: "Cooling", Custom1Desc: "Sparking"},
-        {ID: 71, Name: "Candle", Description: "Flickering candle flame", HasSpeed: true, HasIntensity: true, MinColors: 1, MaxColors: 2, SpeedDesc: "Flicker speed", IntensDesc: "Flicker intensity"},
-        {ID: 59, Name: "Meteor", Description: "Shooting meteor with trail", HasSpeed: true, HasIntensity: true, HasCustom1: true, MinColors: 1, MaxColors: 2, SpeedDesc: "Meteor speed", IntensDesc: "Trail length", Custom1Desc: "Decay rate"},
-        {ID: 62, Name: "Ripple", Description: "Expanding ripple effect", HasSpeed: true, HasIntensity: true, MinColors: 1, MaxColors: 3, SpeedDesc: "Ripple speed", IntensDesc: "Max ripples"},
+
+        // Rainbow & Color Cycling
+        {ID: 9, Name: "Rainbow", Description: "Moving rainbow gradient", HasSpeed: true, HasIntensity: true, MinColors: 0, MaxColors: 0, SpeedDesc: "Cycle speed", IntensDesc: "Size"},
+        {ID: 12, Name: "Fade", Description: "Smooth color fading", HasSpeed: true, HasIntensity: true, MinColors: 1, MaxColors: 3, SpeedDesc: "Fade speed", IntensDesc: "Width"},
+        {ID: 13, Name: "Theater Chase", Description: "Classic theater chase lights", HasSpeed: true, HasIntensity: true, MinColors: 1, MaxColors: 2, SpeedDesc: "Chase speed", IntensDesc: "Gap size"},
+
+        // Twinkle & Sparkle
         {ID: 17, Name: "Twinkle", Description: "Random fading twinkles", HasSpeed: true, HasIntensity: true, MinColors: 1, MaxColors: 3, SpeedDesc: "Twinkle rate", IntensDesc: "Density"},
-        {ID: 27, Name: "Chase", Description: "Theater chase pattern", HasSpeed: true, HasIntensity: true, MinColors: 1, MaxColors: 2, SpeedDesc: "Chase speed", IntensDesc: "Gap size"},
-        {ID: 72, Name: "Fireworks", Description: "Multi-burst fireworks", HasSpeed: true, HasIntensity: true, MinColors: 1, MaxColors: 3, SpeedDesc: "Launch rate", IntensDesc: "Burst intensity"},
-        {ID: 48, Name: "Palette", Description: "Smooth palette cycling", HasSpeed: true, HasIntensity: true, MinColors: 2, MaxColors: 3, SpeedDesc: "Cycle speed", IntensDesc: "Spread"},
-        {ID: 46, Name: "Gradient", Description: "Static color gradient", HasSpeed: true, MinColors: 2, MaxColors: 3, SpeedDesc: "Animation speed"},
+        {ID: 20, Name: "Sparkle", Description: "Random twinkling pixels", HasSpeed: true, HasIntensity: true, MinColors: 1, MaxColors: 2, SpeedDesc: "Sparkle rate", IntensDesc: "Sparkle count"},
+
+        // Chase & Movement
+        {ID: 28, Name: "Chase", Description: "Color chase pattern", HasSpeed: true, HasIntensity: true, MinColors: 1, MaxColors: 3, SpeedDesc: "Chase speed", IntensDesc: "Gap size"},
+        {ID: 39, Name: "Scanner", Description: "Knight Rider style scanner", HasSpeed: true, HasIntensity: true, HasCustom1: true, MinColors: 1, MaxColors: 2, SpeedDesc: "Scan speed", IntensDesc: "Eye width", Custom1Desc: "Fade rate"},
+        {ID: 40, Name: "Larson Scanner", Description: "Cylon eye scanner with smooth fading", HasSpeed: true, HasIntensity: true, HasCustom1: true, MinColors: 1, MaxColors: 2, SpeedDesc: "Scan speed", IntensDesc: "Eye width", Custom1Desc: "Fade"},
+        {ID: 41, Name: "Comet", Description: "Shooting comet with tail", HasSpeed: true, HasIntensity: true, HasCustom1: true, MinColors: 1, MaxColors: 2, SpeedDesc: "Comet speed", IntensDesc: "Tail length", Custom1Desc: "Fade rate"},
+        {ID: 42, Name: "Fireworks", Description: "Exploding fireworks bursts", HasSpeed: true, HasIntensity: true, HasCustom1: true, MinColors: 1, MaxColors: 3, SpeedDesc: "Launch rate", IntensDesc: "Burst size", Custom1Desc: "Fade"},
+
+        // Gradients & Waves
+        {ID: 46, Name: "Gradient", Description: "Static color gradient", HasSpeed: true, HasIntensity: true, MinColors: 2, MaxColors: 3, SpeedDesc: "Animation", IntensDesc: "Spread"},
+        {ID: 49, Name: "Fire 2012", Description: "Realistic fire simulation", HasSpeed: true, HasIntensity: true, HasCustom1: true, HasCustom2: true, MinColors: 1, MaxColors: 3, SpeedDesc: "Flame speed", IntensDesc: "Cooling", Custom1Desc: "Sparking", Custom2Desc: "Boost"},
+        {ID: 50, Name: "Colorwaves", Description: "Smooth flowing color waves", HasSpeed: true, HasIntensity: true, MinColors: 2, MaxColors: 3, SpeedDesc: "Wave speed", IntensDesc: "Wave width"},
+
+        // Meteor & Trail Effects
+        {ID: 59, Name: "Meteor", Description: "Shooting meteor with trail", HasSpeed: true, HasIntensity: true, HasCustom1: true, MinColors: 1, MaxColors: 2, SpeedDesc: "Meteor speed", IntensDesc: "Trail length", Custom1Desc: "Decay rate"},
+
+        // Candle & Fire
+        {ID: 71, Name: "Candle", Description: "Flickering candle flame", HasSpeed: true, HasIntensity: true, HasCustom1: true, MinColors: 1, MaxColors: 2, SpeedDesc: "Flicker speed", IntensDesc: "Flicker amount", Custom1Desc: "Multi-color blend"},
+
+        // Ripple & Wave Effects
+        {ID: 79, Name: "Ripple", Description: "Expanding ripple effect", HasSpeed: true, HasIntensity: true, HasCustom1: true, MinColors: 1, MaxColors: 3, SpeedDesc: "Ripple speed", IntensDesc: "Max ripples", Custom1Desc: "Width"},
+
+        // Burst & Explosion Effects
+        {ID: 89, Name: "Starburst", Description: "Exploding starburst pattern", HasSpeed: true, HasIntensity: true, HasCustom1: true, MinColors: 1, MaxColors: 3, SpeedDesc: "Burst rate", IntensDesc: "Star count", Custom1Desc: "Fade"},
+
+        // Physics-based Effects
+        {ID: 91, Name: "Bouncing Balls", Description: "Physics-based bouncing balls", HasSpeed: true, HasIntensity: true, HasCustom1: true, HasCustom2: true, MinColors: 1, MaxColors: 3, SpeedDesc: "Gravity", IntensDesc: "Ball count", Custom1Desc: "Fade", Custom2Desc: "Trail"},
+        {ID: 92, Name: "Sinelon", Description: "Sine wave oscillating dot", HasSpeed: true, HasIntensity: true, HasCustom1: true, MinColors: 1, MaxColors: 2, SpeedDesc: "Speed", IntensDesc: "Fade rate", Custom1Desc: "Width"},
     }
     return shared.CreateSuccessResponse(200, effects), nil
 }

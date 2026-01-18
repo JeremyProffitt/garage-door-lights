@@ -117,6 +117,19 @@
                         </select>
                     </div>
 
+                    <!-- Palette -->
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.25rem; font-weight: 500;">
+                            Palette
+                            <span style="font-weight: normal; color: #6b7280;">(for gradient & wave effects)</span>
+                        </label>
+                        <select x-model="form.paletteId" @change="updatePreview()" style="width: 100%; padding: 0.5rem; border: 1px solid #e5e7eb; border-radius: 6px;">
+                            <template x-for="palette in palettes" :key="palette.id">
+                                <option :value="palette.id" x-text="palette.name + ' - ' + palette.description"></option>
+                            </template>
+                        </select>
+                    </div>
+
                     <!-- Colors Section -->
                     <div style="margin-bottom: 1rem;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
@@ -182,6 +195,28 @@
                         <div style="display: flex; align-items: center; gap: 0.5rem;">
                             <input type="range" x-model.number="form.custom1" @input="updatePreview()" min="0" max="255" style="flex: 1;">
                             <input type="number" x-model.number="form.custom1" @input="updatePreview()" min="0" max="255" style="width: 60px; padding: 0.25rem; text-align: center; border: 1px solid #e5e7eb; border-radius: 4px;">
+                        </div>
+                    </div>
+
+                    <!-- Custom 2 (c2) -->
+                    <div style="margin-bottom: 1rem;" x-show="selectedEffect?.hasCustom2">
+                        <label style="display: block; margin-bottom: 0.25rem; font-weight: 500;">
+                            <span x-text="selectedEffect?.custom2Desc || 'Custom 2'"></span>
+                        </label>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="range" x-model.number="form.custom2" @input="updatePreview()" min="0" max="255" style="flex: 1;">
+                            <input type="number" x-model.number="form.custom2" @input="updatePreview()" min="0" max="255" style="width: 60px; padding: 0.25rem; text-align: center; border: 1px solid #e5e7eb; border-radius: 4px;">
+                        </div>
+                    </div>
+
+                    <!-- Custom 3 (c3) -->
+                    <div style="margin-bottom: 1rem;" x-show="selectedEffect?.hasCustom3">
+                        <label style="display: block; margin-bottom: 0.25rem; font-weight: 500;">
+                            <span x-text="selectedEffect?.custom3Desc || 'Custom 3'"></span>
+                        </label>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="range" x-model.number="form.custom3" @input="updatePreview()" min="0" max="255" style="flex: 1;">
+                            <input type="number" x-model.number="form.custom3" @input="updatePreview()" min="0" max="255" style="width: 60px; padding: 0.25rem; text-align: center; border: 1px solid #e5e7eb; border-radius: 4px;">
                         </div>
                     </div>
 

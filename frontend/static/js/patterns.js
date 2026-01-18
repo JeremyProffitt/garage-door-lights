@@ -3,6 +3,7 @@ function patternsPage() {
         // Data
         patterns: [],
         effects: [],
+        palettes: [],
         isLoading: true,
         isSaving: false,
 
@@ -17,11 +18,14 @@ function patternsPage() {
             name: '',
             description: '',
             effectId: 71, // Candle by default
+            paletteId: 0, // Default palette
             colors: [{ r: 255, g: 100, b: 0, percentage: 100 }],
             brightness: 200,
             speed: 128,
             intensity: 128,
-            custom1: 128
+            custom1: 128,
+            custom2: 128,
+            custom3: 128
         },
 
         // Computed
@@ -30,11 +34,30 @@ function patternsPage() {
         },
 
         async init() {
+            this.initPalettes();
             await Promise.all([
                 this.loadEffects(),
                 this.loadPatterns()
             ]);
             this.isLoading = false;
+        },
+
+        initPalettes() {
+            // WLED palette list - common palettes
+            this.palettes = [
+                { id: 0, name: 'Default', description: 'Uses segment colors' },
+                { id: 6, name: 'Party', description: 'Vibrant party colors' },
+                { id: 7, name: 'Cloud', description: 'Soft blue and white cloud tones' },
+                { id: 8, name: 'Lava', description: 'Hot red and orange lava colors' },
+                { id: 9, name: 'Ocean', description: 'Deep blue ocean tones' },
+                { id: 10, name: 'Forest', description: 'Natural green forest colors' },
+                { id: 11, name: 'Rainbow', description: 'Full rainbow spectrum' },
+                { id: 13, name: 'Sunset', description: 'Warm sunset gradient' },
+                { id: 35, name: 'Fire', description: 'Fire colors palette' },
+                { id: 36, name: 'Icefire', description: 'Cold ice meets hot fire' },
+                { id: 39, name: 'Autumn', description: 'Fall season colors' },
+                { id: 50, name: 'Aurora', description: 'Northern lights colors' }
+            ];
         },
 
         async loadEffects() {
@@ -119,13 +142,16 @@ function patternsPage() {
                 name: pattern.name || '',
                 description: pattern.description || '',
                 effectId: effectId,
+                paletteId: pattern.metadata?.paletteId ? parseInt(pattern.metadata.paletteId) : 0,
                 colors: pattern.colors
                     ? JSON.parse(JSON.stringify(pattern.colors))
                     : [{ r: pattern.red || 255, g: pattern.green || 100, b: pattern.blue || 0, percentage: 100 }],
                 brightness: pattern.brightness || 200,
                 speed: pattern.metadata?.speed ? parseInt(pattern.metadata.speed) : (pattern.speed || 128),
                 intensity: pattern.metadata?.intensity ? parseInt(pattern.metadata.intensity) : 128,
-                custom1: pattern.metadata?.custom1 ? parseInt(pattern.metadata.custom1) : 128
+                custom1: pattern.metadata?.custom1 ? parseInt(pattern.metadata.custom1) : 128,
+                custom2: pattern.metadata?.custom2 ? parseInt(pattern.metadata.custom2) : 128,
+                custom3: pattern.metadata?.custom3 ? parseInt(pattern.metadata.custom3) : 128
             };
 
             this.showModal = true;
@@ -142,11 +168,14 @@ function patternsPage() {
                 name: '',
                 description: '',
                 effectId: 71,
+                paletteId: 0,
                 colors: [{ r: 255, g: 100, b: 0, percentage: 100 }],
                 brightness: 200,
                 speed: 128,
                 intensity: 128,
-                custom1: 128
+                custom1: 128,
+                custom2: 128,
+                custom3: 128
             };
         },
 
@@ -257,22 +286,28 @@ function patternsPage() {
             // Valid types: candle, solid, pulse, wave, rainbow, fire
             const effectToType = {
                 0: 'solid',      // Solid
+                1: 'pulse',      // Blink
                 2: 'pulse',      // Breathe
                 3: 'wave',       // Wipe (movement effect)
                 9: 'rainbow',    // Rainbow
-                10: 'wave',      // Scan (movement effect)
+                12: 'wave',      // Fade
+                13: 'wave',      // Theater Chase
                 17: 'solid',     // Twinkle (point-based)
                 20: 'solid',     // Sparkle (point-based)
-                27: 'wave',      // Chase (movement effect)
+                28: 'wave',      // Chase (movement effect)
                 39: 'wave',      // Scanner (movement effect)
+                40: 'wave',      // Larson Scanner
+                41: 'wave',      // Comet
+                42: 'fire',      // Fireworks
                 46: 'solid',     // Gradient
-                48: 'solid',     // Palette
                 49: 'fire',      // Fire 2012
                 50: 'wave',      // Colorwaves
                 59: 'wave',      // Meteor (movement effect)
-                62: 'wave',      // Ripple (movement effect)
                 71: 'candle',    // Candle
-                72: 'fire'       // Fireworks
+                79: 'wave',      // Ripple
+                89: 'fire',      // Starburst
+                91: 'wave',      // Bouncing Balls
+                92: 'wave'       // Sinelon
             };
             return effectToType[parseInt(effectId)] || 'candle';
         },
@@ -308,9 +343,12 @@ function patternsPage() {
                     speed: Math.round((255 - this.form.speed) / 2.55), // Convert to ms-like value
                     metadata: {
                         effectId: String(this.form.effectId),
+                        paletteId: String(this.form.paletteId),
                         speed: String(this.form.speed),
                         intensity: String(this.form.intensity),
-                        custom1: String(this.form.custom1)
+                        custom1: String(this.form.custom1),
+                        custom2: String(this.form.custom2),
+                        custom3: String(this.form.custom3)
                     },
                     wledState: wledJson,
                     formatVersion: 2
@@ -349,20 +387,36 @@ function patternsPage() {
             ]);
             // Clamp all values to valid 0-255 range
             const clamp = (val) => Math.max(0, Math.min(255, val || 0));
+
+            // Build segment with all parameters
+            const segment = {
+                id: 0,
+                start: 0,
+                stop: 8,
+                fx: parseInt(this.form.effectId) || 0,
+                sx: clamp(this.form.speed),
+                ix: clamp(this.form.intensity),
+                pal: parseInt(this.form.paletteId) || 0,
+                col: colors,
+                on: true
+            };
+
+            // Add custom parameters if the effect uses them
+            const effect = this.selectedEffect;
+            if (effect?.hasCustom1) {
+                segment.c1 = clamp(this.form.custom1);
+            }
+            if (effect?.hasCustom2) {
+                segment.c2 = clamp(this.form.custom2);
+            }
+            if (effect?.hasCustom3) {
+                segment.c3 = clamp(this.form.custom3);
+            }
+
             return JSON.stringify({
                 on: true,
                 bri: clamp(this.form.brightness),
-                seg: [{
-                    id: 0,
-                    start: 0,
-                    stop: 8,
-                    fx: parseInt(this.form.effectId) || 0,
-                    sx: clamp(this.form.speed),
-                    ix: clamp(this.form.intensity),
-                    c1: clamp(this.form.custom1),
-                    col: colors,
-                    on: true
-                }]
+                seg: [segment]
             });
         },
 
