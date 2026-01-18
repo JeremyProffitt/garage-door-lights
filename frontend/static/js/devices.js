@@ -179,13 +179,6 @@ function devicesPage() {
             }
 
             try {
-                // Check if this is a Glow Blaster pattern with WLED binary
-                if (pattern.category === 'glowblaster' && (pattern.wledBinary || pattern.bytecode)) {
-                    await this.sendBytecodeToStrip(device.deviceId, pin, pattern.wledBinary || pattern.bytecode);
-                    NotificationBanner.success(`Pattern "${pattern.name}" applied to strip D${pin}`);
-                    return;
-                }
-
                 // First save the strip pattern assignment to the database
                 const saveResp = await fetch(`/api/devices/${device.deviceId}`, {
                     method: 'PUT',
@@ -232,38 +225,42 @@ function devicesPage() {
             console.log('[sendPatternToStrip] Has wledBinary:', !!pattern.wledBinary);
             console.log('[sendPatternToStrip] Has bytecode:', !!pattern.bytecode);
 
-            // Check if pattern already has WLED state or binary
-            if (pattern.wledState || pattern.wledBinary || pattern.bytecode) {
-                let bytecode = pattern.wledBinary || pattern.bytecode;
-                console.log('[sendPatternToStrip] Inside WLED block, bytecode available:', !!bytecode);
+            // If pattern has WLED JSON state, parse it, update LED count, and recompile
+            if (pattern.wledState) {
+                console.log('[sendPatternToStrip] Has wledState, updating LED count and recompiling...');
+                try {
+                    const wledJson = JSON.parse(pattern.wledState);
+                    // Update all segment stop values to match device LED count
+                    if (wledJson.seg && Array.isArray(wledJson.seg)) {
+                        wledJson.seg.forEach(seg => {
+                            seg.stop = ledCount;
+                        });
+                    }
+                    const updatedWledState = JSON.stringify(wledJson);
+                    console.log('[sendPatternToStrip] Updated WLED JSON with ledCount:', ledCount);
 
-                // If we have WLED JSON but no binary, compile it
-                if (!bytecode && pattern.wledState) {
-                    console.log('[sendPatternToStrip] Compiling wledState...');
                     const compileResp = await fetch('/api/glowblaster/compile', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         credentials: 'same-origin',
-                        body: JSON.stringify({ lcl: pattern.wledState })
+                        body: JSON.stringify({ lcl: updatedWledState })
                     });
                     const compileData = await compileResp.json();
                     console.log('[sendPatternToStrip] Compile response:', compileData);
                     if (compileData.success && compileData.data?.bytecode) {
-                        bytecode = compileData.data.bytecode;
-                        console.log('[sendPatternToStrip] Compiled bytecode length:', bytecode.length);
+                        console.log('[sendPatternToStrip] Sending recompiled bytecode to strip...');
+                        await this.sendBytecodeToStrip(deviceId, pin, compileData.data.bytecode);
+                        console.log('[sendPatternToStrip] Bytecode sent successfully');
+                        return;
                     } else {
                         throw new Error('Failed to compile pattern: ' + (compileData.data?.errors?.join(', ') || 'Unknown error'));
                     }
-                }
-
-                if (bytecode) {
-                    console.log('[sendPatternToStrip] Sending bytecode to strip...');
-                    await this.sendBytecodeToStrip(deviceId, pin, bytecode);
-                    console.log('[sendPatternToStrip] Bytecode sent successfully');
-                    return;
+                } catch (parseErr) {
+                    console.error('[sendPatternToStrip] Failed to parse/update wledState:', parseErr);
+                    // Fall through to legacy path
                 }
             }
-            console.log('[sendPatternToStrip] Falling through to legacy path (no WLED data)');
+            console.log('[sendPatternToStrip] Falling through to legacy path (no WLED data or parse failed)');
 
             // Build WLED JSON from pattern fields
             const effectMap = {
