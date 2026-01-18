@@ -536,6 +536,12 @@ Resources:
             RestApiId: !Ref WebsiteGateway
             Path: /api/glowblaster/compile
             Method: POST
+        ListModels:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/glowblaster/models
+            Method: GET
         ListPatterns:
           Type: Api
           Properties:
