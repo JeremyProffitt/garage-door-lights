@@ -150,19 +150,26 @@ enum PatternType {
 #define WLED_FX_BLINK       1
 #define WLED_FX_BREATHE     2
 #define WLED_FX_WIPE        3
+#define WLED_FX_FADE        12
+#define WLED_FX_THEATER_CHASE 13
 #define WLED_FX_RAINBOW     9
 #define WLED_FX_TWINKLE     17
 #define WLED_FX_SPARKLE     20
-#define WLED_FX_CHASE       27
+#define WLED_FX_CHASE       28
 #define WLED_FX_SCANNER     39
+#define WLED_FX_LARSON      40
+#define WLED_FX_COMET       41
+#define WLED_FX_FIREWORKS   42
 #define WLED_FX_GRADIENT    46
 #define WLED_FX_PALETTE     48
 #define WLED_FX_FIRE2012    49
 #define WLED_FX_COLORWAVES  50
 #define WLED_FX_METEOR      59
-#define WLED_FX_RIPPLE      62
+#define WLED_FX_RIPPLE      79
 #define WLED_FX_CANDLE      71
-#define WLED_FX_FIREWORKS   72
+#define WLED_FX_STARBURST   89
+#define WLED_FX_BOUNCING_BALLS 91
+#define WLED_FX_SINELON     92
 
 // Color entry with percentage
 struct ColorEntry {
@@ -1347,6 +1354,697 @@ void wledMeteor(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
     }
 }
 
+// Run WLED Blink effect - simple on/off blinking
+void wledBlink(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
+    // Use animPosition as a timer counter
+    rt.animPosition++;
+
+    // Calculate on/off period from speed (higher speed = faster blink)
+    uint16_t period = 512 - (seg.speed * 2);
+    if (period < 20) period = 20;
+
+    bool isOn = (rt.animPosition % period) < (period / 2);
+
+    for (int i = seg.start; i < seg.stop; i++) {
+        if (isOn) {
+            strip->setPixelColor(i, strip->Color(seg.colors[0][0], seg.colors[0][1], seg.colors[0][2]));
+        } else {
+            // Blink to secondary color or black
+            if (seg.colorCount > 1) {
+                strip->setPixelColor(i, strip->Color(seg.colors[1][0], seg.colors[1][1], seg.colors[1][2]));
+            } else {
+                strip->setPixelColor(i, 0);
+            }
+        }
+    }
+}
+
+// Run WLED Wipe effect - color wipe across the strip
+void wledWipe(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
+    int segLen = seg.stop - seg.start;
+    if (segLen < 1) return;
+
+    // Move wipe position
+    float step = (float)seg.speed / 64.0f;
+    if (step < 0.2f) step = 0.2f;
+    rt.scannerPos += step * rt.scannerDir;
+
+    // Full cycle: wipe forward with color 1, then wipe forward with color 2
+    int fullCycle = segLen * 2;
+    if (rt.scannerPos >= fullCycle) {
+        rt.scannerPos = 0;
+    }
+
+    int wipePos = (int)rt.scannerPos;
+    bool secondPhase = wipePos >= segLen;
+    int currentPos = secondPhase ? (wipePos - segLen) : wipePos;
+
+    for (int i = seg.start; i < seg.stop; i++) {
+        int relPos = i - seg.start;
+        bool useFirst;
+
+        if (secondPhase) {
+            // Second phase: wiping with color 2 (or black)
+            useFirst = (relPos >= currentPos);
+        } else {
+            // First phase: wiping with color 1
+            useFirst = (relPos <= currentPos);
+        }
+
+        if (useFirst) {
+            strip->setPixelColor(i, strip->Color(seg.colors[0][0], seg.colors[0][1], seg.colors[0][2]));
+        } else {
+            if (seg.colorCount > 1) {
+                strip->setPixelColor(i, strip->Color(seg.colors[1][0], seg.colors[1][1], seg.colors[1][2]));
+            } else {
+                strip->setPixelColor(i, 0);
+            }
+        }
+    }
+}
+
+// Run WLED Fade effect - fading between colors
+void wledFade(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
+    // Use pulseValue for fade position (0-255-0 cycle)
+    uint8_t step = (seg.speed / 8) + 1;
+    rt.pulseValue += rt.pulseDirection * step;
+
+    if (rt.pulseValue >= 250) {
+        rt.pulseValue = 255;
+        rt.pulseDirection = -1;
+    }
+    if (rt.pulseValue <= 5) {
+        rt.pulseValue = 0;
+        rt.pulseDirection = 1;
+    }
+
+    // Interpolate between color 1 and color 2 (or black)
+    uint8_t r2 = 0, g2 = 0, b2 = 0;
+    if (seg.colorCount > 1) {
+        r2 = seg.colors[1][0];
+        g2 = seg.colors[1][1];
+        b2 = seg.colors[1][2];
+    }
+
+    uint8_t r = ((seg.colors[0][0] * rt.pulseValue) + (r2 * (255 - rt.pulseValue))) / 255;
+    uint8_t g = ((seg.colors[0][1] * rt.pulseValue) + (g2 * (255 - rt.pulseValue))) / 255;
+    uint8_t b = ((seg.colors[0][2] * rt.pulseValue) + (b2 * (255 - rt.pulseValue))) / 255;
+
+    for (int i = seg.start; i < seg.stop; i++) {
+        strip->setPixelColor(i, strip->Color(r, g, b));
+    }
+}
+
+// Run WLED Theater Chase effect
+void wledTheaterChase(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
+    int segLen = seg.stop - seg.start;
+
+    // Advance position
+    rt.animPosition++;
+    uint16_t period = 256 - seg.speed;
+    if (period < 1) period = 1;
+
+    if (rt.animPosition >= period) {
+        rt.animPosition = 0;
+        rt.scannerPos += 1;
+        if (rt.scannerPos >= 3) rt.scannerPos = 0;
+    }
+
+    int offset = (int)rt.scannerPos;
+
+    // Background color
+    uint8_t bgR = 0, bgG = 0, bgB = 0;
+    if (seg.colorCount > 1) {
+        bgR = seg.colors[1][0];
+        bgG = seg.colors[1][1];
+        bgB = seg.colors[1][2];
+    }
+
+    for (int i = seg.start; i < seg.stop; i++) {
+        int relPos = i - seg.start;
+        if ((relPos + offset) % 3 == 0) {
+            strip->setPixelColor(i, strip->Color(seg.colors[0][0], seg.colors[0][1], seg.colors[0][2]));
+        } else {
+            strip->setPixelColor(i, strip->Color(bgR, bgG, bgB));
+        }
+    }
+}
+
+// Run WLED Twinkle effect - random twinkling (different from sparkle)
+void wledTwinkle(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
+    int segLen = seg.stop - seg.start;
+    uint8_t density = seg.intensity;
+
+    // Fade all pixels toward background
+    uint8_t bgR = 0, bgG = 0, bgB = 0;
+    if (seg.colorCount > 1) {
+        bgR = seg.colors[1][0];
+        bgG = seg.colors[1][1];
+        bgB = seg.colors[1][2];
+    }
+
+    uint8_t fadeAmount = 16 + (seg.speed / 16);
+
+    for (int i = seg.start; i < seg.stop; i++) {
+        uint32_t c = strip->getPixelColor(i);
+        uint8_t r = (c >> 16) & 0xFF;
+        uint8_t g = (c >> 8) & 0xFF;
+        uint8_t b = c & 0xFF;
+
+        // Fade toward background
+        if (r > bgR) r = (r > fadeAmount) ? r - fadeAmount : bgR;
+        else if (r < bgR) r = (r + fadeAmount < bgR) ? r + fadeAmount : bgR;
+        if (g > bgG) g = (g > fadeAmount) ? g - fadeAmount : bgG;
+        else if (g < bgG) g = (g + fadeAmount < bgG) ? g + fadeAmount : bgG;
+        if (b > bgB) b = (b > fadeAmount) ? b - fadeAmount : bgB;
+        else if (b < bgB) b = (b + fadeAmount < bgB) ? b + fadeAmount : bgB;
+
+        strip->setPixelColor(i, strip->Color(r, g, b));
+    }
+
+    // Add new twinkles - twinkle appears instantly at full brightness
+    int numTwinkles = 1 + (density * segLen) / 1024;
+    for (int t = 0; t < numTwinkles; t++) {
+        if (random(255) < density / 2) {
+            int pos = seg.start + random(segLen);
+            // Use random color from available colors
+            int colorIdx = random(seg.colorCount > 0 ? seg.colorCount : 1);
+            strip->setPixelColor(pos, strip->Color(
+                seg.colors[colorIdx][0],
+                seg.colors[colorIdx][1],
+                seg.colors[colorIdx][2]
+            ));
+        }
+    }
+}
+
+// Run WLED Chase effect - chase pattern with gap
+void wledChase(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
+    int segLen = seg.stop - seg.start;
+    if (segLen < 1) return;
+
+    // Chase size from intensity
+    int chaseSize = (seg.intensity / 32) + 1;
+    if (chaseSize < 1) chaseSize = 1;
+    int gapSize = chaseSize;
+    int totalPattern = chaseSize + gapSize;
+
+    // Move chase position
+    rt.animPosition++;
+    uint16_t period = 128 - (seg.speed / 2);
+    if (period < 1) period = 1;
+
+    if (rt.animPosition >= period) {
+        rt.animPosition = 0;
+        rt.scannerPos += 1;
+        if (rt.scannerPos >= totalPattern) rt.scannerPos = 0;
+    }
+
+    int offset = (int)rt.scannerPos;
+
+    // Background color
+    uint8_t bgR = 0, bgG = 0, bgB = 0;
+    if (seg.colorCount > 1) {
+        bgR = seg.colors[1][0];
+        bgG = seg.colors[1][1];
+        bgB = seg.colors[1][2];
+    }
+
+    for (int i = seg.start; i < seg.stop; i++) {
+        int relPos = (i - seg.start + offset) % totalPattern;
+        if (relPos < chaseSize) {
+            strip->setPixelColor(i, strip->Color(seg.colors[0][0], seg.colors[0][1], seg.colors[0][2]));
+        } else {
+            strip->setPixelColor(i, strip->Color(bgR, bgG, bgB));
+        }
+    }
+}
+
+// Run WLED Larson Scanner effect - classic Cylon/KITT scanner
+void wledLarsonScanner(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
+    int segLen = seg.stop - seg.start;
+    if (segLen < 2) return;
+
+    // Eye size from intensity
+    int eyeSize = (seg.intensity / 50) + 1;
+    if (eyeSize < 1) eyeSize = 1;
+
+    // Fade rate - longer tail with higher c1
+    uint8_t fadeRate = 64;
+    if (seg.c1 > 0) {
+        fadeRate = 255 / (seg.c1 / 16 + 2);
+    }
+    if (fadeRate < 8) fadeRate = 8;
+
+    // Background color
+    uint8_t bgR = 0, bgG = 0, bgB = 0;
+    if (seg.colorCount > 1) {
+        bgR = seg.colors[1][0];
+        bgG = seg.colors[1][1];
+        bgB = seg.colors[1][2];
+    }
+
+    // Fade existing pixels toward background
+    for (int i = seg.start; i < seg.stop; i++) {
+        uint32_t c = strip->getPixelColor(i);
+        uint8_t cr = (c >> 16) & 0xFF;
+        uint8_t cg = (c >> 8) & 0xFF;
+        uint8_t cb = c & 0xFF;
+
+        if (cr > bgR) cr = (cr > fadeRate) ? cr - fadeRate : bgR;
+        else if (cr < bgR) cr = (cr + fadeRate < bgR) ? cr + fadeRate : bgR;
+        if (cg > bgG) cg = (cg > fadeRate) ? cg - fadeRate : bgG;
+        else if (cg < bgG) cg = (cg + fadeRate < bgG) ? cg + fadeRate : bgG;
+        if (cb > bgB) cb = (cb > fadeRate) ? cb - fadeRate : bgB;
+        else if (cb < bgB) cb = (cb + fadeRate < bgB) ? cb + fadeRate : bgB;
+
+        strip->setPixelColor(i, strip->Color(cr, cg, cb));
+    }
+
+    // Move scanner
+    float step = (float)seg.speed / 100.0f;
+    if (step < 0.1f) step = 0.2f;
+    rt.scannerPos += step * rt.scannerDir;
+
+    if (rt.scannerPos >= segLen - eyeSize) {
+        rt.scannerPos = segLen - eyeSize;
+        rt.scannerDir = -1;
+    } else if (rt.scannerPos <= 0) {
+        rt.scannerPos = 0;
+        rt.scannerDir = 1;
+    }
+
+    // Draw eye
+    int center = seg.start + (int)rt.scannerPos;
+    for (int e = 0; e < eyeSize && center + e < seg.stop; e++) {
+        strip->setPixelColor(center + e, strip->Color(
+            seg.colors[0][0], seg.colors[0][1], seg.colors[0][2]));
+    }
+}
+
+// Run WLED Comet effect - comet with trail
+void wledComet(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
+    int segLen = seg.stop - seg.start;
+    if (segLen < 1) return;
+
+    // Tail length from intensity
+    int tailLen = (seg.intensity / 16) + 2;
+    if (tailLen < 2) tailLen = 2;
+    if (tailLen > segLen) tailLen = segLen;
+
+    // Fade all pixels
+    uint8_t fadeRate = 255 / (tailLen + 1);
+    if (fadeRate < 8) fadeRate = 8;
+
+    for (int i = seg.start; i < seg.stop; i++) {
+        uint32_t c = strip->getPixelColor(i);
+        uint8_t r = ((c >> 16) & 0xFF);
+        uint8_t g = ((c >> 8) & 0xFF);
+        uint8_t b = (c & 0xFF);
+
+        r = (r > fadeRate) ? r - fadeRate : 0;
+        g = (g > fadeRate) ? g - fadeRate : 0;
+        b = (b > fadeRate) ? b - fadeRate : 0;
+
+        strip->setPixelColor(i, strip->Color(r, g, b));
+    }
+
+    // Move comet
+    float step = (float)seg.speed / 50.0f;
+    if (step < 0.2f) step = 0.2f;
+    rt.scannerPos += step;
+
+    // Wrap around
+    if (rt.scannerPos >= segLen + tailLen) {
+        rt.scannerPos = 0;
+    }
+
+    // Draw comet head
+    int headPos = seg.start + (int)rt.scannerPos;
+    if (headPos >= seg.start && headPos < seg.stop) {
+        strip->setPixelColor(headPos, strip->Color(
+            seg.colors[0][0], seg.colors[0][1], seg.colors[0][2]));
+    }
+}
+
+// Firework particle structure (kept simple for memory efficiency)
+#define MAX_FIREWORK_PARTICLES 8
+struct FireworkParticle {
+    float pos;
+    float vel;
+    uint8_t life;
+    uint8_t color;  // color index
+};
+static FireworkParticle fwParticles[MAX_FIREWORK_PARTICLES];
+
+// Run WLED Fireworks effect - fireworks bursts
+void wledFireworks(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
+    int segLen = seg.stop - seg.start;
+    if (segLen < 1) return;
+
+    // Fade background
+    uint8_t fadeRate = 48;
+    for (int i = seg.start; i < seg.stop; i++) {
+        uint32_t c = strip->getPixelColor(i);
+        uint8_t r = ((c >> 16) & 0xFF);
+        uint8_t g = ((c >> 8) & 0xFF);
+        uint8_t b = (c & 0xFF);
+
+        r = (r > fadeRate) ? r - fadeRate : 0;
+        g = (g > fadeRate) ? g - fadeRate : 0;
+        b = (b > fadeRate) ? b - fadeRate : 0;
+
+        strip->setPixelColor(i, strip->Color(r, g, b));
+    }
+
+    // Update particles
+    for (int p = 0; p < MAX_FIREWORK_PARTICLES; p++) {
+        if (fwParticles[p].life > 0) {
+            fwParticles[p].pos += fwParticles[p].vel;
+            fwParticles[p].vel *= 0.95f;  // Slow down
+            fwParticles[p].life--;
+
+            int pixelPos = seg.start + (int)fwParticles[p].pos;
+            if (pixelPos >= seg.start && pixelPos < seg.stop) {
+                uint8_t brightness = fwParticles[p].life * 4;
+                if (brightness > 255) brightness = 255;
+                int ci = fwParticles[p].color % (seg.colorCount > 0 ? seg.colorCount : 1);
+                strip->setPixelColor(pixelPos, strip->Color(
+                    (seg.colors[ci][0] * brightness) / 255,
+                    (seg.colors[ci][1] * brightness) / 255,
+                    (seg.colors[ci][2] * brightness) / 255));
+            }
+        }
+    }
+
+    // Spawn new firework
+    if (random(255) < seg.intensity / 4) {
+        int burstPos = random(segLen);
+        int numParticles = 3 + random(5);
+
+        for (int i = 0; i < numParticles && i < MAX_FIREWORK_PARTICLES; i++) {
+            // Find empty slot
+            for (int p = 0; p < MAX_FIREWORK_PARTICLES; p++) {
+                if (fwParticles[p].life == 0) {
+                    fwParticles[p].pos = burstPos;
+                    fwParticles[p].vel = ((float)random(200) - 100) / 50.0f;
+                    fwParticles[p].life = 30 + random(30);
+                    fwParticles[p].color = random(seg.colorCount > 0 ? seg.colorCount : 1);
+                    break;
+                }
+            }
+        }
+    }
+}
+
+// Run WLED Gradient effect - static gradient using colors
+void wledGradient(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
+    int segLen = seg.stop - seg.start;
+    if (segLen < 1) return;
+
+    // Get colors for gradient
+    uint8_t r1 = seg.colors[0][0], g1 = seg.colors[0][1], b1 = seg.colors[0][2];
+    uint8_t r2 = 0, g2 = 0, b2 = 0;
+    if (seg.colorCount > 1) {
+        r2 = seg.colors[1][0];
+        g2 = seg.colors[1][1];
+        b2 = seg.colors[1][2];
+    }
+
+    for (int i = 0; i < segLen; i++) {
+        float ratio = (float)i / (float)(segLen - 1);
+        if (segLen == 1) ratio = 0.5f;
+
+        uint8_t r = r1 + (int)((r2 - r1) * ratio);
+        uint8_t g = g1 + (int)((g2 - g1) * ratio);
+        uint8_t b = b1 + (int)((b2 - b1) * ratio);
+
+        strip->setPixelColor(seg.start + i, strip->Color(r, g, b));
+    }
+}
+
+// Ripple data structure
+#define MAX_RIPPLES 4
+struct Ripple {
+    float center;
+    float radius;
+    uint8_t life;
+    uint8_t colorIdx;
+};
+static Ripple ripples[MAX_RIPPLES];
+
+// Run WLED Ripple effect - water ripple effect
+void wledRipple(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
+    int segLen = seg.stop - seg.start;
+    if (segLen < 1) return;
+
+    // Fade background
+    uint8_t fadeRate = 32;
+    for (int i = seg.start; i < seg.stop; i++) {
+        uint32_t c = strip->getPixelColor(i);
+        uint8_t r = ((c >> 16) & 0xFF);
+        uint8_t g = ((c >> 8) & 0xFF);
+        uint8_t b = (c & 0xFF);
+
+        r = (r > fadeRate) ? r - fadeRate : 0;
+        g = (g > fadeRate) ? g - fadeRate : 0;
+        b = (b > fadeRate) ? b - fadeRate : 0;
+
+        strip->setPixelColor(i, strip->Color(r, g, b));
+    }
+
+    // Update and draw ripples
+    float speed = (float)seg.speed / 64.0f;
+    if (speed < 0.1f) speed = 0.1f;
+
+    for (int r = 0; r < MAX_RIPPLES; r++) {
+        if (ripples[r].life > 0) {
+            ripples[r].radius += speed;
+            ripples[r].life--;
+
+            // Draw ripple ring
+            uint8_t brightness = ripples[r].life * 3;
+            if (brightness > 255) brightness = 255;
+
+            int ci = ripples[r].colorIdx % (seg.colorCount > 0 ? seg.colorCount : 1);
+
+            // Draw at center +/- radius
+            int leftPos = seg.start + (int)(ripples[r].center - ripples[r].radius);
+            int rightPos = seg.start + (int)(ripples[r].center + ripples[r].radius);
+
+            if (leftPos >= seg.start && leftPos < seg.stop) {
+                strip->setPixelColor(leftPos, strip->Color(
+                    (seg.colors[ci][0] * brightness) / 255,
+                    (seg.colors[ci][1] * brightness) / 255,
+                    (seg.colors[ci][2] * brightness) / 255));
+            }
+            if (rightPos >= seg.start && rightPos < seg.stop && rightPos != leftPos) {
+                strip->setPixelColor(rightPos, strip->Color(
+                    (seg.colors[ci][0] * brightness) / 255,
+                    (seg.colors[ci][1] * brightness) / 255,
+                    (seg.colors[ci][2] * brightness) / 255));
+            }
+        }
+    }
+
+    // Spawn new ripple
+    if (random(255) < seg.intensity / 3) {
+        for (int r = 0; r < MAX_RIPPLES; r++) {
+            if (ripples[r].life == 0) {
+                ripples[r].center = random(segLen);
+                ripples[r].radius = 0;
+                ripples[r].life = 40 + random(40);
+                ripples[r].colorIdx = random(seg.colorCount > 0 ? seg.colorCount : 1);
+                break;
+            }
+        }
+    }
+}
+
+// Starburst particle structure
+#define MAX_STARBURST_PARTICLES 12
+struct StarburstParticle {
+    float pos;
+    float vel;
+    uint8_t life;
+    uint8_t maxLife;
+    uint8_t colorIdx;
+};
+static StarburstParticle sbParticles[MAX_STARBURST_PARTICLES];
+
+// Run WLED Starburst effect - starburst explosions
+void wledStarburst(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
+    int segLen = seg.stop - seg.start;
+    if (segLen < 1) return;
+
+    // Clear strip first
+    for (int i = seg.start; i < seg.stop; i++) {
+        strip->setPixelColor(i, 0);
+    }
+
+    // Update and draw particles
+    for (int p = 0; p < MAX_STARBURST_PARTICLES; p++) {
+        if (sbParticles[p].life > 0) {
+            sbParticles[p].pos += sbParticles[p].vel;
+            sbParticles[p].life--;
+
+            // Brightness based on remaining life
+            float lifeRatio = (float)sbParticles[p].life / (float)sbParticles[p].maxLife;
+            uint8_t brightness = (uint8_t)(255 * lifeRatio);
+
+            int pixelPos = seg.start + (int)sbParticles[p].pos;
+            if (pixelPos >= seg.start && pixelPos < seg.stop) {
+                int ci = sbParticles[p].colorIdx % (seg.colorCount > 0 ? seg.colorCount : 1);
+                uint32_t existing = strip->getPixelColor(pixelPos);
+                uint8_t er = (existing >> 16) & 0xFF;
+                uint8_t eg = (existing >> 8) & 0xFF;
+                uint8_t eb = existing & 0xFF;
+
+                // Add to existing color
+                uint8_t nr = min(255, er + (seg.colors[ci][0] * brightness) / 255);
+                uint8_t ng = min(255, eg + (seg.colors[ci][1] * brightness) / 255);
+                uint8_t nb = min(255, eb + (seg.colors[ci][2] * brightness) / 255);
+
+                strip->setPixelColor(pixelPos, strip->Color(nr, ng, nb));
+            }
+        }
+    }
+
+    // Spawn new starburst
+    if (random(255) < seg.intensity / 3) {
+        int burstCenter = random(segLen);
+        int numParticles = 4 + random(4);
+        float baseSpeed = (float)seg.speed / 100.0f;
+        if (baseSpeed < 0.2f) baseSpeed = 0.2f;
+
+        int spawned = 0;
+        for (int p = 0; p < MAX_STARBURST_PARTICLES && spawned < numParticles; p++) {
+            if (sbParticles[p].life == 0) {
+                sbParticles[p].pos = burstCenter;
+                // Spread velocities in both directions
+                sbParticles[p].vel = baseSpeed * ((float)(spawned % 2 == 0 ? 1 : -1)) * (1.0f + (float)random(100) / 100.0f);
+                sbParticles[p].life = 30 + random(30);
+                sbParticles[p].maxLife = sbParticles[p].life;
+                sbParticles[p].colorIdx = random(seg.colorCount > 0 ? seg.colorCount : 1);
+                spawned++;
+            }
+        }
+    }
+}
+
+// Bouncing ball structure
+#define MAX_BALLS 3
+struct BouncingBall {
+    float pos;
+    float vel;
+    float gravity;
+    uint8_t colorIdx;
+};
+static BouncingBall balls[MAX_BALLS];
+static bool ballsInitialized = false;
+
+// Run WLED Bouncing Balls effect - physics-based bouncing
+void wledBouncingBalls(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
+    int segLen = seg.stop - seg.start;
+    if (segLen < 2) return;
+
+    // Initialize balls if needed
+    if (!ballsInitialized) {
+        for (int i = 0; i < MAX_BALLS; i++) {
+            balls[i].pos = segLen - 1;
+            balls[i].vel = 0;
+            balls[i].gravity = 0.05f + (float)random(50) / 1000.0f;
+            balls[i].colorIdx = i % (seg.colorCount > 0 ? seg.colorCount : 1);
+        }
+        ballsInitialized = true;
+    }
+
+    // Clear strip
+    for (int i = seg.start; i < seg.stop; i++) {
+        strip->setPixelColor(i, 0);
+    }
+
+    // Physics timestep scale from speed
+    float timeScale = (float)seg.speed / 128.0f;
+    if (timeScale < 0.1f) timeScale = 0.1f;
+
+    // Damping factor (energy loss on bounce)
+    float damping = 0.9f - (float)seg.intensity / 1000.0f;
+    if (damping < 0.5f) damping = 0.5f;
+    if (damping > 0.98f) damping = 0.98f;
+
+    // Update and draw balls
+    for (int b = 0; b < MAX_BALLS; b++) {
+        // Apply gravity (accelerate downward, toward position 0)
+        balls[b].vel += balls[b].gravity * timeScale;
+        balls[b].pos -= balls[b].vel * timeScale;
+
+        // Bounce off bottom (position 0)
+        if (balls[b].pos < 0) {
+            balls[b].pos = 0;
+            balls[b].vel = -balls[b].vel * damping;
+
+            // If velocity is too low, give it a kick
+            if (balls[b].vel < 0.5f) {
+                balls[b].vel = 2.0f + (float)random(100) / 50.0f;
+            }
+        }
+
+        // Bounce off top
+        if (balls[b].pos >= segLen - 1) {
+            balls[b].pos = segLen - 1;
+            balls[b].vel = -balls[b].vel * damping;
+        }
+
+        // Draw ball
+        int pixelPos = seg.start + (int)balls[b].pos;
+        if (pixelPos >= seg.start && pixelPos < seg.stop) {
+            int ci = balls[b].colorIdx % (seg.colorCount > 0 ? seg.colorCount : 1);
+            strip->setPixelColor(pixelPos, strip->Color(
+                seg.colors[ci][0], seg.colors[ci][1], seg.colors[ci][2]));
+        }
+    }
+}
+
+// Run WLED Sinelon effect - sine wave with trail
+void wledSinelon(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
+    int segLen = seg.stop - seg.start;
+    if (segLen < 1) return;
+
+    // Fade existing pixels
+    uint8_t fadeRate = 16 + (255 - seg.intensity) / 8;
+
+    for (int i = seg.start; i < seg.stop; i++) {
+        uint32_t c = strip->getPixelColor(i);
+        uint8_t r = ((c >> 16) & 0xFF);
+        uint8_t g = ((c >> 8) & 0xFF);
+        uint8_t b = (c & 0xFF);
+
+        r = (r > fadeRate) ? r - fadeRate : 0;
+        g = (g > fadeRate) ? g - fadeRate : 0;
+        b = (b > fadeRate) ? b - fadeRate : 0;
+
+        strip->setPixelColor(i, strip->Color(r, g, b));
+    }
+
+    // Move position using sine wave
+    rt.animPosition += seg.speed / 4;
+
+    // Calculate position using sine (0 to segLen-1)
+    // sin gives -1 to 1, we map to 0 to segLen-1
+    float sineVal = sin((float)rt.animPosition / 128.0f);
+    int pos = seg.start + (int)(((sineVal + 1.0f) / 2.0f) * (segLen - 1));
+
+    if (pos >= seg.start && pos < seg.stop) {
+        // Cycle through colors
+        int colorIdx = (rt.animPosition / 256) % (seg.colorCount > 0 ? seg.colorCount : 1);
+        strip->setPixelColor(pos, strip->Color(
+            seg.colors[colorIdx][0],
+            seg.colors[colorIdx][1],
+            seg.colors[colorIdx][2]));
+    }
+}
+
 // Run a single WLED segment effect
 void runWLEDSegment(int stripIdx, int segIdx) {
     StripRuntime& rt = stripRuntime[stripIdx];
@@ -1359,30 +2057,71 @@ void runWLEDSegment(int stripIdx, int segIdx) {
         case WLED_FX_SOLID:
             wledSolid(strip, seg);
             break;
+        case WLED_FX_BLINK:
+            wledBlink(strip, seg, rt);
+            break;
         case WLED_FX_BREATHE:
             wledBreathe(strip, seg, rt);
             break;
-        case WLED_FX_SCANNER:
-            wledScanner(strip, seg, rt);
+        case WLED_FX_WIPE:
+            wledWipe(strip, seg, rt);
             break;
-        case WLED_FX_FIRE2012:
-            wledFire2012(strip, seg, rt);
+        case WLED_FX_FADE:
+            wledFade(strip, seg, rt);
+            break;
+        case WLED_FX_THEATER_CHASE:
+            wledTheaterChase(strip, seg, rt);
             break;
         case WLED_FX_RAINBOW:
             wledRainbow(strip, seg, rt);
             break;
+        case WLED_FX_TWINKLE:
+            wledTwinkle(strip, seg, rt);
+            break;
+        case WLED_FX_SPARKLE:
+            wledSparkle(strip, seg, rt);
+            break;
+        case WLED_FX_CHASE:
+            wledChase(strip, seg, rt);
+            break;
+        case WLED_FX_SCANNER:
+            wledScanner(strip, seg, rt);
+            break;
+        case WLED_FX_LARSON:
+            wledLarsonScanner(strip, seg, rt);
+            break;
+        case WLED_FX_COMET:
+            wledComet(strip, seg, rt);
+            break;
+        case WLED_FX_FIREWORKS:
+            wledFireworks(strip, seg, rt);
+            break;
+        case WLED_FX_GRADIENT:
+            wledGradient(strip, seg, rt);
+            break;
+        case WLED_FX_FIRE2012:
+            wledFire2012(strip, seg, rt);
+            break;
         case WLED_FX_COLORWAVES:
             wledColorwaves(strip, seg, rt);
             break;
-        case WLED_FX_SPARKLE:
-        case WLED_FX_TWINKLE:
-            wledSparkle(strip, seg, rt);
+        case WLED_FX_METEOR:
+            wledMeteor(strip, seg, rt);
+            break;
+        case WLED_FX_RIPPLE:
+            wledRipple(strip, seg, rt);
             break;
         case WLED_FX_CANDLE:
             wledCandle(strip, seg, rt);
             break;
-        case WLED_FX_METEOR:
-            wledMeteor(strip, seg, rt);
+        case WLED_FX_STARBURST:
+            wledStarburst(strip, seg, rt);
+            break;
+        case WLED_FX_BOUNCING_BALLS:
+            wledBouncingBalls(strip, seg, rt);
+            break;
+        case WLED_FX_SINELON:
+            wledSinelon(strip, seg, rt);
             break;
         default:
             // Fallback to solid
