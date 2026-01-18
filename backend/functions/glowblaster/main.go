@@ -533,12 +533,30 @@ func handleCompile(ctx context.Context, request events.APIGatewayProxyRequest) (
 		}
 		log.Printf("[Compile] Success! WLED binary length: %d", len(bytecode))
 
-		// Debug: Log WLED binary header
+		// Log full bytecode in hex format (0x00 format)
+		var hexBytes []string
+		for _, b := range bytecode {
+			hexBytes = append(hexBytes, fmt.Sprintf("0x%02X", b))
+		}
+		log.Printf("[Compile] Full HEX: [%s]", strings.Join(hexBytes, ", "))
+
+		// Debug: Log WLED binary structure
 		if len(bytecode) >= 12 {
-			log.Printf("[Compile] WLED binary - Magic: %s, Version: %02X, Flags: %02X",
+			log.Printf("[Compile] WLED Header - Magic: %s, Version: 0x%02X, Flags: 0x%02X",
 				string(bytecode[0:4]), bytecode[4], bytecode[5])
-			log.Printf("[Compile] WLED binary - Brightness: %d, SegmentCount: %d",
-				bytecode[8], bytecode[11])
+			log.Printf("[Compile] WLED Global - Brightness: %d (0x%02X), SegmentCount: %d",
+				bytecode[8], bytecode[8], bytecode[11])
+		}
+		if len(bytecode) >= 35 {
+			// Parse first segment (starts at offset 12)
+			segStart := 12
+			log.Printf("[Compile] WLED Seg0 - Effect: %d (0x%02X), Speed: %d, Intensity: %d",
+				bytecode[segStart+5], bytecode[segStart+5], bytecode[segStart+6], bytecode[segStart+7])
+			colorCount := int(bytecode[segStart+13])
+			if colorCount >= 1 && len(bytecode) >= segStart+17 {
+				log.Printf("[Compile] WLED Seg0 - Color1: RGB(%d, %d, %d)",
+					bytecode[segStart+14], bytecode[segStart+15], bytecode[segStart+16])
+			}
 		}
 	} else {
 		// Legacy LCL YAML format
@@ -551,6 +569,13 @@ func handleCompile(ctx context.Context, request events.APIGatewayProxyRequest) (
 			}), nil
 		}
 		log.Printf("[Compile] Success! LCL bytecode length: %d, Warnings: %v", len(bytecode), warnings)
+
+		// Log full bytecode in hex format
+		var hexBytes []string
+		for _, b := range bytecode {
+			hexBytes = append(hexBytes, fmt.Sprintf("0x%02X", b))
+		}
+		log.Printf("[Compile] Full HEX: [%s]", strings.Join(hexBytes, ", "))
 
 		// Debug: Log key LCL bytecode values
 		if len(bytecode) >= 23 {

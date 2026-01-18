@@ -189,22 +189,72 @@ func handleSendCommand(ctx context.Context, username string, request events.APIG
 	// Otherwise, send custom command
 	log.Printf("No pattern ID, sending custom command: %s with argument: %s", cmdReq.Command, cmdReq.Argument)
 
-	// Debug: If this is a setBytecode command, decode and log the bytecode values
+	// Debug: If this is a setBytecode command, decode and log the bytecode values in hex format
 	if cmdReq.Command == "setBytecode" {
 		parts := strings.SplitN(cmdReq.Argument, ",", 2)
 		if len(parts) == 2 {
-			log.Printf("[setBytecode Debug] Pin: %s, Base64 length: %d", parts[0], len(parts[1]))
+			log.Printf("[setBytecode] Pin: %s, Base64 length: %d", parts[0], len(parts[1]))
+			log.Printf("[setBytecode] Base64: %s", parts[1])
+
 			// Decode base64 to inspect bytecode
-			if decoded, err := base64.StdEncoding.DecodeString(parts[1]); err == nil && len(decoded) >= 23 {
-				log.Printf("[setBytecode Debug] Decoded length: %d", len(decoded))
-				log.Printf("[setBytecode Debug] Header: %02X %02X %02X, Version: %02X",
-					decoded[0], decoded[1], decoded[2], decoded[3])
-				log.Printf("[setBytecode Debug] Effect: %02X, Brightness: %02X",
-					decoded[8], decoded[9])
-				log.Printf("[setBytecode Debug] RGB at [16-18]: R=%02X(%d) G=%02X(%d) B=%02X(%d)",
-					decoded[16], decoded[16], decoded[17], decoded[17], decoded[18], decoded[18])
-			} else if err != nil {
-				log.Printf("[setBytecode Debug] Base64 decode error: %v", err)
+			decoded, err := base64.StdEncoding.DecodeString(parts[1])
+			if err != nil {
+				log.Printf("[setBytecode] ERROR: Base64 decode failed: %v", err)
+			} else {
+				log.Printf("[setBytecode] Decoded length: %d bytes", len(decoded))
+
+				// Log full bytecode in hex format (0x00 format)
+				var hexBytes []string
+				for _, b := range decoded {
+					hexBytes = append(hexBytes, fmt.Sprintf("0x%02X", b))
+				}
+				log.Printf("[setBytecode] Full HEX: [%s]", strings.Join(hexBytes, ", "))
+
+				// Parse based on magic bytes
+				if len(decoded) >= 4 && string(decoded[0:4]) == "WLED" {
+					log.Printf("[setBytecode] Format: WLED Binary")
+					if len(decoded) >= 12 {
+						log.Printf("[setBytecode] WLED Header - Magic: WLED, Version: 0x%02X, Flags: 0x%02X",
+							decoded[4], decoded[5])
+						log.Printf("[setBytecode] WLED Global - Brightness: %d (0x%02X), Transition: %d, SegCount: %d",
+							decoded[8], decoded[8], (int(decoded[9])<<8)|int(decoded[10]), decoded[11])
+					}
+					if len(decoded) >= 35 {
+						// Parse first segment (starts at offset 12)
+						segStart := 12
+						log.Printf("[setBytecode] WLED Seg0 - ID: %d, Start: %d, Stop: %d",
+							decoded[segStart], (int(decoded[segStart+1])<<8)|int(decoded[segStart+2]),
+							(int(decoded[segStart+3])<<8)|int(decoded[segStart+4]))
+						log.Printf("[setBytecode] WLED Seg0 - Effect: %d (0x%02X), Speed: %d, Intensity: %d",
+							decoded[segStart+5], decoded[segStart+5], decoded[segStart+6], decoded[segStart+7])
+						log.Printf("[setBytecode] WLED Seg0 - C1: %d, C2: %d, C3: %d, PaletteID: %d, Flags: 0x%02X",
+							decoded[segStart+8], decoded[segStart+9], decoded[segStart+10],
+							decoded[segStart+11], decoded[segStart+12])
+						colorCount := int(decoded[segStart+13])
+						log.Printf("[setBytecode] WLED Seg0 - ColorCount: %d", colorCount)
+						if colorCount >= 1 && len(decoded) >= segStart+17 {
+							log.Printf("[setBytecode] WLED Seg0 - Color1: RGB(%d, %d, %d)",
+								decoded[segStart+14], decoded[segStart+15], decoded[segStart+16])
+						}
+						if colorCount >= 2 && len(decoded) >= segStart+20 {
+							log.Printf("[setBytecode] WLED Seg0 - Color2: RGB(%d, %d, %d)",
+								decoded[segStart+17], decoded[segStart+18], decoded[segStart+19])
+						}
+					}
+				} else if len(decoded) >= 3 && string(decoded[0:3]) == "LCL" {
+					log.Printf("[setBytecode] Format: LCL Bytecode")
+					if len(decoded) >= 23 {
+						log.Printf("[setBytecode] LCL - Version: 0x%02X, Effect: %d (0x%02X)",
+							decoded[3], decoded[8], decoded[8])
+						log.Printf("[setBytecode] LCL - Brightness: %d, Speed: %d",
+							decoded[9], decoded[10])
+						log.Printf("[setBytecode] LCL - RGB: (%d, %d, %d)",
+							decoded[16], decoded[17], decoded[18])
+					}
+				} else {
+					log.Printf("[setBytecode] Format: Unknown (first 4 bytes: 0x%02X 0x%02X 0x%02X 0x%02X)",
+						decoded[0], decoded[1], decoded[2], decoded[3])
+				}
 			}
 		}
 	}
