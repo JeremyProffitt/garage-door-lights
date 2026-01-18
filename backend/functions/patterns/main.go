@@ -171,6 +171,12 @@ func handleCreatePattern(ctx context.Context, username string, request events.AP
         pattern.Speed = 50
     }
 
+    // If WLED state provided, set format version (compilation done client-side via /api/glowblaster/compile)
+    if pattern.WLEDState != "" {
+        pattern.FormatVersion = 2 // FormatVersionWLED
+        log.Printf("Saving pattern with WLED state (length: %d)", len(pattern.WLEDState))
+    }
+
     // Create pattern
     pattern.PatternID = uuid.New().String()
     pattern.UserID = username
@@ -272,6 +278,13 @@ func handleUpdatePattern(ctx context.Context, username string, patternID string,
     }
     if updates.Metadata != nil {
         existingPattern.Metadata = updates.Metadata
+    }
+
+    // Update WLED state if provided (compilation done client-side via /api/glowblaster/compile)
+    if updates.WLEDState != "" {
+        existingPattern.WLEDState = updates.WLEDState
+        existingPattern.FormatVersion = 2 // FormatVersionWLED
+        log.Printf("Updating pattern with WLED state (length: %d)", len(updates.WLEDState))
     }
 
     existingPattern.UpdatedAt = time.Now()

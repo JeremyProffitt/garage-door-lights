@@ -342,18 +342,24 @@ function patternsPage() {
         },
 
         buildWLEDJson() {
-            const colors = this.form.colors.map(c => [c.r, c.g, c.b]);
+            const colors = this.form.colors.map(c => [
+                Math.max(0, Math.min(255, c.r)),
+                Math.max(0, Math.min(255, c.g)),
+                Math.max(0, Math.min(255, c.b))
+            ]);
+            // Clamp all values to valid 0-255 range
+            const clamp = (val) => Math.max(0, Math.min(255, val || 0));
             return JSON.stringify({
                 on: true,
-                bri: this.form.brightness,
+                bri: clamp(this.form.brightness),
                 seg: [{
                     id: 0,
                     start: 0,
                     stop: 8,
-                    fx: parseInt(this.form.effectId),
-                    sx: this.form.speed,
-                    ix: this.form.intensity,
-                    c1: this.form.custom1,
+                    fx: parseInt(this.form.effectId) || 0,
+                    sx: clamp(this.form.speed),
+                    ix: clamp(this.form.intensity),
+                    c1: clamp(this.form.custom1),
                     col: colors,
                     on: true
                 }]

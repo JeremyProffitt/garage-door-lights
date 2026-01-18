@@ -262,23 +262,46 @@ function devicesPage() {
                 'fire': 66,
                 'candle': 71
             };
-            const effectId = pattern.effectId || effectMap[pattern.type] || 71;
 
-            // Build colors array
-            const colors = pattern.colors?.map(c => [c.r, c.g, c.b]) ||
-                [[pattern.red || 255, pattern.green || 100, pattern.blue || 0]];
+            // Helper to clamp values to 0-255 range
+            const clamp = (val) => Math.max(0, Math.min(255, val || 0));
+
+            // Read effectId from metadata first, then fall back to type mapping
+            const effectId = pattern.metadata?.effectId
+                ? parseInt(pattern.metadata.effectId)
+                : (effectMap[pattern.type] || 71);
+
+            // Read speed/intensity/custom1 from metadata (stored as 0-255) or fall back to defaults
+            const speed = pattern.metadata?.speed
+                ? parseInt(pattern.metadata.speed)
+                : 128;
+            const intensity = pattern.metadata?.intensity
+                ? parseInt(pattern.metadata.intensity)
+                : 128;
+            const custom1 = pattern.metadata?.custom1
+                ? parseInt(pattern.metadata.custom1)
+                : 128;
+
+            // Build colors array with clamped RGB values
+            const colors = pattern.colors?.map(c => [
+                clamp(c.r), clamp(c.g), clamp(c.b)
+            ]) || [[
+                clamp(pattern.red || 255),
+                clamp(pattern.green || 100),
+                clamp(pattern.blue || 0)
+            ]];
 
             const wledJson = JSON.stringify({
                 on: true,
-                bri: pattern.brightness || 200,
+                bri: clamp(pattern.brightness || 200),
                 seg: [{
                     id: 0,
                     start: 0,
                     stop: 8,
                     fx: effectId,
-                    sx: pattern.speed || 128,
-                    ix: pattern.intensity || 128,
-                    c1: pattern.custom1 || 128,
+                    sx: clamp(speed),
+                    ix: clamp(intensity),
+                    c1: clamp(custom1),
                     col: colors,
                     on: true
                 }]

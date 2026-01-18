@@ -25,7 +25,7 @@ type Pattern struct {
     UserID      string            `json:"userId" dynamodbav:"userId"`
     Name        string            `json:"name" dynamodbav:"name"`
     Description string            `json:"description" dynamodbav:"description"`
-    Type        string            `json:"type" dynamodbav:"type"` // candle, solid, pulse, wave, rainbow, fire
+    Type        string            `json:"type" dynamodbav:"type"` // candle, solid, pulse, wave, rainbow, fire, glowblaster
     Red         int               `json:"red" dynamodbav:"red"`
     Green       int               `json:"green" dynamodbav:"green"`
     Blue        int               `json:"blue" dynamodbav:"blue"`
@@ -33,8 +33,18 @@ type Pattern struct {
     Brightness  int               `json:"brightness" dynamodbav:"brightness"`
     Speed       int               `json:"speed" dynamodbav:"speed"`
     Metadata    map[string]string `json:"metadata,omitempty" dynamodbav:"metadata"`
-    CreatedAt   time.Time         `json:"createdAt" dynamodbav:"createdAt"`
-    UpdatedAt   time.Time         `json:"updatedAt" dynamodbav:"updatedAt"`
+    // Glow Blaster fields (LCL v4 - legacy)
+    Category       string `json:"category,omitempty" dynamodbav:"category,omitempty"`             // "standard" or "glowblaster"
+    LCLSpec        string `json:"lclSpec,omitempty" dynamodbav:"lclSpec,omitempty"`               // GlowBlaster Language specification text
+    Bytecode       []byte `json:"bytecode,omitempty" dynamodbav:"bytecode,omitempty"`             // Compiled bytecode (LCL or WLED format)
+    IntentLayer    string `json:"intentLayer,omitempty" dynamodbav:"intentLayer,omitempty"`       // YAML intent description (legacy)
+    ConversationID string `json:"conversationId,omitempty" dynamodbav:"conversationId,omitempty"` // Source conversation ID
+    // WLED fields (new format)
+    WLEDState     string `json:"wledState,omitempty" dynamodbav:"wledState,omitempty"`         // WLED JSON state string
+    WLEDBinary    []byte `json:"wledBinary,omitempty" dynamodbav:"wledBinary,omitempty"`       // Compact WLED binary
+    FormatVersion int    `json:"formatVersion,omitempty" dynamodbav:"formatVersion,omitempty"` // 1=LCL, 2=WLED
+    CreatedAt     time.Time         `json:"createdAt" dynamodbav:"createdAt"`
+    UpdatedAt     time.Time         `json:"updatedAt" dynamodbav:"updatedAt"`
 }
 
 // LEDStrip represents configuration for a single LED strip on a device pin
