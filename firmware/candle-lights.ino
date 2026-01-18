@@ -413,6 +413,10 @@ void updateColorsInfo() {
 
 // Update all info variables
 void updateAllInfo() {
+    // Populate deviceInfo: "version|platform|maxStrips|maxLeds"
+    snprintf(deviceInfo, sizeof(deviceInfo), "%s|%s|%d|%d",
+             FIRMWARE_VERSION, DEVICE_PLATFORM_NAME, MAX_STRIPS, MAX_LEDS_PER_STRIP);
+
     updateStripInfo();
     updateColorsInfo();
 }
