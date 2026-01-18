@@ -227,65 +227,78 @@ function devicesPage() {
         },
 
         async sendPatternToStrip(deviceId, pin, pattern) {
-            // Map pattern type to firmware number
-            const patternMap = {
-                'candle': 1,
-                'solid': 2,
-                'pulse': 3,
-                'wave': 4,
-                'rainbow': 5,
-                'fire': 6
+            // Check if pattern already has WLED state or binary
+            if (pattern.wledState || pattern.wledBinary || pattern.bytecode) {
+                let bytecode = pattern.wledBinary || pattern.bytecode;
+
+                // If we have WLED JSON but no binary, compile it
+                if (!bytecode && pattern.wledState) {
+                    const compileResp = await fetch('/api/glowblaster/compile', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ lcl: pattern.wledState })
+                    });
+                    const compileData = await compileResp.json();
+                    if (compileData.success && compileData.data?.bytecode) {
+                        bytecode = compileData.data.bytecode;
+                    } else {
+                        throw new Error('Failed to compile pattern: ' + (compileData.data?.errors?.join(', ') || 'Unknown error'));
+                    }
+                }
+
+                if (bytecode) {
+                    await this.sendBytecodeToStrip(deviceId, pin, bytecode);
+                    return;
+                }
+            }
+
+            // Build WLED JSON from pattern fields
+            const effectMap = {
+                'solid': 0,
+                'pulse': 2,
+                'wave': 67,
+                'rainbow': 9,
+                'fire': 66,
+                'candle': 71
             };
-            const patternNum = patternMap[pattern.type] || 2;
+            const effectId = pattern.effectId || effectMap[pattern.type] || 71;
 
-            // Send pattern command: "pin,pattern,speed"
-            await fetch('/api/particle/command', {
+            // Build colors array
+            const colors = pattern.colors?.map(c => [c.r, c.g, c.b]) ||
+                [[pattern.red || 255, pattern.green || 100, pattern.blue || 0]];
+
+            const wledJson = JSON.stringify({
+                on: true,
+                bri: pattern.brightness || 200,
+                seg: [{
+                    id: 0,
+                    start: 0,
+                    stop: 8,
+                    fx: effectId,
+                    sx: pattern.speed || 128,
+                    ix: pattern.intensity || 128,
+                    c1: pattern.custom1 || 128,
+                    col: colors,
+                    on: true
+                }]
+            });
+
+            // Compile WLED JSON to binary
+            const compileResp = await fetch('/api/glowblaster/compile', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 credentials: 'same-origin',
-                body: JSON.stringify({
-                    deviceId,
-                    command: 'setPattern',
-                    argument: `${pin},${patternNum},${pattern.speed || 50}`
-                })
+                body: JSON.stringify({ lcl: wledJson })
             });
+            const compileData = await compileResp.json();
 
-            // Send color command: "pin,R,G,B"
-            const color = pattern.colors?.[0] || { r: pattern.red || 255, g: pattern.green || 100, b: pattern.blue || 0 };
-            await fetch('/api/particle/command', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                credentials: 'same-origin',
-                body: JSON.stringify({
-                    deviceId,
-                    command: 'setColor',
-                    argument: `${pin},${color.r},${color.g},${color.b}`
-                })
-            });
+            if (!compileData.success || !compileData.data?.bytecode) {
+                throw new Error('Failed to compile pattern: ' + (compileData.data?.errors?.join(', ') || 'Unknown error'));
+            }
 
-            // Send brightness command: "pin,brightness"
-            await fetch('/api/particle/command', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                credentials: 'same-origin',
-                body: JSON.stringify({
-                    deviceId,
-                    command: 'setBright',
-                    argument: `${pin},${pattern.brightness || 128}`
-                })
-            });
-
-            // Save to device EEPROM
-            await fetch('/api/particle/command', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                credentials: 'same-origin',
-                body: JSON.stringify({
-                    deviceId,
-                    command: 'saveConfig',
-                    argument: '1'
-                })
-            });
+            // Send bytecode to device
+            await this.sendBytecodeToStrip(deviceId, pin, compileData.data.bytecode);
         },
 
         async openStripConfig(device) {
