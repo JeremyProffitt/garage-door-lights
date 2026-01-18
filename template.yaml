@@ -653,8 +653,10 @@ Resources:
                 - logs:FilterLogEvents
                 - logs:GetLogEvents
                 - logs:DescribeLogStreams
+                - logs:DescribeLogGroups
               Resource:
                 - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}-*:*
+                - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
       Events:
         Root:
           Type: Api

@@ -266,8 +266,15 @@
                     this.isLoading = true;
                     this.logs = [];
 
+                    // Find the log group for the selected function
+                    const fn = this.functions.find(f => f.id === this.selectedFunction);
+                    if (!fn || !fn.logGroup) {
+                        this.isLoading = false;
+                        return;
+                    }
+
                     try {
-                        const resp = await fetch(`/api/logs?function=${this.selectedFunction}&hours=${this.hours}`, {
+                        const resp = await fetch(`/api/logs?logGroup=${encodeURIComponent(fn.logGroup)}&hours=${this.hours}`, {
                             credentials: 'same-origin'
                         });
                         const data = await resp.json();

@@ -2,8 +2,6 @@ package handlers
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -31,15 +29,38 @@ type LogEntry struct {
 	LogStream string `json:"logStream"`
 }
 
+// LogFunction represents a Lambda function for the dropdown
+type LogFunction struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	LogGroup    string `json:"logGroup"`
+}
+
+// functionMeta maps function name patterns to display info
+var functionMeta = map[string]struct {
+	name        string
+	description string
+}{
+	"AuthFunction":       {"Auth", "Login/Register/Sessions"},
+	"PatternsFunction":   {"Patterns", "Pattern CRUD & Effects"},
+	"DevicesFunction":    {"Devices", "Device Management"},
+	"ParticleFunction":   {"Particle", "Particle.io Commands"},
+	"GlowBlasterFunction": {"GlowBlaster", "AI Pattern Generation"},
+	"OAuthFunction":      {"OAuth", "Particle OAuth Flow"},
+	"FrontendFunction":   {"Frontend", "Web UI & Routing"},
+	"AlexaFunction":      {"Alexa", "Alexa Smart Home Skill"},
+}
+
 // GetLogsHandler fetches CloudWatch logs for a Lambda function
 func GetLogsHandler(c *fiber.Ctx) error {
-	functionName := c.Query("function")
+	logGroupName := c.Query("logGroup")
 	hoursStr := c.Query("hours", "1")
 
-	if functionName == "" {
+	if logGroupName == "" {
 		return c.Status(400).JSON(fiber.Map{
 			"success": false,
-			"error":   "function parameter is required",
+			"error":   "logGroup parameter is required",
 		})
 	}
 
@@ -47,13 +68,6 @@ func GetLogsHandler(c *fiber.Ctx) error {
 	if err != nil || hours < 1 || hours > 168 {
 		hours = 1
 	}
-
-	// Build log group name from stack name and function
-	stackName := os.Getenv("STACK_NAME")
-	if stackName == "" {
-		stackName = "candle-lights-prod"
-	}
-	logGroupName := fmt.Sprintf("/aws/lambda/%s-%s", stackName, functionName)
 
 	// Load AWS config
 	ctx := context.Background()
@@ -132,17 +146,56 @@ func GetLogsHandler(c *fiber.Ctx) error {
 	})
 }
 
-// ListLogFunctionsHandler returns the list of available Lambda functions
+// ListLogFunctionsHandler discovers and returns available Lambda log groups
 func ListLogFunctionsHandler(c *fiber.Ctx) error {
-	functions := []map[string]string{
-		{"id": "AuthFunction", "name": "Auth", "description": "Login/Register/Sessions"},
-		{"id": "PatternsFunction", "name": "Patterns", "description": "Pattern CRUD & Effects"},
-		{"id": "DevicesFunction", "name": "Devices", "description": "Device Management"},
-		{"id": "ParticleFunction", "name": "Particle", "description": "Particle.io Commands"},
-		{"id": "GlowBlasterFunction", "name": "GlowBlaster", "description": "AI Pattern Generation"},
-		{"id": "OAuthFunction", "name": "OAuth", "description": "Particle OAuth Flow"},
-		{"id": "FrontendFunction", "name": "Frontend", "description": "Web UI & Routing"},
+	ctx := context.Background()
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"success": false,
+			"error":   "Failed to load AWS config: " + err.Error(),
+		})
 	}
+
+	client := cloudwatchlogs.NewFromConfig(cfg)
+
+	// List log groups with our prefix
+	input := &cloudwatchlogs.DescribeLogGroupsInput{
+		LogGroupNamePrefix: aws.String("/aws/lambda/candle-lights-"),
+		Limit:              aws.Int32(50),
+	}
+
+	resp, err := client.DescribeLogGroups(ctx, input)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"success": false,
+			"error":   "Failed to list log groups: " + err.Error(),
+		})
+	}
+
+	var functions []LogFunction
+
+	for _, lg := range resp.LogGroups {
+		logGroupName := aws.ToString(lg.LogGroupName)
+
+		// Extract function name from log group (e.g., /aws/lambda/candle-lights-AuthFunction-xyz -> AuthFunction)
+		for funcPattern, meta := range functionMeta {
+			if strings.Contains(logGroupName, funcPattern) {
+				functions = append(functions, LogFunction{
+					ID:          funcPattern,
+					Name:        meta.name,
+					Description: meta.description,
+					LogGroup:    logGroupName,
+				})
+				break
+			}
+		}
+	}
+
+	// Sort by name for consistent ordering
+	sort.Slice(functions, func(i, j int) bool {
+		return functions[i].Name < functions[j].Name
+	})
 
 	return c.JSON(fiber.Map{
 		"success": true,
