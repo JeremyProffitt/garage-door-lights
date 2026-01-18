@@ -332,6 +332,12 @@ Resources:
         - DynamoDBReadPolicy:
             TableName: !Ref SessionsTable
       Events:
+        Effects:
+          Type: Api
+          Properties:
+            RestApiId: !Ref WebsiteGateway
+            Path: /api/effects
+            Method: GET
         List:
           Type: Api
           Properties:

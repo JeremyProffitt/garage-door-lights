@@ -37,6 +37,9 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
     patternID := request.PathParameters["patternId"]
 
     switch {
+    case path == "/api/effects" && method == "GET":
+        log.Println("Routing to handleListEffects")
+        return handleListEffects()
     case path == "/api/patterns" && method == "GET":
         log.Println("Routing to handleListPatterns")
         return handleListPatterns(ctx, username)
@@ -56,6 +59,48 @@ func handler(ctx context.Context, request events.APIGatewayProxyRequest) (events
         log.Printf("No matching route for path: %s, method: %s", path, method)
         return shared.CreateErrorResponse(404, "Not found"), nil
     }
+}
+
+// EffectResponse represents an effect for the API
+type EffectResponse struct {
+    ID          int    `json:"id"`
+    Name        string `json:"name"`
+    Description string `json:"description"`
+    HasSpeed    bool   `json:"hasSpeed"`
+    HasIntensity bool  `json:"hasIntensity"`
+    HasCustom1  bool   `json:"hasCustom1,omitempty"`
+    HasCustom2  bool   `json:"hasCustom2,omitempty"`
+    HasCustom3  bool   `json:"hasCustom3,omitempty"`
+    SpeedDesc   string `json:"speedDesc,omitempty"`
+    IntensDesc  string `json:"intensDesc,omitempty"`
+    Custom1Desc string `json:"custom1Desc,omitempty"`
+    Custom2Desc string `json:"custom2Desc,omitempty"`
+    Custom3Desc string `json:"custom3Desc,omitempty"`
+    MinColors   int    `json:"minColors"`
+    MaxColors   int    `json:"maxColors"`
+}
+
+func handleListEffects() (events.APIGatewayProxyResponse, error) {
+    effects := []EffectResponse{
+        {ID: 0, Name: "Solid", Description: "Static solid color", MinColors: 1, MaxColors: 1},
+        {ID: 2, Name: "Breathe", Description: "Smooth pulsing brightness", HasSpeed: true, HasIntensity: true, MinColors: 1, MaxColors: 2, SpeedDesc: "Breath rate", IntensDesc: "Min brightness"},
+        {ID: 3, Name: "Wipe", Description: "Color wipe across strip", HasSpeed: true, MinColors: 1, MaxColors: 2, SpeedDesc: "Wipe speed"},
+        {ID: 10, Name: "Scan", Description: "Single dot bouncing back and forth", HasSpeed: true, HasIntensity: true, MinColors: 1, MaxColors: 2, SpeedDesc: "Scan speed", IntensDesc: "Dot width"},
+        {ID: 20, Name: "Sparkle", Description: "Random twinkling pixels", HasSpeed: true, HasIntensity: true, MinColors: 1, MaxColors: 2, SpeedDesc: "Sparkle rate", IntensDesc: "Sparkle density"},
+        {ID: 39, Name: "Scanner", Description: "Knight Rider style scanner with trail", HasSpeed: true, HasIntensity: true, HasCustom1: true, MinColors: 1, MaxColors: 2, SpeedDesc: "Scan speed", IntensDesc: "Eye width", Custom1Desc: "Trail length"},
+        {ID: 9, Name: "Rainbow", Description: "Moving rainbow gradient", HasSpeed: true, MinColors: 0, MaxColors: 0, SpeedDesc: "Cycle speed"},
+        {ID: 50, Name: "Colorwaves", Description: "Smooth flowing color waves", HasSpeed: true, HasIntensity: true, MinColors: 2, MaxColors: 3, SpeedDesc: "Wave speed", IntensDesc: "Wave spread"},
+        {ID: 49, Name: "Fire 2012", Description: "Realistic fire simulation", HasSpeed: true, HasIntensity: true, HasCustom1: true, MinColors: 3, MaxColors: 3, SpeedDesc: "Flame speed", IntensDesc: "Cooling", Custom1Desc: "Sparking"},
+        {ID: 71, Name: "Candle", Description: "Flickering candle flame", HasSpeed: true, HasIntensity: true, MinColors: 1, MaxColors: 2, SpeedDesc: "Flicker speed", IntensDesc: "Flicker intensity"},
+        {ID: 59, Name: "Meteor", Description: "Shooting meteor with trail", HasSpeed: true, HasIntensity: true, HasCustom1: true, MinColors: 1, MaxColors: 2, SpeedDesc: "Meteor speed", IntensDesc: "Trail length", Custom1Desc: "Decay rate"},
+        {ID: 62, Name: "Ripple", Description: "Expanding ripple effect", HasSpeed: true, HasIntensity: true, MinColors: 1, MaxColors: 3, SpeedDesc: "Ripple speed", IntensDesc: "Max ripples"},
+        {ID: 17, Name: "Twinkle", Description: "Random fading twinkles", HasSpeed: true, HasIntensity: true, MinColors: 1, MaxColors: 3, SpeedDesc: "Twinkle rate", IntensDesc: "Density"},
+        {ID: 27, Name: "Chase", Description: "Theater chase pattern", HasSpeed: true, HasIntensity: true, MinColors: 1, MaxColors: 2, SpeedDesc: "Chase speed", IntensDesc: "Gap size"},
+        {ID: 72, Name: "Fireworks", Description: "Multi-burst fireworks", HasSpeed: true, HasIntensity: true, MinColors: 1, MaxColors: 3, SpeedDesc: "Launch rate", IntensDesc: "Burst intensity"},
+        {ID: 48, Name: "Palette", Description: "Smooth palette cycling", HasSpeed: true, HasIntensity: true, MinColors: 2, MaxColors: 3, SpeedDesc: "Cycle speed", IntensDesc: "Spread"},
+        {ID: 46, Name: "Gradient", Description: "Static color gradient", HasSpeed: true, MinColors: 2, MaxColors: 3, SpeedDesc: "Animation speed"},
+    }
+    return shared.CreateSuccessResponse(200, effects), nil
 }
 
 func handleListPatterns(ctx context.Context, username string) (events.APIGatewayProxyResponse, error) {

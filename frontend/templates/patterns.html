@@ -6,12 +6,13 @@
     <title>Patterns - Candle Lights Controller</title>
     <link rel="stylesheet" href="/static/css/style.css">
     <script src="/static/js/led-simulator.js"></script>
+    <script src="/static/js/lcl-preview.js"></script>
     <script src="/static/js/notifications.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 </head>
 <body>
     <nav class="navbar">
-        <div class="nav-brand"><a href="/dashboard" style="color: inherit; text-decoration: none;">🕯️ Candle Lights</a></div>
+        <div class="nav-brand"><a href="/dashboard" style="color: inherit; text-decoration: none;">Candle Lights</a></div>
         <div class="nav-menu">
             <a href="/dashboard">Dashboard</a>
             <a href="/patterns" class="active">Patterns</a>
@@ -22,38 +23,47 @@
         </div>
     </nav>
 
-    <div class="container" x-data="patternsPage()">
-        <h1 style="color: white;">Light Patterns</h1>
-
-        <button @click="showCreateModal = true; setTimeout(() => updateLivePreview(), 100)" class="btn btn-primary">Create New Pattern</button>
-
-        <div x-show="patterns.length === 0" style="color: white; margin-top: 2rem; font-size: 1.1rem;">
-            <p>No patterns created yet. Click "Create New Pattern" to get started!</p>
+    <div class="container" x-data="patternsPage()" x-init="init()">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h1 style="color: white;">Light Patterns</h1>
+            <button @click="openCreateModal()" class="btn btn-primary">+ New Pattern</button>
         </div>
 
-        <div class="patterns-grid">
+        <div x-show="isLoading" style="color: white; text-align: center; padding: 2rem;">
+            Loading patterns...
+        </div>
+
+        <div x-show="!isLoading && patterns.length === 0" style="color: white; margin-top: 2rem; font-size: 1.1rem;">
+            <p>No patterns created yet. Click "+ New Pattern" to get started!</p>
+        </div>
+
+        <div class="patterns-grid" x-show="!isLoading">
             <template x-for="pattern in patterns" :key="pattern.patternId">
                 <div class="card pattern-card">
-                    <h3 x-text="pattern.name"></h3>
-                    <p x-text="pattern.description"></p>
-                    <div class="pattern-details">
-                        <span class="badge" x-text="pattern.type"></span>
-                        <div class="color-preview-multi">
-                            <template x-if="pattern.colors && pattern.colors.length > 0">
-                                <template x-for="(color, idx) in pattern.colors" :key="idx">
-                                    <div class="color-swatch" :style="`background: rgb(${color.r}, ${color.g}, ${color.b}); width: ${color.percentage}%`" :title="`${color.percentage}%`"></div>
-                                </template>
-                            </template>
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div>
+                            <h3 x-text="pattern.name" style="margin: 0 0 0.25rem 0;"></h3>
+                            <p x-text="pattern.description || ''" style="color: #6b7280; font-size: 0.85rem; margin: 0;"></p>
                         </div>
+                        <span class="badge" x-text="getEffectName(pattern)" style="flex-shrink: 0;"></span>
                     </div>
-                    <div class="pattern-info">
-                        <small>Brightness: <span x-text="pattern.brightness"></span></small>
-                        <small>Speed: <span x-text="pattern.speed"></span>ms</small>
+
+                    <!-- Color preview -->
+                    <div class="color-preview-multi" style="margin: 0.75rem 0; height: 24px; border-radius: 4px; overflow: hidden; display: flex;">
+                        <template x-for="(color, idx) in (pattern.colors || [{r: pattern.red || 255, g: pattern.green || 100, b: pattern.blue || 0, percentage: 100}])" :key="idx">
+                            <div :style="`background: rgb(${color.r}, ${color.g}, ${color.b}); flex: ${color.percentage || 100};`"></div>
+                        </template>
                     </div>
-                    <div class="buttons">
-                        <button @click="simulatePattern(pattern)" class="btn btn-sm btn-primary">Simulate</button>
+
+                    <div style="display: flex; gap: 0.5rem; font-size: 0.8rem; color: #6b7280; margin-bottom: 0.75rem;">
+                        <span>Brightness: <span x-text="pattern.brightness"></span></span>
+                        <span>Speed: <span x-text="pattern.speed"></span></span>
+                    </div>
+
+                    <div class="buttons" style="display: flex; gap: 0.5rem;">
+                        <button @click="simulatePattern(pattern)" class="btn btn-sm btn-primary">Preview</button>
                         <template x-if="pattern.category === 'glowblaster'">
-                            <button @click="editInGlowBlaster(pattern)" class="btn btn-sm btn-secondary">Edit in Glow Blaster</button>
+                            <button @click="editInGlowBlaster(pattern)" class="btn btn-sm btn-secondary">Edit</button>
                         </template>
                         <template x-if="pattern.category !== 'glowblaster'">
                             <button @click="editPattern(pattern)" class="btn btn-sm btn-secondary">Edit</button>
@@ -64,204 +74,125 @@
             </template>
         </div>
 
-        <!-- Simulate Modal -->
-        <div x-show="showSimulateModal" class="modal" style="display: none;" @click.self="showSimulateModal = false">
+        <!-- Preview Modal -->
+        <div x-show="showPreviewModal" class="modal" style="display: none;" @click.self="showPreviewModal = false">
             <div class="modal-content" style="max-width: 500px;">
-                <h2>Pattern Simulation</h2>
-                <p style="text-align: center; color: #6b7280; margin-bottom: 1rem;" x-text="simulatingPattern?.name"></p>
-                <div id="simulateLedsContainer"></div>
-                <div style="text-align: center; margin-top: 1.5rem;">
-                    <button type="button" @click="showSimulateModal = false" class="btn btn-secondary">Close</button>
+                <h2 x-text="previewPattern?.name"></h2>
+                <div id="previewContainer" style="margin: 1rem 0;"></div>
+                <div style="text-align: center;">
+                    <button @click="showPreviewModal = false" class="btn btn-secondary">Close</button>
                 </div>
             </div>
         </div>
 
         <!-- Create/Edit Modal -->
-        <div x-show="showCreateModal" class="modal" style="display: none;">
-            <div class="modal-content" style="max-width: 580px; max-height: 90vh; overflow-y: auto; padding: 0;">
-                <!-- Header Bar -->
-                <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: #7e22ce; color: white; border-radius: 8px 8px 0 0;">
-                    <h2 style="margin: 0; font-size: 1.1rem; font-weight: 600;" x-text="editingPattern ? 'Edit Pattern' : 'Create Pattern'"></h2>
-                    <div id="editLedsContainer"></div>
+        <div x-show="showModal" class="modal" style="display: none;" @click.self="closeModal()">
+            <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h2 x-text="editingPattern ? 'Edit Pattern' : 'Create Pattern'" style="margin: 0;"></h2>
+                    <div id="livePreviewContainer" style="width: 120px;"></div>
                 </div>
 
-                <form @submit.prevent="savePattern" style="padding: 12px 16px 16px;">
-                    <!-- Name & Type Row -->
-                    <div style="display: grid; grid-template-columns: 1fr 120px; gap: 8px; margin-bottom: 6px;">
-                        <div>
-                            <label style="font-size: 0.8em; color: #6b7280; margin-bottom: 2px; display: block;">Name</label>
-                            <input type="text" x-model="form.name" required style="padding: 5px 8px; width: 100%; box-sizing: border-box;">
-                        </div>
-                        <div>
-                            <label style="font-size: 0.8em; color: #6b7280; margin-bottom: 2px; display: block;">Type</label>
-                            <select x-model="form.type" @change="updateLivePreview()" required style="padding: 5px 8px; width: 100%; box-sizing: border-box;">
-                                <option value="candle">Candle</option>
-                                <option value="solid">Solid</option>
-                                <option value="pulse">Pulse</option>
-                                <option value="wave">Wave</option>
-                                <option value="rainbow">Rainbow</option>
-                                <option value="fire">Fire</option>
-                            </select>
-                        </div>
+                <form @submit.prevent="savePattern()">
+                    <!-- Name -->
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.25rem; font-weight: 500;">Name</label>
+                        <input type="text" x-model="form.name" required style="width: 100%; padding: 0.5rem; border: 1px solid #e5e7eb; border-radius: 6px;">
                     </div>
-                    <div style="margin-bottom: 10px;">
-                        <label style="font-size: 0.8em; color: #6b7280; margin-bottom: 2px; display: block;">Description <span style="font-weight: normal;">(optional)</span></label>
-                        <input type="text" x-model="form.description" style="padding: 5px 8px; width: 100%; box-sizing: border-box;">
+
+                    <!-- Description -->
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.25rem; font-weight: 500;">Description <span style="font-weight: normal; color: #9ca3af;">(optional)</span></label>
+                        <input type="text" x-model="form.description" style="width: 100%; padding: 0.5rem; border: 1px solid #e5e7eb; border-radius: 6px;">
+                    </div>
+
+                    <!-- Effect -->
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.25rem; font-weight: 500;">Effect</label>
+                        <select x-model="form.effectId" @change="onEffectChange()" style="width: 100%; padding: 0.5rem; border: 1px solid #e5e7eb; border-radius: 6px;">
+                            <template x-for="effect in effects" :key="effect.id">
+                                <option :value="effect.id" x-text="effect.name + ' - ' + effect.description"></option>
+                            </template>
+                        </select>
                     </div>
 
                     <!-- Colors Section -->
-                    <div style="margin-bottom: 10px;">
-                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
-                            <label style="font-size: 0.85em; font-weight: 600; color: #374151;">Colors</label>
-                            <button type="button" @click="showRGBHelp = !showRGBHelp" style="width: 18px; height: 18px; border-radius: 50%; border: 1px solid #9ca3af; background: white; color: #6b7280; font-size: 0.7em; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">i</button>
-                        </div>
-                        <div x-show="showRGBHelp" style="background: #f3f4f6; padding: 6px 10px; border-radius: 4px; margin-bottom: 6px; font-size: 0.75em; color: #4b5563;">
-                            <strong>RGB:</strong> Red, Green, Blue (0-255). Examples: Red (255,0,0), Blue (0,0,255), Yellow (255,255,0)
+                    <div style="margin-bottom: 1rem;" x-show="selectedEffect?.maxColors > 0">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <label style="font-weight: 500;">Colors</label>
+                            <button type="button" @click="addColor()" x-show="form.colors.length < (selectedEffect?.maxColors || 3)" class="btn btn-sm" style="padding: 0.25rem 0.5rem;">+ Add Color</button>
                         </div>
 
-                        <!-- Color Tabs -->
-                        <div style="display: flex; align-items: flex-end; gap: 2px; margin-bottom: 0;">
-                            <template x-for="(color, index) in form.colors" :key="index">
-                                <button
-                                    type="button"
-                                    @click="activeColorTab = index; updateLivePreview()"
-                                    :style="`min-width: 50px; padding: 8px 12px; border: none; cursor: pointer; font-size: 1em; font-weight: 600; border-top-left-radius: 8px; border-top-right-radius: 8px; background: rgb(${color.r}, ${color.g}, ${color.b}); color: ${(color.r * 0.299 + color.g * 0.587 + color.b * 0.114) > 150 ? '#000' : '#fff'};`">
-                                    <span x-text="(index + 1)"></span>
-                                </button>
-                            </template>
-                            <button
-                                type="button"
-                                @click="addColor()"
-                                x-show="form.colors.length < 8"
-                                style="min-width: 50px; padding: 8px 12px; border: none; background: #e5e7eb; cursor: pointer; font-size: 1em; font-weight: 600; color: #7e22ce; border-top-left-radius: 8px; border-top-right-radius: 8px;">
-                                +
-                            </button>
-                        </div>
-
-                        <!-- Color Tab Content -->
-                        <template x-for="(color, index) in form.colors" :key="index">
-                            <div x-show="activeColorTab === index" style="padding: 12px; background: #f5f3ff; border-radius: 0 8px 8px 8px; border: 1px solid #e9d5ff; border-top: none;">
-                                <div style="display: flex; gap: 12px; align-items: center; justify-content: center;">
-                                    <!-- Color Picker -->
-                                    <input
-                                        type="color"
-                                        :value="rgbToHex(color.r, color.g, color.b)"
-                                        @input="updateColorFromPicker(index, $event.target.value); updateLivePreview()"
-                                        style="width: 44px; height: 44px; border: none; border-radius: 6px; cursor: pointer; padding: 0; background: none;">
-
-                                    <!-- RGB Inputs -->
-                                    <div style="display: flex; gap: 4px; align-items: center;">
-                                        <div style="display: flex; flex-direction: column; align-items: center;">
-                                            <label style="font-size: 0.7em; color: #6b7280; font-weight: 600; margin-bottom: 2px;">R</label>
-                                            <input type="number" x-model.number="color.r" @input="updateLivePreview()" min="0" max="255" required style="width: 46px; padding: 4px 2px; font-size: 0.8em; text-align: center;">
-                                        </div>
-                                        <div style="display: flex; flex-direction: column; align-items: center;">
-                                            <label style="font-size: 0.7em; color: #6b7280; font-weight: 600; margin-bottom: 2px;">G</label>
-                                            <input type="number" x-model.number="color.g" @input="updateLivePreview()" min="0" max="255" required style="width: 46px; padding: 4px 2px; font-size: 0.8em; text-align: center;">
-                                        </div>
-                                        <div style="display: flex; flex-direction: column; align-items: center;">
-                                            <label style="font-size: 0.7em; color: #6b7280; font-weight: 600; margin-bottom: 2px;">B</label>
-                                            <input type="number" x-model.number="color.b" @input="updateLivePreview()" min="0" max="255" required style="width: 46px; padding: 4px 2px; font-size: 0.8em; text-align: center;">
-                                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                            <template x-for="(color, idx) in form.colors" :key="idx">
+                                <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: #f9fafb; border-radius: 6px;">
+                                    <input type="color" :value="rgbToHex(color.r, color.g, color.b)" @input="updateColorFromPicker(idx, $event.target.value)" style="width: 40px; height: 32px; border: none; cursor: pointer;">
+                                    <div style="display: flex; gap: 0.25rem; flex: 1;">
+                                        <input type="number" x-model.number="color.r" @input="updatePreview()" min="0" max="255" style="width: 50px; padding: 0.25rem; text-align: center; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="R">
+                                        <input type="number" x-model.number="color.g" @input="updatePreview()" min="0" max="255" style="width: 50px; padding: 0.25rem; text-align: center; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="G">
+                                        <input type="number" x-model.number="color.b" @input="updatePreview()" min="0" max="255" style="width: 50px; padding: 0.25rem; text-align: center; border: 1px solid #e5e7eb; border-radius: 4px;" placeholder="B">
                                     </div>
-
-                                    <!-- Percentage -->
-                                    <div style="display: flex; align-items: center; gap: 6px;">
-                                        <input type="range" x-model.number="color.percentage" min="1" max="100" @input="normalizePercentages(index)" style="width: 100px; height: 4px;">
-                                        <span style="font-size: 0.8em; font-weight: 500; min-width: 32px;" x-text="color.percentage + '%'"></span>
+                                    <div style="display: flex; align-items: center; gap: 0.25rem;">
+                                        <input type="range" x-model.number="color.percentage" @input="normalizePercentages(idx)" min="1" max="100" style="width: 60px;">
+                                        <span style="min-width: 32px; text-align: right; font-size: 0.8rem;" x-text="color.percentage + '%'"></span>
                                     </div>
-
-                                    <!-- Remove -->
-                                    <button type="button" @click="removeColor(index)" x-show="form.colors.length > 1" style="width: 22px; height: 22px; border: none; background: #fee2e2; color: #dc2626; border-radius: 4px; cursor: pointer; font-size: 0.75em; display: flex; align-items: center; justify-content: center;">✕</button>
+                                    <button type="button" @click="removeColor(idx)" x-show="form.colors.length > 1" style="padding: 0.25rem 0.5rem; background: #fee2e2; color: #dc2626; border: none; border-radius: 4px; cursor: pointer;">x</button>
                                 </div>
-                            </div>
-                        </template>
-                    </div>
-
-                    <!-- Brightness & Speed Row -->
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-                        <div>
-                            <label style="font-size: 0.8em; color: #6b7280; margin-bottom: 2px; display: block;">Brightness</label>
-                            <div style="display: flex; align-items: center; gap: 6px;">
-                                <input type="range" x-model.number="form.brightness" @input="updateLivePreview()" min="0" max="255" style="flex: 1; height: 4px;">
-                                <input type="number" x-model.number="form.brightness" @input="updateLivePreview()" min="0" max="255" style="width: 50px; padding: 4px 2px; font-size: 0.8em; text-align: center;">
-                            </div>
-                        </div>
-                        <div>
-                            <label style="font-size: 0.8em; color: #6b7280; margin-bottom: 2px; display: block;">Speed (ms)</label>
-                            <div style="display: flex; align-items: center; gap: 6px;">
-                                <input type="range" x-model.number="form.speed" @input="updateLivePreview()" min="10" max="1000" step="10" style="flex: 1; height: 4px;">
-                                <input type="number" x-model.number="form.speed" @input="updateLivePreview()" min="10" max="1000" style="width: 50px; padding: 4px 2px; font-size: 0.8em; text-align: center;">
-                            </div>
+                            </template>
                         </div>
                     </div>
 
-                    <div class="buttons" style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e5e7eb;">
-                        <button type="submit" class="btn btn-primary">Save</button>
-                        <button type="button" @click="cancelEdit()" class="btn btn-secondary">Cancel</button>
+                    <!-- Brightness -->
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.25rem; font-weight: 500;">Brightness</label>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="range" x-model.number="form.brightness" @input="updatePreview()" min="0" max="255" style="flex: 1;">
+                            <input type="number" x-model.number="form.brightness" @input="updatePreview()" min="0" max="255" style="width: 60px; padding: 0.25rem; text-align: center; border: 1px solid #e5e7eb; border-radius: 4px;">
+                        </div>
+                    </div>
+
+                    <!-- Speed (sx) -->
+                    <div style="margin-bottom: 1rem;" x-show="selectedEffect?.hasSpeed">
+                        <label style="display: block; margin-bottom: 0.25rem; font-weight: 500;">
+                            Speed <span style="font-weight: normal; color: #6b7280;" x-text="selectedEffect?.speedDesc ? '(' + selectedEffect.speedDesc + ')' : ''"></span>
+                        </label>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="range" x-model.number="form.speed" @input="updatePreview()" min="0" max="255" style="flex: 1;">
+                            <input type="number" x-model.number="form.speed" @input="updatePreview()" min="0" max="255" style="width: 60px; padding: 0.25rem; text-align: center; border: 1px solid #e5e7eb; border-radius: 4px;">
+                        </div>
+                    </div>
+
+                    <!-- Intensity (ix) -->
+                    <div style="margin-bottom: 1rem;" x-show="selectedEffect?.hasIntensity">
+                        <label style="display: block; margin-bottom: 0.25rem; font-weight: 500;">
+                            Intensity <span style="font-weight: normal; color: #6b7280;" x-text="selectedEffect?.intensDesc ? '(' + selectedEffect.intensDesc + ')' : ''"></span>
+                        </label>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="range" x-model.number="form.intensity" @input="updatePreview()" min="0" max="255" style="flex: 1;">
+                            <input type="number" x-model.number="form.intensity" @input="updatePreview()" min="0" max="255" style="width: 60px; padding: 0.25rem; text-align: center; border: 1px solid #e5e7eb; border-radius: 4px;">
+                        </div>
+                    </div>
+
+                    <!-- Custom 1 (c1) -->
+                    <div style="margin-bottom: 1rem;" x-show="selectedEffect?.hasCustom1">
+                        <label style="display: block; margin-bottom: 0.25rem; font-weight: 500;">
+                            <span x-text="selectedEffect?.custom1Desc || 'Custom 1'"></span>
+                        </label>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="range" x-model.number="form.custom1" @input="updatePreview()" min="0" max="255" style="flex: 1;">
+                            <input type="number" x-model.number="form.custom1" @input="updatePreview()" min="0" max="255" style="width: 60px; padding: 0.25rem; text-align: center; border: 1px solid #e5e7eb; border-radius: 4px;">
+                        </div>
+                    </div>
+
+                    <!-- Buttons -->
+                    <div style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
+                        <button type="button" @click="closeModal()" class="btn btn-secondary">Cancel</button>
+                        <button type="submit" class="btn btn-primary" :disabled="isSaving">
+                            <span x-show="!isSaving" x-text="editingPattern ? 'Save Changes' : 'Create Pattern'"></span>
+                            <span x-show="isSaving">Saving...</span>
+                        </button>
                     </div>
                 </form>
-            </div>
-        </div>
-
-        <!-- Color Picker Modal -->
-        <div x-show="showColorPicker" class="modal" style="display: none;">
-            <div class="modal-content" style="max-width: 400px;">
-                <h3>Pick a Color</h3>
-                <div style="text-align: center; margin: 20px 0;">
-                    <input type="color" x-model="tempColor" style="width: 200px; height: 200px; border: none; cursor: pointer;" @input="updateTempColorRGB()">
-                </div>
-                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 15px 0;">
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label>R</label>
-                        <input type="number" x-model.number="tempColorRGB.r" min="0" max="255" @input="updateTempColorFromRGB()">
-                    </div>
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label>G</label>
-                        <input type="number" x-model.number="tempColorRGB.g" min="0" max="255" @input="updateTempColorFromRGB()">
-                    </div>
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label>B</label>
-                        <input type="number" x-model.number="tempColorRGB.b" min="0" max="255" @input="updateTempColorFromRGB()">
-                    </div>
-                </div>
-                <div class="buttons">
-                    <button type="button" @click="applyColorPicker()" class="btn btn-primary">Apply</button>
-                    <button type="button" @click="showColorPicker = false" class="btn btn-secondary">Cancel</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Update Devices Modal -->
-        <div x-show="showUpdateDevicesModal" class="modal" style="display: none;">
-            <div class="modal-content" style="max-width: 500px;">
-                <h3>Update Devices?</h3>
-                <p style="color: #374151; margin: 1rem 0;">
-                    This pattern is assigned to one or more devices. Would you like to send the updated pattern to all devices using it?
-                </p>
-                <div style="margin: 1rem 0; padding: 0.75rem; background: #f3f4f6; border-radius: 8px;">
-                    <p style="font-weight: 600; margin-bottom: 0.5rem;">Devices using this pattern:</p>
-                    <template x-for="item in getDevicesUsingPattern(updatedPatternId)" :key="item.device.deviceId">
-                        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0;">
-                            <span :style="item.device.isOnline && item.device.isReady ? 'color: #10b981;' : 'color: #6b7280;'">
-                                <span x-show="item.device.isOnline && item.device.isReady">&#x2713;</span>
-                                <span x-show="!item.device.isOnline || !item.device.isReady">&#x2717;</span>
-                            </span>
-                            <span x-text="item.device.name"></span>
-                            <span x-show="item.strips" style="color: #6b7280; font-size: 0.85rem;">
-                                (strips: <template x-for="s in item.strips"><span>D<span x-text="s.pin"></span> </span></template>)
-                            </span>
-                            <span x-show="!item.device.isOnline || !item.device.isReady" style="color: #f59e0b; font-size: 0.85rem;">(offline/not ready - will be skipped)</span>
-                        </div>
-                    </template>
-                </div>
-                <div class="buttons" style="display: flex; gap: 0.5rem; justify-content: flex-end;">
-                    <button type="button" @click="skipUpdateDevices()" class="btn btn-secondary">Skip</button>
-                    <button type="button" @click="updateAllDevicesWithPattern()" class="btn btn-primary" :disabled="isUpdatingDevices">
-                        <span x-show="!isUpdatingDevices">Update All Devices</span>
-                        <span x-show="isUpdatingDevices">Updating...</span>
-                    </button>
-                </div>
             </div>
         </div>
     </div>
