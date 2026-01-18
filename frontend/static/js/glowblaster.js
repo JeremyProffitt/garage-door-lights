@@ -29,6 +29,12 @@ function glowBlasterPage() {
         lastDebugInfo: null,
         showPromptModal: false,
         promptJson: '',
+        promptReadable: '',
+        promptViewMode: 'readable',
+
+        // Conversation view
+        conversationReadable: '',
+        conversationViewMode: 'readable',
 
         // Pattern editing state
         editingPatternId: null,
@@ -746,7 +752,88 @@ function glowBlasterPage() {
                 messages: this.currentMessages
             };
             this.conversationJson = JSON.stringify(exportData, null, 2);
+            this.conversationReadable = this.formatConversationReadable(exportData);
+            this.conversationViewMode = 'readable';
             this.showViewModal = true;
+        },
+
+        formatConversationReadable(data) {
+            let html = '';
+            html += `<div style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid #e5e7eb;">`;
+            html += `<strong>Title:</strong> ${this.escapeHtml(data.title || 'Untitled')}<br>`;
+            html += `<strong>Model:</strong> ${this.escapeHtml(data.model || 'Unknown')}<br>`;
+            html += `<strong>Created:</strong> ${data.createdAt ? new Date(data.createdAt).toLocaleString() : 'Unknown'}<br>`;
+            html += `<strong>Updated:</strong> ${data.updatedAt ? new Date(data.updatedAt).toLocaleString() : 'Unknown'}<br>`;
+            html += `<strong>ID:</strong> <code style="font-size: 0.8rem;">${data.conversationId || ''}</code>`;
+            html += `</div>`;
+
+            if (data.messages && data.messages.length > 0) {
+                html += `<div style="margin-bottom: 0.5rem;"><strong>Messages (${data.messages.length}):</strong></div>`;
+                data.messages.forEach((msg, idx) => {
+                    const isUser = msg.role === 'user';
+                    const bgColor = isUser ? '#dbeafe' : '#f3f4f6';
+                    const label = isUser ? 'User' : 'Assistant';
+                    html += `<div style="margin-bottom: 0.75rem; padding: 0.75rem; background: ${bgColor}; border-radius: 8px;">`;
+                    html += `<div style="font-weight: 600; font-size: 0.8rem; color: #6b7280; margin-bottom: 0.25rem;">${label}</div>`;
+                    html += `<div style="white-space: pre-wrap;">${this.escapeHtml(msg.content)}</div>`;
+                    html += `</div>`;
+                });
+            } else {
+                html += `<div style="color: #9ca3af;">No messages</div>`;
+            }
+            return html;
+        },
+
+        getConversationReadableText() {
+            if (!this.activeConversation) return '';
+            const data = {
+                conversationId: this.activeConversation.conversationId,
+                title: this.activeConversation.title,
+                model: this.activeConversation.model,
+                createdAt: this.activeConversation.createdAt,
+                updatedAt: this.activeConversation.updatedAt,
+                messages: this.currentMessages
+            };
+            let text = '';
+            text += `Title: ${data.title || 'Untitled'}\n`;
+            text += `Model: ${data.model || 'Unknown'}\n`;
+            text += `Created: ${data.createdAt ? new Date(data.createdAt).toLocaleString() : 'Unknown'}\n`;
+            text += `Updated: ${data.updatedAt ? new Date(data.updatedAt).toLocaleString() : 'Unknown'}\n`;
+            text += `ID: ${data.conversationId || ''}\n`;
+            text += `\n${'='.repeat(50)}\n\n`;
+
+            if (data.messages && data.messages.length > 0) {
+                data.messages.forEach((msg, idx) => {
+                    const label = msg.role === 'user' ? 'USER' : 'ASSISTANT';
+                    text += `[${label}]\n${msg.content}\n\n`;
+                });
+            }
+            return text;
+        },
+
+        copyCurrentConversationView() {
+            const text = this.conversationViewMode === 'raw'
+                ? this.conversationJson
+                : this.getConversationReadableText();
+            this.copyToClipboard(text);
+        },
+
+        downloadCurrentConversationView() {
+            if (!this.activeConversation) return;
+            const isRaw = this.conversationViewMode === 'raw';
+            const content = isRaw ? this.conversationJson : this.getConversationReadableText();
+            const ext = isRaw ? 'json' : 'txt';
+            const mimeType = isRaw ? 'application/json' : 'text/plain';
+
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `glowblaster-conversation-${this.activeConversation.conversationId.substring(0, 8)}.${ext}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         },
 
         viewPrompt() {
@@ -755,27 +842,106 @@ function glowBlasterPage() {
                 return;
             }
             this.promptJson = JSON.stringify(this.lastDebugInfo, null, 2);
+            this.promptReadable = this.formatPromptReadable(this.lastDebugInfo);
+            this.promptViewMode = 'readable';
             this.showPromptModal = true;
         },
 
-        downloadConversation() {
-            if (!this.activeConversation) return;
-            const exportData = {
-                conversationId: this.activeConversation.conversationId,
-                title: this.activeConversation.title,
-                model: this.activeConversation.model,
-                messages: this.currentMessages
-            };
-            const jsonStr = JSON.stringify(exportData, null, 2);
-            const blob = new Blob([jsonStr], { type: 'application/json' });
+        formatPromptReadable(data) {
+            let html = '';
+
+            // System prompt section
+            if (data.systemPrompt) {
+                html += `<div style="margin-bottom: 1rem;">`;
+                html += `<div style="font-weight: 600; color: #059669; margin-bottom: 0.5rem; font-size: 1rem;">SYSTEM PROMPT</div>`;
+                html += `<div style="background: #ecfdf5; padding: 1rem; border-radius: 8px; border-left: 4px solid #059669; white-space: pre-wrap; font-family: system-ui;">${this.escapeHtml(data.systemPrompt)}</div>`;
+                html += `</div>`;
+            }
+
+            // Messages section
+            if (data.messages && data.messages.length > 0) {
+                html += `<div style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; font-size: 1rem;">MESSAGES (${data.messages.length})</div>`;
+                data.messages.forEach((msg, idx) => {
+                    const isUser = msg.role === 'user';
+                    const bgColor = isUser ? '#dbeafe' : '#f3f4f6';
+                    const borderColor = isUser ? '#3b82f6' : '#9ca3af';
+                    const label = isUser ? 'USER' : 'ASSISTANT';
+                    html += `<div style="margin-bottom: 0.75rem; padding: 0.75rem; background: ${bgColor}; border-radius: 8px; border-left: 4px solid ${borderColor};">`;
+                    html += `<div style="font-weight: 600; font-size: 0.8rem; color: #6b7280; margin-bottom: 0.25rem;">${label}</div>`;
+                    html += `<div style="white-space: pre-wrap;">${this.escapeHtml(msg.content)}</div>`;
+                    html += `</div>`;
+                });
+            }
+
+            return html;
+        },
+
+        getPromptReadableText() {
+            if (!this.lastDebugInfo) return '';
+            const data = this.lastDebugInfo;
+            let text = '';
+
+            if (data.systemPrompt) {
+                text += `${'='.repeat(50)}\nSYSTEM PROMPT\n${'='.repeat(50)}\n\n`;
+                text += data.systemPrompt;
+                text += `\n\n`;
+            }
+
+            if (data.messages && data.messages.length > 0) {
+                text += `${'='.repeat(50)}\nMESSAGES (${data.messages.length})\n${'='.repeat(50)}\n\n`;
+                data.messages.forEach((msg, idx) => {
+                    const label = msg.role === 'user' ? 'USER' : 'ASSISTANT';
+                    text += `[${label}]\n${msg.content}\n\n`;
+                });
+            }
+
+            return text;
+        },
+
+        copyCurrentPromptView() {
+            const text = this.promptViewMode === 'raw'
+                ? this.promptJson
+                : this.getPromptReadableText();
+            this.copyToClipboard(text);
+        },
+
+        downloadCurrentPromptView() {
+            const isRaw = this.promptViewMode === 'raw';
+            const content = isRaw ? this.promptJson : this.getPromptReadableText();
+            const ext = isRaw ? 'json' : 'txt';
+            const mimeType = isRaw ? 'application/json' : 'text/plain';
+
+            const blob = new Blob([content], { type: mimeType });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `glowblaster-chat-${this.activeConversation.conversationId.substring(0, 8)}.json`;
+            a.download = `glowblaster-prompt-${new Date().toISOString().slice(0, 10)}.${ext}`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+        },
+
+        escapeHtml(text) {
+            if (!text) return '';
+            return text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        },
+
+        formatWLEDDisplay(wledJson) {
+            if (!wledJson) return '';
+            try {
+                // Parse and pretty print with 2-space indent
+                const parsed = JSON.parse(wledJson);
+                return JSON.stringify(parsed, null, 2);
+            } catch (e) {
+                // If it's already a string but not valid JSON, return as-is
+                return wledJson;
+            }
         },
 
         copyToClipboard(text) {
