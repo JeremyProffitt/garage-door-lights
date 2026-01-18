@@ -1087,6 +1087,358 @@ int setBytecode(String command) {
 }
 
 // =============================================================================
+// WLED PALETTE DEFINITIONS
+// =============================================================================
+
+// Palette IDs (matching WLED's built-in palette numbering)
+#define PAL_DEFAULT     0
+#define PAL_PARTY       6
+#define PAL_CLOUD       7
+#define PAL_LAVA        8
+#define PAL_OCEAN       9
+#define PAL_FOREST      10
+#define PAL_RAINBOW     11
+#define PAL_SUNSET      13
+#define PAL_FIRE        35
+#define PAL_ICEFIRE     36
+#define PAL_AUTUMN      39
+#define PAL_AURORA      50
+#define PAL_TEMPERATURE 54
+
+// Number of color stops per palette (WLED uses 16 stops)
+#define PALETTE_STOPS 16
+
+// Palette data format: Each palette has 16 entries of 4 bytes (position, R, G, B)
+// Position is 0-255 indicating where in the gradient this color appears
+
+// Rainbow - Full spectrum
+const uint8_t pal_rainbow[] = {
+    0,   255, 0,   0,     // Red
+    16,  255, 64,  0,     // Red-Orange
+    32,  255, 128, 0,     // Orange
+    48,  255, 191, 0,     // Orange-Yellow
+    64,  255, 255, 0,     // Yellow
+    80,  191, 255, 0,     // Yellow-Green
+    96,  0,   255, 0,     // Green
+    112, 0,   255, 128,   // Green-Cyan
+    128, 0,   255, 255,   // Cyan
+    144, 0,   128, 255,   // Cyan-Blue
+    160, 0,   0,   255,   // Blue
+    176, 64,  0,   255,   // Blue-Purple
+    192, 128, 0,   255,   // Purple
+    208, 255, 0,   255,   // Magenta
+    224, 255, 0,   128,   // Magenta-Red
+    255, 255, 0,   0      // Back to Red
+};
+
+// Fire - Black to red to orange to yellow to white
+const uint8_t pal_fire[] = {
+    0,   0,   0,   0,     // Black
+    16,  16,  0,   0,     // Very dark red
+    32,  48,  0,   0,     // Dark red
+    48,  80,  0,   0,     // Dark red
+    64,  128, 0,   0,     // Red
+    80,  160, 16,  0,     // Red
+    96,  192, 32,  0,     // Red-orange
+    112, 224, 64,  0,     // Orange
+    128, 255, 96,  0,     // Bright orange
+    144, 255, 128, 0,     // Orange-yellow
+    160, 255, 160, 0,     // Yellow-orange
+    176, 255, 192, 0,     // Yellow
+    192, 255, 224, 64,    // Yellow-white
+    208, 255, 240, 128,   // Pale yellow
+    224, 255, 255, 192,   // Near white
+    255, 255, 255, 255    // White
+};
+
+// Ocean - Dark blue to light blue to cyan to white
+const uint8_t pal_ocean[] = {
+    0,   0,   0,   32,    // Very dark blue
+    16,  0,   0,   48,    // Dark blue
+    32,  0,   0,   80,    // Dark blue
+    48,  0,   16,  112,   // Navy
+    64,  0,   32,  144,   // Blue
+    80,  0,   64,  176,   // Blue
+    96,  0,   96,  192,   // Medium blue
+    112, 0,   128, 208,   // Blue
+    128, 0,   160, 224,   // Light blue
+    144, 16,  192, 240,   // Light blue
+    160, 64,  208, 255,   // Cyan-blue
+    176, 96,  224, 255,   // Cyan
+    192, 128, 240, 255,   // Light cyan
+    208, 176, 248, 255,   // Pale cyan
+    224, 224, 252, 255,   // Near white
+    255, 255, 255, 255    // White
+};
+
+// Forest - Dark green to light green to yellow-green
+const uint8_t pal_forest[] = {
+    0,   0,   32,  0,     // Very dark green
+    16,  0,   48,  0,     // Dark green
+    32,  0,   64,  8,     // Dark green
+    48,  0,   80,  16,    // Forest green
+    64,  0,   96,  24,    // Green
+    80,  8,   112, 32,    // Green
+    96,  16,  128, 32,    // Medium green
+    112, 32,  144, 32,    // Green
+    128, 48,  160, 32,    // Light green
+    144, 64,  176, 32,    // Light green
+    160, 96,  192, 32,    // Yellow-green
+    176, 128, 208, 48,    // Yellow-green
+    192, 160, 224, 64,    // Lime
+    208, 192, 232, 80,    // Pale lime
+    224, 224, 240, 112,   // Near yellow
+    255, 255, 248, 144    // Pale yellow
+};
+
+// Lava - Black to red to orange to yellow to white
+const uint8_t pal_lava[] = {
+    0,   0,   0,   0,     // Black
+    16,  32,  0,   0,     // Very dark red
+    32,  64,  0,   0,     // Dark red
+    48,  96,  0,   0,     // Dark red
+    64,  128, 8,   0,     // Red
+    80,  160, 16,  0,     // Red
+    96,  192, 32,  0,     // Red-orange
+    112, 224, 48,  0,     // Orange-red
+    128, 255, 64,  0,     // Bright orange
+    144, 255, 96,  0,     // Orange
+    160, 255, 128, 0,     // Orange
+    176, 255, 160, 0,     // Yellow-orange
+    192, 255, 200, 32,    // Yellow
+    208, 255, 224, 96,    // Pale yellow
+    224, 255, 240, 160,   // Near white
+    255, 255, 255, 224    // White
+};
+
+// Party - Bright multi-color celebration
+const uint8_t pal_party[] = {
+    0,   255, 0,   255,   // Magenta
+    16,  160, 0,   255,   // Purple-magenta
+    32,  64,  0,   255,   // Purple
+    48,  0,   64,  255,   // Blue-purple
+    64,  0,   160, 255,   // Cyan-blue
+    80,  0,   255, 255,   // Cyan
+    96,  0,   255, 128,   // Green-cyan
+    112, 0,   255, 0,     // Green
+    128, 128, 255, 0,     // Yellow-green
+    144, 255, 255, 0,     // Yellow
+    160, 255, 192, 0,     // Orange-yellow
+    176, 255, 128, 0,     // Orange
+    192, 255, 64,  0,     // Red-orange
+    208, 255, 0,   0,     // Red
+    224, 255, 0,   128,   // Red-magenta
+    255, 255, 0,   255    // Back to magenta
+};
+
+// Cloud - White to light blue to gray
+const uint8_t pal_cloud[] = {
+    0,   255, 255, 255,   // White
+    16,  250, 250, 255,   // Near white
+    32,  240, 245, 255,   // Very light blue
+    48,  224, 240, 255,   // Light blue
+    64,  200, 230, 255,   // Light blue
+    80,  176, 216, 248,   // Pale blue
+    96,  160, 200, 240,   // Pale blue
+    112, 144, 184, 224,   // Blue-gray
+    128, 160, 176, 208,   // Gray-blue
+    144, 176, 176, 192,   // Gray
+    160, 192, 192, 200,   // Light gray
+    176, 208, 210, 216,   // Light gray
+    192, 224, 228, 232,   // Near white
+    208, 240, 244, 248,   // Near white
+    224, 248, 250, 252,   // Almost white
+    255, 255, 255, 255    // White
+};
+
+// Sunset - Purple to red to orange to yellow
+const uint8_t pal_sunset[] = {
+    0,   64,  0,   128,   // Deep purple
+    16,  80,  0,   144,   // Purple
+    32,  96,  0,   160,   // Purple
+    48,  128, 0,   160,   // Red-purple
+    64,  160, 0,   144,   // Red-purple
+    80,  192, 0,   112,   // Red-magenta
+    96,  224, 0,   64,    // Red
+    112, 255, 32,  0,     // Red-orange
+    128, 255, 64,  0,     // Orange-red
+    144, 255, 96,  0,     // Orange
+    160, 255, 128, 0,     // Orange
+    176, 255, 160, 0,     // Orange-yellow
+    192, 255, 192, 0,     // Yellow-orange
+    208, 255, 224, 0,     // Yellow
+    224, 255, 240, 64,    // Pale yellow
+    255, 255, 255, 128    // Pale yellow-white
+};
+
+// Aurora - Green to cyan to purple to magenta
+const uint8_t pal_aurora[] = {
+    0,   0,   128, 64,    // Dark teal
+    16,  0,   160, 80,    // Teal-green
+    32,  0,   192, 96,    // Green-cyan
+    48,  0,   224, 128,   // Cyan-green
+    64,  0,   255, 160,   // Light cyan-green
+    80,  0,   255, 192,   // Cyan
+    96,  0,   224, 224,   // Light cyan
+    112, 32,  192, 240,   // Cyan-blue
+    128, 64,  160, 255,   // Blue
+    144, 96,  128, 255,   // Blue-purple
+    160, 128, 96,  255,   // Purple
+    176, 160, 64,  255,   // Purple
+    192, 192, 32,  240,   // Magenta-purple
+    208, 224, 0,   208,   // Magenta
+    224, 192, 32,  176,   // Red-magenta
+    255, 160, 64,  128    // Pink-purple
+};
+
+// Ice Fire - Blue-cyan cold to red-orange hot (two-tone fire)
+const uint8_t pal_icefire[] = {
+    0,   0,   0,   32,    // Dark blue
+    16,  0,   0,   64,    // Blue
+    32,  0,   32,  96,    // Blue
+    48,  0,   64,  128,   // Cyan-blue
+    64,  0,   96,  160,   // Cyan
+    80,  0,   128, 192,   // Light cyan
+    96,  0,   160, 208,   // Light cyan
+    112, 64,  128, 160,   // Transition
+    128, 128, 96,  96,    // Gray transition
+    144, 176, 64,  48,    // Orange-gray
+    160, 208, 48,  16,    // Orange-red
+    176, 224, 32,  0,     // Orange
+    192, 240, 64,  0,     // Orange
+    208, 255, 96,  0,     // Bright orange
+    224, 255, 144, 48,    // Yellow-orange
+    255, 255, 192, 96     // Pale yellow
+};
+
+// Autumn - Orange, red, yellow, brown fall colors
+const uint8_t pal_autumn[] = {
+    0,   128, 32,  0,     // Brown
+    16,  144, 48,  0,     // Dark orange
+    32,  160, 64,  0,     // Orange-brown
+    48,  176, 80,  0,     // Orange
+    64,  192, 64,  0,     // Red-orange
+    80,  208, 48,  0,     // Red-orange
+    96,  224, 32,  0,     // Red
+    112, 255, 48,  0,     // Bright red
+    128, 255, 96,  0,     // Orange-red
+    144, 255, 128, 0,     // Orange
+    160, 255, 160, 0,     // Yellow-orange
+    176, 255, 192, 0,     // Yellow
+    192, 224, 176, 32,    // Yellow-brown
+    208, 192, 128, 32,    // Brown
+    224, 160, 96,  16,    // Dark brown
+    255, 128, 64,  0      // Brown
+};
+
+// Temperature - Blue (cold) to red (hot) through white
+const uint8_t pal_temperature[] = {
+    0,   0,   0,   128,   // Dark blue (very cold)
+    16,  0,   0,   176,   // Blue
+    32,  0,   32,  224,   // Blue
+    48,  0,   64,  255,   // Bright blue
+    64,  0,   128, 255,   // Cyan-blue (cold)
+    80,  64,  192, 255,   // Light blue
+    96,  128, 224, 255,   // Pale blue
+    112, 192, 240, 255,   // Near white (cool)
+    128, 255, 255, 255,   // White (neutral)
+    144, 255, 240, 224,   // Near white (warm)
+    160, 255, 224, 192,   // Pale orange
+    176, 255, 192, 128,   // Light orange (warm)
+    192, 255, 128, 64,    // Orange
+    208, 255, 64,  0,     // Orange-red
+    224, 224, 0,   0,     // Red
+    255, 160, 0,   0      // Dark red (very hot)
+};
+
+// Lookup table for palette pointers indexed by palette ID
+const uint8_t* getPaletteData(uint8_t paletteId) {
+    switch (paletteId) {
+        case PAL_RAINBOW:     return pal_rainbow;
+        case PAL_FIRE:        return pal_fire;
+        case PAL_OCEAN:       return pal_ocean;
+        case PAL_FOREST:      return pal_forest;
+        case PAL_LAVA:        return pal_lava;
+        case PAL_PARTY:       return pal_party;
+        case PAL_CLOUD:       return pal_cloud;
+        case PAL_SUNSET:      return pal_sunset;
+        case PAL_AURORA:      return pal_aurora;
+        case PAL_ICEFIRE:     return pal_icefire;
+        case PAL_AUTUMN:      return pal_autumn;
+        case PAL_TEMPERATURE: return pal_temperature;
+        case PAL_DEFAULT:
+        default:              return pal_rainbow;  // Default to rainbow
+    }
+}
+
+// Get interpolated color from a palette at a given position (0-255)
+// Returns color as 0x00RRGGBB
+uint32_t getColorFromPalette(uint8_t paletteId, uint8_t position) {
+    const uint8_t* pal = getPaletteData(paletteId);
+
+    // Find the two color stops that bracket the position
+    int lowerIdx = 0;
+    int upperIdx = 0;
+
+    for (int i = 0; i < PALETTE_STOPS; i++) {
+        uint8_t stopPos = pal[i * 4];  // Position byte
+        if (stopPos <= position) {
+            lowerIdx = i;
+        }
+        if (stopPos >= position) {
+            upperIdx = i;
+            break;
+        }
+    }
+
+    // Get lower and upper color stops
+    uint8_t lowerPos = pal[lowerIdx * 4];
+    uint8_t lowerR   = pal[lowerIdx * 4 + 1];
+    uint8_t lowerG   = pal[lowerIdx * 4 + 2];
+    uint8_t lowerB   = pal[lowerIdx * 4 + 3];
+
+    uint8_t upperPos = pal[upperIdx * 4];
+    uint8_t upperR   = pal[upperIdx * 4 + 1];
+    uint8_t upperG   = pal[upperIdx * 4 + 2];
+    uint8_t upperB   = pal[upperIdx * 4 + 3];
+
+    // If same stop, return that color
+    if (lowerIdx == upperIdx || lowerPos == upperPos) {
+        return ((uint32_t)lowerR << 16) | ((uint32_t)lowerG << 8) | lowerB;
+    }
+
+    // Linear interpolation between the two stops
+    uint16_t range = upperPos - lowerPos;
+    uint16_t offset = position - lowerPos;
+
+    uint8_t r = lowerR + ((int16_t)(upperR - lowerR) * offset / range);
+    uint8_t g = lowerG + ((int16_t)(upperG - lowerG) * offset / range);
+    uint8_t b = lowerB + ((int16_t)(upperB - lowerB) * offset / range);
+
+    return ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+}
+
+// Get RGB components from palette at position
+void getColorFromPaletteRGB(uint8_t paletteId, uint8_t position, uint8_t& r, uint8_t& g, uint8_t& b) {
+    uint32_t color = getColorFromPalette(paletteId, position);
+    r = (color >> 16) & 0xFF;
+    g = (color >> 8) & 0xFF;
+    b = color & 0xFF;
+}
+
+// Blend a palette color with a base color using intensity (0=base, 255=palette)
+uint32_t blendPaletteColor(uint8_t paletteId, uint8_t position, uint8_t baseR, uint8_t baseG, uint8_t baseB, uint8_t intensity) {
+    uint8_t palR, palG, palB;
+    getColorFromPaletteRGB(paletteId, position, palR, palG, palB);
+
+    uint8_t r = ((uint16_t)palR * intensity + (uint16_t)baseR * (255 - intensity)) / 255;
+    uint8_t g = ((uint16_t)palG * intensity + (uint16_t)baseG * (255 - intensity)) / 255;
+    uint8_t b = ((uint16_t)palB * intensity + (uint16_t)baseB * (255 - intensity)) / 255;
+
+    return ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+}
+
+// =============================================================================
 // WLED EFFECT IMPLEMENTATIONS
 // =============================================================================
 
@@ -1179,7 +1531,7 @@ void wledScanner(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
     }
 }
 
-// Run WLED Fire effect
+// Run WLED Fire effect - supports palette-based fire colors
 void wledFire2012(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
     int segLen = seg.stop - seg.start;
     if (segLen < 1) return;
@@ -1205,19 +1557,29 @@ void wledFire2012(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) 
         }
     }
 
-    // Map heat to colors
+    // Map heat to colors - use palette if specified
     for (int j = 0; j < segLen; j++) {
-        uint8_t t192 = scale8(rt.heat[j], 191);
-        uint8_t heatramp = t192 & 0x3F;
-        heatramp <<= 2;
-
         uint8_t r, g, b;
-        if (t192 >= 128) {
-            r = 255; g = 255; b = heatramp;
-        } else if (t192 >= 64) {
-            r = 255; g = heatramp; b = 0;
+
+        if (seg.paletteId > 0) {
+            // Use palette for fire colors (heat value maps to palette position)
+            uint32_t color = getColorFromPalette(seg.paletteId, rt.heat[j]);
+            r = (color >> 16) & 0xFF;
+            g = (color >> 8) & 0xFF;
+            b = color & 0xFF;
         } else {
-            r = heatramp; g = 0; b = 0;
+            // Default fire colors (black -> red -> orange -> yellow -> white)
+            uint8_t t192 = scale8(rt.heat[j], 191);
+            uint8_t heatramp = t192 & 0x3F;
+            heatramp <<= 2;
+
+            if (t192 >= 128) {
+                r = 255; g = 255; b = heatramp;
+            } else if (t192 >= 64) {
+                r = 255; g = heatramp; b = 0;
+            } else {
+                r = heatramp; g = 0; b = 0;
+            }
         }
 
         strip->setPixelColor(seg.start + j, strip->Color(r, g, b));
@@ -1236,7 +1598,7 @@ void wledRainbow(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
     }
 }
 
-// Run WLED Colorwaves effect
+// Run WLED Colorwaves effect - animated waves using palette or colors
 void wledColorwaves(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
     int segLen = seg.stop - seg.start;
     uint8_t waveCount = (seg.intensity / 25) + 1;
@@ -1246,24 +1608,52 @@ void wledColorwaves(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt
     rt.scannerPos += step;
     if (rt.scannerPos > 10000.0f) rt.scannerPos -= 10000.0f;
 
-    // Secondary color (background)
-    uint8_t bgR = 0, bgG = 0, bgB = 0;
-    if (seg.colorCount > 1) {
-        bgR = seg.colors[1][0];
-        bgG = seg.colors[1][1];
-        bgB = seg.colors[1][2];
-    }
+    // If palette is specified, use palette-based colorwaves
+    if (seg.paletteId > 0) {
+        for (int i = 0; i < segLen; i++) {
+            // Calculate position in palette with wave animation
+            float pos = (float)i / segLen;
+            float wavePos = pos * waveCount + (rt.scannerPos / 20.0f);
+            // Use wave to modulate palette position for flowing color effect
+            uint8_t palPos = ((int)((pos * 255) + (rt.scannerPos / 2))) & 0xFF;
 
-    for (int i = 0; i < segLen; i++) {
-        float pos = (float)i / segLen;
-        float wavePos = pos * waveCount + (rt.scannerPos / 20.0f);
-        float val = (sin(wavePos * 2 * PI) + 1.0f) / 2.0f;
+            // Get color from palette
+            uint32_t color = getColorFromPalette(seg.paletteId, palPos);
+            uint8_t pr = (color >> 16) & 0xFF;
+            uint8_t pg = (color >> 8) & 0xFF;
+            uint8_t pb = color & 0xFF;
 
-        uint8_t r = (seg.colors[0][0] * val) + (bgR * (1.0f - val));
-        uint8_t g = (seg.colors[0][1] * val) + (bgG * (1.0f - val));
-        uint8_t b = (seg.colors[0][2] * val) + (bgB * (1.0f - val));
+            // Apply wave brightness modulation
+            float val = (sin(wavePos * 2 * PI) + 1.0f) / 2.0f;
+            val = 0.3f + (val * 0.7f); // Keep minimum brightness at 30%
 
-        strip->setPixelColor(seg.start + i, strip->Color(r, g, b));
+            uint8_t r = (uint8_t)(pr * val);
+            uint8_t g = (uint8_t)(pg * val);
+            uint8_t b = (uint8_t)(pb * val);
+
+            strip->setPixelColor(seg.start + i, strip->Color(r, g, b));
+        }
+    } else {
+        // Use segment colors (original behavior)
+        // Secondary color (background)
+        uint8_t bgR = 0, bgG = 0, bgB = 0;
+        if (seg.colorCount > 1) {
+            bgR = seg.colors[1][0];
+            bgG = seg.colors[1][1];
+            bgB = seg.colors[1][2];
+        }
+
+        for (int i = 0; i < segLen; i++) {
+            float pos = (float)i / segLen;
+            float wavePos = pos * waveCount + (rt.scannerPos / 20.0f);
+            float val = (sin(wavePos * 2 * PI) + 1.0f) / 2.0f;
+
+            uint8_t r = (seg.colors[0][0] * val) + (bgR * (1.0f - val));
+            uint8_t g = (seg.colors[0][1] * val) + (bgG * (1.0f - val));
+            uint8_t b = (seg.colors[0][2] * val) + (bgB * (1.0f - val));
+
+            strip->setPixelColor(seg.start + i, strip->Color(r, g, b));
+        }
     }
 }
 
@@ -1757,27 +2147,70 @@ void wledFireworks(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt)
     }
 }
 
-// Run WLED Gradient effect - static gradient using colors
+// Run WLED Gradient effect - static gradient using palette or colors
 void wledGradient(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
     int segLen = seg.stop - seg.start;
     if (segLen < 1) return;
 
-    // Get colors for gradient
-    uint8_t r1 = seg.colors[0][0], g1 = seg.colors[0][1], b1 = seg.colors[0][2];
-    uint8_t r2 = 0, g2 = 0, b2 = 0;
-    if (seg.colorCount > 1) {
-        r2 = seg.colors[1][0];
-        g2 = seg.colors[1][1];
-        b2 = seg.colors[1][2];
+    // If palette is specified (non-zero), use palette colors
+    if (seg.paletteId > 0) {
+        for (int i = 0; i < segLen; i++) {
+            // Map LED position to palette position (0-255)
+            uint8_t palPos = (i * 255) / (segLen > 1 ? segLen - 1 : 1);
+            uint32_t color = getColorFromPalette(seg.paletteId, palPos);
+            uint8_t r = (color >> 16) & 0xFF;
+            uint8_t g = (color >> 8) & 0xFF;
+            uint8_t b = color & 0xFF;
+            strip->setPixelColor(seg.start + i, strip->Color(r, g, b));
+        }
+    } else {
+        // Use segment colors for gradient
+        uint8_t r1 = seg.colors[0][0], g1 = seg.colors[0][1], b1 = seg.colors[0][2];
+        uint8_t r2 = 0, g2 = 0, b2 = 0;
+        if (seg.colorCount > 1) {
+            r2 = seg.colors[1][0];
+            g2 = seg.colors[1][1];
+            b2 = seg.colors[1][2];
+        }
+
+        for (int i = 0; i < segLen; i++) {
+            float ratio = (float)i / (float)(segLen - 1);
+            if (segLen == 1) ratio = 0.5f;
+
+            uint8_t r = r1 + (int)((r2 - r1) * ratio);
+            uint8_t g = g1 + (int)((g2 - g1) * ratio);
+            uint8_t b = b1 + (int)((b2 - b1) * ratio);
+
+            strip->setPixelColor(seg.start + i, strip->Color(r, g, b));
+        }
     }
+}
+
+// Run WLED Palette effect - animated scrolling through palette
+void wledPalette(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
+    int segLen = seg.stop - seg.start;
+    if (segLen < 1) return;
+
+    // Animate position based on speed
+    rt.animPosition += seg.speed / 4;
+
+    // Use paletteId if specified, otherwise default to rainbow
+    uint8_t palId = seg.paletteId > 0 ? seg.paletteId : PAL_RAINBOW;
 
     for (int i = 0; i < segLen; i++) {
-        float ratio = (float)i / (float)(segLen - 1);
-        if (segLen == 1) ratio = 0.5f;
+        // Calculate position in palette with animation offset
+        uint8_t palPos = ((i * 255 / segLen) + (rt.animPosition / 4)) & 0xFF;
+        uint32_t color = getColorFromPalette(palId, palPos);
+        uint8_t r = (color >> 16) & 0xFF;
+        uint8_t g = (color >> 8) & 0xFF;
+        uint8_t b = color & 0xFF;
 
-        uint8_t r = r1 + (int)((r2 - r1) * ratio);
-        uint8_t g = g1 + (int)((g2 - g1) * ratio);
-        uint8_t b = b1 + (int)((b2 - b1) * ratio);
+        // Apply intensity as brightness scaling
+        if (seg.intensity < 255) {
+            r = (r * seg.intensity) / 255;
+            g = (g * seg.intensity) / 255;
+            b = (b * seg.intensity) / 255;
+        }
 
         strip->setPixelColor(seg.start + i, strip->Color(r, g, b));
     }
@@ -2098,6 +2531,9 @@ void runWLEDSegment(int stripIdx, int segIdx) {
             break;
         case WLED_FX_GRADIENT:
             wledGradient(strip, seg, rt);
+            break;
+        case WLED_FX_PALETTE:
+            wledPalette(strip, seg, rt);
             break;
         case WLED_FX_FIRE2012:
             wledFire2012(strip, seg, rt);
