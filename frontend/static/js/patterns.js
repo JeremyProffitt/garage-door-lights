@@ -81,15 +81,29 @@ function patternsPage() {
             setTimeout(() => {
                 const container = document.getElementById('simulateLedsContainer');
                 if (container) {
-                    const simPattern = {
-                        type: pattern.type,
-                        red: pattern.colors ? pattern.colors[0].r : pattern.red,
-                        green: pattern.colors ? pattern.colors[0].g : pattern.green,
-                        blue: pattern.colors ? pattern.colors[0].b : pattern.blue,
-                        brightness: pattern.brightness,
-                        speed: pattern.speed
-                    };
-                    LEDSimulator.render(container, simPattern, 8);
+                    // Check if pattern has WLED binary or bytecode for preview
+                    if (pattern.wledBinary || pattern.bytecode) {
+                        const bytecodeData = pattern.wledBinary || pattern.bytecode;
+                        // Use PatternPreview if available (auto-detects format)
+                        if (typeof PatternPreview !== 'undefined') {
+                            PatternPreview.render(container, bytecodeData, 8);
+                        } else if (typeof WLEDPreview !== 'undefined') {
+                            WLEDPreview.render(container, bytecodeData, 8);
+                        } else if (typeof LCLPreview !== 'undefined') {
+                            LCLPreview.render(container, bytecodeData, 8);
+                        }
+                    } else {
+                        // Standard pattern - use LEDSimulator
+                        const simPattern = {
+                            type: pattern.type,
+                            red: pattern.colors ? pattern.colors[0].r : pattern.red,
+                            green: pattern.colors ? pattern.colors[0].g : pattern.green,
+                            blue: pattern.colors ? pattern.colors[0].b : pattern.blue,
+                            brightness: pattern.brightness,
+                            speed: pattern.speed
+                        };
+                        LEDSimulator.render(container, simPattern, 8);
+                    }
                 }
             }, 100);
         },

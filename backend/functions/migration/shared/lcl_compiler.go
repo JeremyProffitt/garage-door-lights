@@ -105,7 +105,7 @@ type PatternSpec struct {
 	BackgroundColor string   `json:"background_color"`     // Optional: secondary color
 	Brightness      int      `json:"brightness,omitempty"` // 0-255
 	Speed           int      `json:"speed,omitempty"`      // 0-255
-
+	
 	// Param1
 	Density    int      `json:"density,omitempty"`    // 0-255 (Sparkle)
 	Cooling    int      `json:"cooling,omitempty"`    // 0-255 (Fire: Flame Height)
@@ -118,7 +118,7 @@ type PatternSpec struct {
 
 	// Param3
 	TailLength int      `json:"tail_length,omitempty"` // 0-20 (Scanner/Chase)
-
+	
 	// Param4
 	Direction  int      `json:"direction,omitempty"`  // 0=forward, 1=reverse
 	Style      int      `json:"style,omitempty"`      // 0=smooth, 1=bounce...
@@ -180,7 +180,7 @@ func CompileLCLv4(spec *PatternSpec) ([]byte, error) {
 	if len(colors) > 0 {
 		paletteSize = len(colors) * 3
 	}
-
+	
 	// Total length: Header(8) + Core(16) + Primary(3) + Secondary(3) + Count(1) + Palette(N*3)
 	totalLen := LCLHeaderSize + LCLCoreParamsSize + LCLColorBlockSize + paletteSize
 	bytecode := make([]byte, totalLen)
@@ -201,12 +201,12 @@ func CompileLCLv4(spec *PatternSpec) ([]byte, error) {
 	bytecode[OffsetParam3] = param3
 	bytecode[OffsetParam4] = param4
 	bytecode[OffsetColorMode] = 0 // Default palette mode for now
-
+	
 	// Direction override if Param4 didn't handle it
 	// Actually direction is mapped to Param4 usually, or handled here?
 	// Let's OR it in if Param4 is used for style, or use Param4 purely for direction/style combo
 	// For simplicity, Param4 IS direction/style
-
+	
 	// Primary Color
 	if len(colors) > 0 {
 		bytecode[OffsetPrimaryColor] = colors[0][0]
@@ -269,7 +269,7 @@ func getEffectParamsV4(effectID byte, spec *PatternSpec) (byte, byte, byte, byte
 		// Chase could use P2/P3 for head/tail
 		p2 = byte(spec.EyeSize)
 		p3 = byte(spec.TailLength)
-
+	
 	case EffectScanner: // Knight Rider
 		// P1: Reserved? Maybe speed modifier?
 		// P2: Eye Size (Width)
@@ -334,7 +334,7 @@ func ParseIntentYAML(yamlStr string) (*PatternSpec, error) {
 		if idx := strings.Index(line, "#"); idx != -1 {
 			line = line[:idx]
 		}
-
+		
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			continue
@@ -403,7 +403,7 @@ func mapBehavior(key, value string, spec *PatternSpec) {
 		case "intense", "lots": spec.Sparking = 220
 		default: spec.Sparking = 120
 		}
-
+	
 	// Sparkle
 	case "density":
 		switch value {
@@ -435,7 +435,7 @@ func mapBehavior(key, value string, spec *PatternSpec) {
 		case "frantic": spec.Speed = 220
 		default: spec.Speed = 128
 		}
-
+	
 	// Scanner / Chase (New in v4)
 	case "eye_size", "head_size":
 		switch value {
@@ -444,7 +444,7 @@ func mapBehavior(key, value string, spec *PatternSpec) {
 		case "medium": spec.EyeSize = 3
 		case "large": spec.EyeSize = 5
 		case "huge": spec.EyeSize = 8
-		default:
+		default: 
 			if v, err := strconv.Atoi(value); err == nil {
 				spec.EyeSize = v
 			} else {
@@ -481,7 +481,7 @@ func mapAppearance(key, value string, spec *PatternSpec) {
 		case "medium": spec.Brightness = 128
 		case "bright", "high": spec.Brightness = 200
 		case "full", "max": spec.Brightness = 255
-		default:
+		default: 
 			if v, err := strconv.Atoi(value); err == nil {
 				spec.Brightness = v
 			}

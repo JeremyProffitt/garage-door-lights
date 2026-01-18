@@ -44,7 +44,8 @@ enum PatternType {
     PATTERN_WAVE = 4,
     PATTERN_RAINBOW = 5,
     PATTERN_FIRE = 6,
-    PATTERN_BYTECODE = 7  // LCL bytecode pattern
+    PATTERN_BYTECODE = 7,  // LCL bytecode pattern
+    PATTERN_WLED = 8       // WLED binary pattern
 };
 
 // Bytecode constants
@@ -109,12 +110,90 @@ enum PatternType {
 #define PARAM_TAIL_LEN   0x0B
 #define PARAM_DENSITY    0x0C
 
+// =============================================================================
+// WLED BINARY FORMAT (WLEDb v1)
+// =============================================================================
+#define WLED_MAGIC       0x574C4544  // "WLED" as uint32
+#define WLED_VERSION     0x01
+#define WLED_HEADER_SIZE 8
+#define WLED_GLOBAL_SIZE 4
+#define WLED_MAX_SEGMENTS 4
+#define WLED_MAX_COLORS   3
+
+// WLED Binary Offsets
+#define WLED_OFFSET_MAGIC      0
+#define WLED_OFFSET_VERSION    4
+#define WLED_OFFSET_FLAGS      5
+#define WLED_OFFSET_LENGTH     6
+#define WLED_OFFSET_BRIGHTNESS 8
+#define WLED_OFFSET_TRANSITION 9
+#define WLED_OFFSET_SEG_COUNT  11
+#define WLED_OFFSET_SEGMENTS   12
+
+// WLED Per-Segment Offsets
+#define WLED_SEG_ID        0
+#define WLED_SEG_START     1
+#define WLED_SEG_STOP      3
+#define WLED_SEG_EFFECT    5
+#define WLED_SEG_SPEED     6
+#define WLED_SEG_INTENSITY 7
+#define WLED_SEG_C1        8
+#define WLED_SEG_C2        9
+#define WLED_SEG_C3        10
+#define WLED_SEG_PALETTE   11
+#define WLED_SEG_FLAGS     12
+#define WLED_SEG_COLORCNT  13
+#define WLED_SEG_COLOR1    14
+
+// WLED Effect IDs
+#define WLED_FX_SOLID       0
+#define WLED_FX_BLINK       1
+#define WLED_FX_BREATHE     2
+#define WLED_FX_WIPE        3
+#define WLED_FX_RAINBOW     9
+#define WLED_FX_TWINKLE     17
+#define WLED_FX_SPARKLE     20
+#define WLED_FX_CHASE       27
+#define WLED_FX_SCANNER     39
+#define WLED_FX_GRADIENT    46
+#define WLED_FX_PALETTE     48
+#define WLED_FX_FIRE2012    49
+#define WLED_FX_COLORWAVES  50
+#define WLED_FX_METEOR      59
+#define WLED_FX_RIPPLE      62
+#define WLED_FX_CANDLE      71
+#define WLED_FX_FIREWORKS   72
+
 // Color entry with percentage
 struct ColorEntry {
     uint8_t r;
     uint8_t g;
     uint8_t b;
     uint8_t percent;  // Percentage of LEDs for this color (0-100)
+};
+
+// WLED segment data
+struct WLEDSegment {
+    uint8_t id;
+    uint16_t start;
+    uint16_t stop;
+    uint8_t effectId;
+    uint8_t speed;
+    uint8_t intensity;
+    uint8_t c1, c2, c3;   // Custom parameters
+    uint8_t paletteId;
+    uint8_t flags;        // bit0: reverse, bit1: mirror, bit2: on
+    uint8_t colors[WLED_MAX_COLORS][3];  // RGB colors
+    uint8_t colorCount;
+};
+
+// WLED runtime state
+struct WLEDState {
+    bool powerOn;
+    uint8_t brightness;
+    uint16_t transition;
+    uint8_t segmentCount;
+    WLEDSegment segments[WLED_MAX_SEGMENTS];
 };
 
 // Per-strip configuration (stored in EEPROM)
@@ -170,6 +249,9 @@ struct StripRuntime {
     // Palette support
     PaletteColor palette[MAX_PALETTE_COLORS];
     uint8_t paletteCount;               // Number of colors in palette
+
+    // WLED state
+    WLEDState wledState;
 };
 
 // =============================================================================
@@ -816,6 +898,84 @@ void parseBytecode(int stripIdx) {
     }
 }
 
+// Check if bytecode is WLED format
+bool isWLEDFormat(uint8_t* data, uint16_t len) {
+    if (len < 4) return false;
+    return data[0] == 'W' && data[1] == 'L' && data[2] == 'E' && data[3] == 'D';
+}
+
+// Parse WLED binary format
+void parseWLEDBinary(int stripIdx) {
+    StripRuntime& rt = stripRuntime[stripIdx];
+    StripConfig& cfg = stripConfigs[stripIdx];
+    WLEDState& wled = rt.wledState;
+
+    if (rt.bytecodeLen < WLED_HEADER_SIZE + WLED_GLOBAL_SIZE) {
+        Serial.println("WLED: Binary too short");
+        return;
+    }
+
+    // Parse header
+    uint8_t version = rt.bytecode[WLED_OFFSET_VERSION];
+    uint8_t flags = rt.bytecode[WLED_OFFSET_FLAGS];
+
+    wled.powerOn = (flags & 0x01) != 0;
+    wled.brightness = rt.bytecode[WLED_OFFSET_BRIGHTNESS];
+    wled.transition = (rt.bytecode[WLED_OFFSET_TRANSITION] << 8) | rt.bytecode[WLED_OFFSET_TRANSITION + 1];
+    wled.segmentCount = rt.bytecode[WLED_OFFSET_SEG_COUNT];
+
+    if (wled.segmentCount > WLED_MAX_SEGMENTS) {
+        wled.segmentCount = WLED_MAX_SEGMENTS;
+    }
+
+    Serial.printlnf("WLED: v%d, bri=%d, segs=%d, power=%s",
+        version, wled.brightness, wled.segmentCount, wled.powerOn ? "on" : "off");
+
+    // Parse segments
+    int offset = WLED_OFFSET_SEGMENTS;
+    for (int s = 0; s < wled.segmentCount && offset < rt.bytecodeLen; s++) {
+        WLEDSegment& seg = wled.segments[s];
+
+        seg.id = rt.bytecode[offset + WLED_SEG_ID];
+        seg.start = (rt.bytecode[offset + WLED_SEG_START] << 8) | rt.bytecode[offset + WLED_SEG_START + 1];
+        seg.stop = (rt.bytecode[offset + WLED_SEG_STOP] << 8) | rt.bytecode[offset + WLED_SEG_STOP + 1];
+        seg.effectId = rt.bytecode[offset + WLED_SEG_EFFECT];
+        seg.speed = rt.bytecode[offset + WLED_SEG_SPEED];
+        seg.intensity = rt.bytecode[offset + WLED_SEG_INTENSITY];
+        seg.c1 = rt.bytecode[offset + WLED_SEG_C1];
+        seg.c2 = rt.bytecode[offset + WLED_SEG_C2];
+        seg.c3 = rt.bytecode[offset + WLED_SEG_C3];
+        seg.paletteId = rt.bytecode[offset + WLED_SEG_PALETTE];
+        seg.flags = rt.bytecode[offset + WLED_SEG_FLAGS];
+        seg.colorCount = rt.bytecode[offset + WLED_SEG_COLORCNT];
+
+        if (seg.colorCount > WLED_MAX_COLORS) {
+            seg.colorCount = WLED_MAX_COLORS;
+        }
+
+        // Parse colors
+        int colorOffset = offset + WLED_SEG_COLOR1;
+        for (int c = 0; c < seg.colorCount; c++) {
+            seg.colors[c][0] = rt.bytecode[colorOffset];
+            seg.colors[c][1] = rt.bytecode[colorOffset + 1];
+            seg.colors[c][2] = rt.bytecode[colorOffset + 2];
+            colorOffset += 3;
+        }
+
+        // Skip checksum byte, move to next segment
+        offset = colorOffset + 1;
+
+        Serial.printlnf("  Seg %d: %d-%d, fx=%d, spd=%d, col=(%d,%d,%d)",
+            s, seg.start, seg.stop, seg.effectId, seg.speed,
+            seg.colors[0][0], seg.colors[0][1], seg.colors[0][2]);
+    }
+
+    // Apply brightness to strip
+    if (rt.strip != nullptr) {
+        rt.strip->setBrightness(wled.brightness);
+    }
+}
+
 // Set bytecode for a strip: "pin,base64EncodedBytecode"
 int setBytecode(String command) {
     int comma = command.indexOf(',');
@@ -863,22 +1023,378 @@ int setBytecode(String command) {
 
     rt.bytecodeLen = outIdx;
 
-    if (rt.bytecodeLen < BYTECODE_HEADER_SIZE) {
+    if (rt.bytecodeLen < 4) {
         return -1;
     }
 
-    // Parse the bytecode
-    parseBytecode(stripIdx);
-
-    // Set pattern to bytecode mode
-    cfg.pattern = PATTERN_BYTECODE;
-
-    if (rt.strip != nullptr) {
-        rt.strip->setBrightness(rt.bytecodeBrightness);
+    // Detect format and parse
+    if (isWLEDFormat(rt.bytecode, rt.bytecodeLen)) {
+        // WLED binary format
+        parseWLEDBinary(stripIdx);
+        cfg.pattern = PATTERN_WLED;
+        Serial.printlnf("Strip D%d: loaded %d bytes (WLED)", pin, rt.bytecodeLen);
+    } else if (rt.bytecode[0] == 'L' && rt.bytecode[1] == 'C' && rt.bytecode[2] == 'L') {
+        // LCL bytecode format
+        if (rt.bytecodeLen < BYTECODE_HEADER_SIZE) {
+            return -1;
+        }
+        parseBytecode(stripIdx);
+        cfg.pattern = PATTERN_BYTECODE;
+        if (rt.strip != nullptr) {
+            rt.strip->setBrightness(rt.bytecodeBrightness);
+        }
+        Serial.printlnf("Strip D%d: loaded %d bytes (LCL v%d)", pin, rt.bytecodeLen, rt.bytecodeVersion);
+    } else {
+        Serial.printlnf("Strip D%d: unknown bytecode format", pin);
+        return -1;
     }
 
-    Serial.printlnf("Strip D%d: loaded %d bytes (v%d)", pin, rt.bytecodeLen, rt.bytecodeVersion);
     return rt.bytecodeLen;
+}
+
+// =============================================================================
+// WLED EFFECT IMPLEMENTATIONS
+// =============================================================================
+
+// Run WLED Solid effect
+void wledSolid(Adafruit_NeoPixel* strip, WLEDSegment& seg) {
+    for (int i = seg.start; i < seg.stop; i++) {
+        strip->setPixelColor(i, strip->Color(seg.colors[0][0], seg.colors[0][1], seg.colors[0][2]));
+    }
+}
+
+// Run WLED Breathe/Pulse effect
+void wledBreathe(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
+    uint8_t step = (seg.speed / 10) + 1;
+    rt.pulseValue += rt.pulseDirection * step;
+    if (rt.pulseValue >= 250) { rt.pulseValue = 255; rt.pulseDirection = -1; }
+    if (rt.pulseValue <= seg.intensity / 3) { rt.pulseValue = seg.intensity / 3; rt.pulseDirection = 1; }
+
+    for (int i = seg.start; i < seg.stop; i++) {
+        uint8_t r = (seg.colors[0][0] * rt.pulseValue) / 255;
+        uint8_t g = (seg.colors[0][1] * rt.pulseValue) / 255;
+        uint8_t b = (seg.colors[0][2] * rt.pulseValue) / 255;
+        strip->setPixelColor(i, strip->Color(r, g, b));
+    }
+}
+
+// Run WLED Scanner effect
+void wledScanner(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
+    int segLen = seg.stop - seg.start;
+    if (segLen < 2) return;
+
+    // Eye size from intensity
+    float eyeSize = (seg.intensity / 25) + 1;
+    // Fade rate from c1
+    uint8_t fadeRate = seg.c1 > 0 ? (255 / (seg.c1 + 2)) : 50;
+    if (fadeRate < 10) fadeRate = 10;
+
+    // Secondary color (background)
+    uint8_t bgR = 0, bgG = 0, bgB = 0;
+    if (seg.colorCount > 1) {
+        bgR = seg.colors[1][0];
+        bgG = seg.colors[1][1];
+        bgB = seg.colors[1][2];
+    }
+
+    // Fade existing pixels
+    for (int i = seg.start; i < seg.stop; i++) {
+        uint32_t c = strip->getPixelColor(i);
+        uint8_t cr = (c >> 16) & 0xFF;
+        uint8_t cg = (c >> 8) & 0xFF;
+        uint8_t cb = c & 0xFF;
+
+        if (cr > bgR) cr = (cr > fadeRate) ? cr - fadeRate : bgR;
+        if (cg > bgG) cg = (cg > fadeRate) ? cg - fadeRate : bgG;
+        if (cb > bgB) cb = (cb > fadeRate) ? cb - fadeRate : bgB;
+
+        strip->setPixelColor(i, strip->Color(cr, cg, cb));
+    }
+
+    // Move scanner
+    float step = (float)seg.speed / 128.0f;
+    if (step < 0.1f) step = 0.5f;
+    rt.scannerPos += step * rt.scannerDir;
+
+    if (rt.scannerPos >= segLen - 1) {
+        rt.scannerPos = segLen - 1;
+        rt.scannerDir = -1;
+    } else if (rt.scannerPos <= 0) {
+        rt.scannerPos = 0;
+        rt.scannerDir = 1;
+    }
+
+    // Draw eye
+    int center = seg.start + (int)rt.scannerPos;
+    strip->setPixelColor(center, strip->Color(seg.colors[0][0], seg.colors[0][1], seg.colors[0][2]));
+
+    for (int i = 1; i <= (int)eyeSize; i++) {
+        float intensity = 1.0f - ((float)i / (eyeSize + 1.0f));
+        if (center + i < seg.stop) {
+            strip->setPixelColor(center + i, strip->Color(
+                seg.colors[0][0] * intensity,
+                seg.colors[0][1] * intensity,
+                seg.colors[0][2] * intensity));
+        }
+        if (center - i >= seg.start) {
+            strip->setPixelColor(center - i, strip->Color(
+                seg.colors[0][0] * intensity,
+                seg.colors[0][1] * intensity,
+                seg.colors[0][2] * intensity));
+        }
+    }
+}
+
+// Run WLED Fire effect
+void wledFire2012(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
+    int segLen = seg.stop - seg.start;
+    if (segLen < 1) return;
+
+    uint8_t cooling = seg.intensity;
+    uint8_t sparking = seg.c1 > 0 ? seg.c1 : 120;
+
+    // Cool down
+    for (int i = 0; i < segLen; i++) {
+        rt.heat[i] = qsub8(rt.heat[i], random8(0, ((cooling * 10) / segLen) + 2));
+    }
+
+    // Heat rises
+    for (int k = segLen - 1; k >= 2; k--) {
+        rt.heat[k] = (rt.heat[k - 1] + rt.heat[k - 2] + rt.heat[k - 2]) / 3;
+    }
+
+    // Spark at bottom
+    if (random8() < sparking) {
+        int y = random8(7);
+        if (y < segLen) {
+            rt.heat[y] = qadd8(rt.heat[y], random8(160, 255));
+        }
+    }
+
+    // Map heat to colors
+    for (int j = 0; j < segLen; j++) {
+        uint8_t t192 = scale8(rt.heat[j], 191);
+        uint8_t heatramp = t192 & 0x3F;
+        heatramp <<= 2;
+
+        uint8_t r, g, b;
+        if (t192 >= 128) {
+            r = 255; g = 255; b = heatramp;
+        } else if (t192 >= 64) {
+            r = 255; g = heatramp; b = 0;
+        } else {
+            r = heatramp; g = 0; b = 0;
+        }
+
+        strip->setPixelColor(seg.start + j, strip->Color(r, g, b));
+    }
+}
+
+// Run WLED Rainbow effect
+void wledRainbow(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
+    int segLen = seg.stop - seg.start;
+    rt.animPosition += seg.speed / 8;
+
+    for (int i = 0; i < segLen; i++) {
+        uint16_t hue = ((i * 65536L / segLen) + rt.animPosition) & 0xFFFF;
+        uint32_t color = strip->ColorHSV(hue);
+        strip->setPixelColor(seg.start + i, color);
+    }
+}
+
+// Run WLED Colorwaves effect
+void wledColorwaves(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
+    int segLen = seg.stop - seg.start;
+    uint8_t waveCount = (seg.intensity / 25) + 1;
+    if (waveCount < 1) waveCount = 3;
+
+    float step = (float)seg.speed / 64.0f;
+    rt.scannerPos += step;
+    if (rt.scannerPos > 10000.0f) rt.scannerPos -= 10000.0f;
+
+    // Secondary color (background)
+    uint8_t bgR = 0, bgG = 0, bgB = 0;
+    if (seg.colorCount > 1) {
+        bgR = seg.colors[1][0];
+        bgG = seg.colors[1][1];
+        bgB = seg.colors[1][2];
+    }
+
+    for (int i = 0; i < segLen; i++) {
+        float pos = (float)i / segLen;
+        float wavePos = pos * waveCount + (rt.scannerPos / 20.0f);
+        float val = (sin(wavePos * 2 * PI) + 1.0f) / 2.0f;
+
+        uint8_t r = (seg.colors[0][0] * val) + (bgR * (1.0f - val));
+        uint8_t g = (seg.colors[0][1] * val) + (bgG * (1.0f - val));
+        uint8_t b = (seg.colors[0][2] * val) + (bgB * (1.0f - val));
+
+        strip->setPixelColor(seg.start + i, strip->Color(r, g, b));
+    }
+}
+
+// Run WLED Sparkle effect
+void wledSparkle(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
+    uint8_t density = seg.intensity;
+    uint8_t fade = 64 + (seg.speed / 4);
+
+    // Secondary color (background)
+    uint8_t bgR = 0, bgG = 0, bgB = 0;
+    if (seg.colorCount > 1) {
+        bgR = seg.colors[1][0];
+        bgG = seg.colors[1][1];
+        bgB = seg.colors[1][2];
+    }
+
+    // Fade existing
+    for (int i = seg.start; i < seg.stop; i++) {
+        uint32_t c = strip->getPixelColor(i);
+        uint8_t r = (c >> 16) & 0xFF;
+        uint8_t g = (c >> 8) & 0xFF;
+        uint8_t b = c & 0xFF;
+
+        r = (r * (255 - fade) + bgR * fade) / 256;
+        g = (g * (255 - fade) + bgG * fade) / 256;
+        b = (b * (255 - fade) + bgB * fade) / 256;
+
+        strip->setPixelColor(i, strip->Color(r, g, b));
+    }
+
+    // Sparkle
+    if (random(255) < density) {
+        int pos = seg.start + random(seg.stop - seg.start);
+        strip->setPixelColor(pos, strip->Color(seg.colors[0][0], seg.colors[0][1], seg.colors[0][2]));
+    }
+}
+
+// Run WLED Candle effect
+void wledCandle(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
+    for (int i = seg.start; i < seg.stop; i++) {
+        // Random flicker
+        int flicker = random(-seg.intensity / 2, seg.intensity / 2);
+        int brightness = 200 + flicker;
+        if (brightness > 255) brightness = 255;
+        if (brightness < 100) brightness = 100;
+
+        uint8_t r = (seg.colors[0][0] * brightness) / 255;
+        uint8_t g = (seg.colors[0][1] * brightness) / 255;
+        uint8_t b = (seg.colors[0][2] * brightness) / 255;
+
+        strip->setPixelColor(i, strip->Color(r, g, b));
+    }
+}
+
+// Run WLED Meteor effect
+void wledMeteor(Adafruit_NeoPixel* strip, WLEDSegment& seg, StripRuntime& rt) {
+    int segLen = seg.stop - seg.start;
+    uint8_t tailLen = seg.intensity / 10;
+    if (tailLen < 2) tailLen = 2;
+
+    // Fade all pixels
+    for (int i = seg.start; i < seg.stop; i++) {
+        uint32_t c = strip->getPixelColor(i);
+        uint8_t r = ((c >> 16) & 0xFF) * 90 / 100;
+        uint8_t g = ((c >> 8) & 0xFF) * 90 / 100;
+        uint8_t b = (c & 0xFF) * 90 / 100;
+        strip->setPixelColor(i, strip->Color(r, g, b));
+    }
+
+    // Move meteor
+    float step = (float)seg.speed / 50.0f;
+    rt.animPosition += step;
+    if (rt.animPosition >= segLen + tailLen) {
+        rt.animPosition = 0;
+    }
+
+    // Draw meteor head and tail
+    int headPos = seg.start + (int)rt.animPosition;
+    for (int j = 0; j < tailLen && headPos - j >= seg.start && headPos - j < seg.stop; j++) {
+        float intensity = 1.0f - ((float)j / tailLen);
+        strip->setPixelColor(headPos - j, strip->Color(
+            seg.colors[0][0] * intensity,
+            seg.colors[0][1] * intensity,
+            seg.colors[0][2] * intensity));
+    }
+}
+
+// Run a single WLED segment effect
+void runWLEDSegment(int stripIdx, int segIdx) {
+    StripRuntime& rt = stripRuntime[stripIdx];
+    WLEDSegment& seg = rt.wledState.segments[segIdx];
+    Adafruit_NeoPixel* strip = rt.strip;
+
+    if (strip == nullptr || !(seg.flags & 0x04)) return; // Check on flag
+
+    switch (seg.effectId) {
+        case WLED_FX_SOLID:
+            wledSolid(strip, seg);
+            break;
+        case WLED_FX_BREATHE:
+            wledBreathe(strip, seg, rt);
+            break;
+        case WLED_FX_SCANNER:
+            wledScanner(strip, seg, rt);
+            break;
+        case WLED_FX_FIRE2012:
+            wledFire2012(strip, seg, rt);
+            break;
+        case WLED_FX_RAINBOW:
+            wledRainbow(strip, seg, rt);
+            break;
+        case WLED_FX_COLORWAVES:
+            wledColorwaves(strip, seg, rt);
+            break;
+        case WLED_FX_SPARKLE:
+        case WLED_FX_TWINKLE:
+            wledSparkle(strip, seg, rt);
+            break;
+        case WLED_FX_CANDLE:
+            wledCandle(strip, seg, rt);
+            break;
+        case WLED_FX_METEOR:
+            wledMeteor(strip, seg, rt);
+            break;
+        default:
+            // Fallback to solid
+            wledSolid(strip, seg);
+            break;
+    }
+}
+
+// Run all WLED segments for a strip
+void runWLEDPattern(int stripIdx) {
+    StripRuntime& rt = stripRuntime[stripIdx];
+    WLEDState& wled = rt.wledState;
+
+    if (!wled.powerOn || rt.strip == nullptr) return;
+
+    for (int s = 0; s < wled.segmentCount; s++) {
+        runWLEDSegment(stripIdx, s);
+    }
+
+    rt.strip->show();
+}
+
+// Helper functions for fire effect
+uint8_t qsub8(uint8_t a, uint8_t b) {
+    return (a > b) ? a - b : 0;
+}
+
+uint8_t qadd8(uint8_t a, uint8_t b) {
+    uint16_t t = a + b;
+    return (t > 255) ? 255 : t;
+}
+
+uint8_t scale8(uint8_t i, uint8_t scale) {
+    return ((uint16_t)i * (uint16_t)(scale + 1)) >> 8;
+}
+
+uint8_t random8(uint8_t min, uint8_t max) {
+    return min + random(max - min + 1);
+}
+
+uint8_t random8() {
+    return random(256);
 }
 
 // =============================================================================
@@ -893,6 +1409,12 @@ void runPattern(int idx) {
     if (strip == nullptr || !cfg.enabled) return;
 
     int count = cfg.ledCount;
+
+    // WLED pattern mode
+    if (cfg.pattern == PATTERN_WLED) {
+        runWLEDPattern(idx);
+        return;
+    }
 
     // Built-in patterns (Legacy support)
     if (cfg.pattern != PATTERN_BYTECODE) {

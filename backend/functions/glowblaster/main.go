@@ -268,42 +268,91 @@ func handleChat(ctx context.Context, username, conversationID string, request ev
 	conversation.Messages = append(conversation.Messages, assistantMessage)
 	conversation.TotalTokens += tokensUsed
 
-	// Extract and validate LCL from response, retry if invalid
-	lcl := shared.ExtractLCLFromResponse(responseText)
-	var bytecode []byte
+	// Extract and validate WLED JSON from response, retry if invalid
+	wledJSON := shared.ExtractWLEDFromResponse(responseText)
+	var wledBinary []byte
 	const maxValidationRetries = 2
 
-	for retryCount := 0; lcl != "" && retryCount <= maxValidationRetries; retryCount++ {
-		// Validate LCL against firmware capabilities
-		valid, validationErrors := shared.ValidateLCL(lcl)
-		if valid {
-			// LCL is valid, compile to bytecode
-			compiled, warnings, compileErr := shared.CompileLCL(lcl)
-			if compileErr != nil {
-				log.Printf("LCL compile error: %v", compileErr)
-			} else {
-				bytecode = compiled
-				conversation.CurrentLCL = lcl
-				conversation.CurrentBytecode = bytecode
+	for retryCount := 0; wledJSON != "" && retryCount <= maxValidationRetries; retryCount++ {
+		// Parse and validate WLED JSON
+		wledState, parseErr := shared.ParseWLEDJSON(wledJSON)
+		if parseErr != nil {
+			log.Printf("WLED JSON parse error (attempt %d): %v", retryCount+1, parseErr)
+			if retryCount < maxValidationRetries {
+				// Ask LLM to fix the JSON
+				correctionPrompt := fmt.Sprintf(
+					"The JSON you generated has a parse error: %v\n\n"+
+						"Please regenerate the WLED JSON ensuring it is valid. Check for:\n"+
+						"- Proper brackets and braces\n"+
+						"- No trailing commas\n"+
+						"- Correct array syntax for colors: [[R,G,B], [R,G,B]]",
+					parseErr)
+
+				correctionMessage := shared.Message{
+					Role:      "user",
+					Content:   correctionPrompt,
+					Timestamp: time.Now(),
+				}
+				conversation.Messages = append(conversation.Messages, correctionMessage)
+
+				claudeMessages = shared.ConvertMessagesToClaudeFormat(conversation.Messages)
+				claudeResp, err = client.SendMessage(model, shared.GlowBlasterSystemPrompt, claudeMessages)
+				if err != nil {
+					log.Printf("Claude API error on retry: %v", err)
+					break
+				}
+
+				responseText = client.GetResponseText(claudeResp)
+				retryTokens := claudeResp.Usage.InputTokens + claudeResp.Usage.OutputTokens
+				tokensUsed += retryTokens
+
+				assistantRetryMessage := shared.Message{
+					Role:      "assistant",
+					Content:   responseText,
+					TokensIn:  claudeResp.Usage.InputTokens,
+					TokensOut: claudeResp.Usage.OutputTokens,
+					Timestamp: time.Now(),
+				}
+				conversation.Messages = append(conversation.Messages, assistantRetryMessage)
+				conversation.TotalTokens += retryTokens
+
+				wledJSON = shared.ExtractWLEDFromResponse(responseText)
+				continue
 			}
-			if len(warnings) > 0 {
-				log.Printf("LCL compile warnings: %v", warnings)
+			break
+		}
+
+		// Validate the parsed state
+		valid, validationErrors := shared.ValidateWLEDState(wledState)
+		if valid {
+			// Compile to binary
+			compiled, compileErr := shared.CompileWLEDToBinary(wledState)
+			if compileErr != nil {
+				log.Printf("WLED compile error: %v", compileErr)
+			} else {
+				wledBinary = compiled
+				conversation.CurrentWLED = wledJSON
+				conversation.CurrentWLEDBin = wledBinary
+				// Also set legacy fields for backwards compatibility
+				conversation.CurrentBytecode = wledBinary
 			}
 			break // Valid, exit retry loop
 		}
 
-		// LCL is invalid - if we haven't exhausted retries, ask LLM to fix it
+		// State is invalid - if we haven't exhausted retries, ask LLM to fix it
 		if retryCount < maxValidationRetries {
-			log.Printf("LCL validation failed (attempt %d): %v", retryCount+1, validationErrors)
+			log.Printf("WLED validation failed (attempt %d): %v", retryCount+1, validationErrors)
 
-			// Build correction request
 			correctionPrompt := fmt.Sprintf(
-				"The LCL code you generated has validation errors:\n%s\n\n"+
-					"Please regenerate the LCL code ensuring it is valid YAML. "+
-					"Use semantic values (e.g., 'tall', 'medium') instead of raw numbers where possible, and check that all parameters are supported.",
+				"The WLED JSON you generated has validation errors:\n%s\n\n"+
+					"Please regenerate the JSON ensuring all values are within valid ranges:\n"+
+					"- brightness (bri): 0-255\n"+
+					"- speed (sx): 0-255\n"+
+					"- intensity (ix): 0-255\n"+
+					"- colors: RGB values 0-255\n"+
+					"- segments must have start < stop",
 				strings.Join(validationErrors, "\n"))
 
-			// Add correction message to conversation
 			correctionMessage := shared.Message{
 				Role:      "user",
 				Content:   correctionPrompt,
@@ -311,7 +360,6 @@ func handleChat(ctx context.Context, username, conversationID string, request ev
 			}
 			conversation.Messages = append(conversation.Messages, correctionMessage)
 
-			// Call Claude API again
 			claudeMessages = shared.ConvertMessagesToClaudeFormat(conversation.Messages)
 			claudeResp, err = client.SendMessage(model, shared.GlowBlasterSystemPrompt, claudeMessages)
 			if err != nil {
@@ -319,12 +367,10 @@ func handleChat(ctx context.Context, username, conversationID string, request ev
 				break
 			}
 
-			// Update response and tokens
 			responseText = client.GetResponseText(claudeResp)
 			retryTokens := claudeResp.Usage.InputTokens + claudeResp.Usage.OutputTokens
 			tokensUsed += retryTokens
 
-			// Add assistant response to conversation
 			assistantRetryMessage := shared.Message{
 				Role:      "assistant",
 				Content:   responseText,
@@ -335,10 +381,9 @@ func handleChat(ctx context.Context, username, conversationID string, request ev
 			conversation.Messages = append(conversation.Messages, assistantRetryMessage)
 			conversation.TotalTokens += retryTokens
 
-			// Extract new LCL for next validation iteration
-			lcl = shared.ExtractLCLFromResponse(responseText)
+			wledJSON = shared.ExtractWLEDFromResponse(responseText)
 		} else {
-			log.Printf("LCL validation failed after %d retries: %v", maxValidationRetries, validationErrors)
+			log.Printf("WLED validation failed after %d retries: %v", maxValidationRetries, validationErrors)
 		}
 	}
 
@@ -364,8 +409,9 @@ func handleChat(ctx context.Context, username, conversationID string, request ev
 	// Build response
 	response := shared.ChatResponse{
 		Message:     responseText,
-		LCL:         lcl,
-		Bytecode:    bytecode,
+		WLED:        wledJSON,
+		WLEDBinary:  wledBinary,
+		Bytecode:    wledBinary, // Also set legacy field for backwards compatibility
 		TokensUsed:  tokensUsed,
 		TotalTokens: conversation.TotalTokens,
 		Debug: &shared.ChatDebugInfo{
@@ -464,33 +510,55 @@ func handleCompile(ctx context.Context, request events.APIGatewayProxyRequest) (
 	}
 
 	if req.LCL == "" {
-		log.Printf("[Compile] LCL is empty")
-		return shared.CreateErrorResponse(400, "LCL is required"), nil
+		log.Printf("[Compile] Input is empty")
+		return shared.CreateErrorResponse(400, "Pattern data is required"), nil
 	}
 
-	log.Printf("[Compile] Compiling LCL (first 200 chars): %s", truncate(req.LCL, 200))
+	log.Printf("[Compile] Compiling pattern (first 200 chars): %s", truncate(req.LCL, 200))
 
-	bytecode, warnings, err := shared.CompileLCL(req.LCL)
-	if err != nil {
-		log.Printf("[Compile] Compilation error: %v", err)
-		return shared.CreateSuccessResponse(200, shared.CompileResponse{
-			Success: false,
-			Errors:  []string{err.Error()},
-		}), nil
-	}
+	var bytecode []byte
+	var warnings []string
+	var err error
 
-	log.Printf("[Compile] Success! Bytecode length: %d, Warnings: %v", len(bytecode), warnings)
+	// Detect format: WLED JSON starts with {, LCL is YAML
+	if strings.HasPrefix(strings.TrimSpace(req.LCL), "{") {
+		// Try WLED JSON format
+		bytecode, warnings, err = shared.CompileWLED(req.LCL)
+		if err != nil {
+			log.Printf("[Compile] WLED compilation error: %v", err)
+			return shared.CreateSuccessResponse(200, shared.CompileResponse{
+				Success: false,
+				Errors:  []string{err.Error()},
+			}), nil
+		}
+		log.Printf("[Compile] Success! WLED binary length: %d", len(bytecode))
 
-	// Debug: Log key bytecode values
-	if len(bytecode) >= 23 {
-		log.Printf("[Compile] Bytecode debug - Header: %02X %02X %02X, Version: %02X",
-			bytecode[0], bytecode[1], bytecode[2], bytecode[3])
-		log.Printf("[Compile] Bytecode debug - Effect: %02X, Brightness: %02X, Speed: %02X",
-			bytecode[8], bytecode[9], bytecode[10])
-		log.Printf("[Compile] Bytecode debug - RGB at [16-18]: R=%02X(%d) G=%02X(%d) B=%02X(%d)",
-			bytecode[16], bytecode[16], bytecode[17], bytecode[17], bytecode[18], bytecode[18])
-		log.Printf("[Compile] Bytecode debug - ColorCount: %d, Palette[0]: %02X %02X %02X",
-			bytecode[19], bytecode[20], bytecode[21], bytecode[22])
+		// Debug: Log WLED binary header
+		if len(bytecode) >= 12 {
+			log.Printf("[Compile] WLED binary - Magic: %s, Version: %02X, Flags: %02X",
+				string(bytecode[0:4]), bytecode[4], bytecode[5])
+			log.Printf("[Compile] WLED binary - Brightness: %d, SegmentCount: %d",
+				bytecode[8], bytecode[11])
+		}
+	} else {
+		// Legacy LCL YAML format
+		bytecode, warnings, err = shared.CompileLCL(req.LCL)
+		if err != nil {
+			log.Printf("[Compile] LCL compilation error: %v", err)
+			return shared.CreateSuccessResponse(200, shared.CompileResponse{
+				Success: false,
+				Errors:  []string{err.Error()},
+			}), nil
+		}
+		log.Printf("[Compile] Success! LCL bytecode length: %d, Warnings: %v", len(bytecode), warnings)
+
+		// Debug: Log key LCL bytecode values
+		if len(bytecode) >= 23 {
+			log.Printf("[Compile] LCL bytecode - Header: %02X %02X %02X, Version: %02X",
+				bytecode[0], bytecode[1], bytecode[2], bytecode[3])
+			log.Printf("[Compile] LCL bytecode - Effect: %02X, Brightness: %02X, Speed: %02X",
+				bytecode[8], bytecode[9], bytecode[10])
+		}
 	}
 
 	return shared.CreateSuccessResponse(200, shared.CompileResponse{
@@ -534,36 +602,70 @@ func handleSavePattern(ctx context.Context, username string, request events.APIG
 		return shared.CreateErrorResponse(400, "Name is required"), nil
 	}
 
-	// If conversation ID provided, get LCL from conversation
-	lcl := req.LCL
-	if req.ConversationID != "" && lcl == "" {
+	// Variables for pattern data
+	var wledJSON string
+	var wledBinary []byte
+	var formatVersion = shared.FormatVersionWLED
+
+	// If conversation ID provided, get WLED state from conversation
+	if req.ConversationID != "" {
 		key, _ := attributevalue.MarshalMap(map[string]string{
 			"conversationId": req.ConversationID,
 		})
 
 		var conversation shared.Conversation
 		if err := shared.GetItem(ctx, conversationsTable, key, &conversation); err == nil {
-			if conversation.UserID == username && conversation.CurrentLCL != "" {
-				lcl = conversation.CurrentLCL
+			if conversation.UserID == username {
+				// Prefer WLED format
+				if conversation.CurrentWLED != "" {
+					wledJSON = conversation.CurrentWLED
+					wledBinary = conversation.CurrentWLEDBin
+				} else if conversation.CurrentLCL != "" {
+					// Legacy: Try to use LCL if no WLED
+					wledJSON = conversation.CurrentLCL
+					formatVersion = shared.FormatVersionLCL
+				}
 			}
 		}
 	}
 
-	if lcl == "" {
-		return shared.CreateErrorResponse(400, "No GlowBlaster Language pattern to save"), nil
+	// If no WLED from conversation, check if req.LCL contains WLED JSON
+	if wledJSON == "" && req.LCL != "" {
+		// Try parsing as WLED JSON first
+		if strings.HasPrefix(strings.TrimSpace(req.LCL), "{") {
+			if _, err := shared.ParseWLEDJSON(req.LCL); err == nil {
+				wledJSON = req.LCL
+			}
+		}
+		// If not WLED JSON, treat as legacy LCL
+		if wledJSON == "" {
+			wledJSON = req.LCL
+			formatVersion = shared.FormatVersionLCL
+		}
 	}
 
-	// Compile to bytecode
-	bytecode, _, compileErr := shared.CompileLCL(lcl)
-	if compileErr != nil {
-		return shared.CreateErrorResponse(400, "Failed to compile pattern: "+compileErr.Error()), nil
+	if wledJSON == "" {
+		return shared.CreateErrorResponse(400, "No pattern to save"), nil
 	}
 
-	// Extract description from LCL if not provided in request
+	// Compile to binary based on format
+	if formatVersion == shared.FormatVersionWLED {
+		compiled, _, compileErr := shared.CompileWLED(wledJSON)
+		if compileErr != nil {
+			return shared.CreateErrorResponse(400, "Failed to compile WLED pattern: "+compileErr.Error()), nil
+		}
+		wledBinary = compiled
+	} else {
+		// Legacy LCL compilation
+		compiled, _, compileErr := shared.CompileLCL(wledJSON)
+		if compileErr != nil {
+			return shared.CreateErrorResponse(400, "Failed to compile pattern: "+compileErr.Error()), nil
+		}
+		wledBinary = compiled
+	}
+
+	// Use provided description or default
 	description := req.Description
-	if description == "" {
-		description = shared.ExtractDescriptionFromLCL(lcl)
-	}
 
 	now := time.Now()
 	pattern := shared.Pattern{
@@ -573,12 +675,13 @@ func handleSavePattern(ctx context.Context, username string, request events.APIG
 		Description:    description,
 		Type:           shared.PatternGlowBlaster,
 		Category:       shared.CategoryGlowBlaster,
-		LCLSpec:        lcl,
-		Bytecode:       bytecode,
-		IntentLayer:    lcl,
+		WLEDState:      wledJSON,
+		WLEDBinary:     wledBinary,
+		Bytecode:       wledBinary, // Also set legacy field for backwards compatibility
+		FormatVersion:  formatVersion,
 		ConversationID: req.ConversationID, // Link to source conversation
-		Brightness:     204,                // bright default
-		Speed:          50,
+		Brightness:     200,                // bright default
+		Speed:          128,
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}
@@ -616,17 +719,38 @@ func handleUpdatePattern(ctx context.Context, username string, patternID string,
 		return shared.CreateErrorResponse(400, "Invalid request body"), nil
 	}
 
-	// Update LCL if provided
+	// Update pattern data if provided
 	if req.LCL != "" {
-		pattern.LCLSpec = req.LCL
-		pattern.IntentLayer = req.LCL
+		// Try parsing as WLED JSON first
+		if strings.HasPrefix(strings.TrimSpace(req.LCL), "{") {
+			if _, err := shared.ParseWLEDJSON(req.LCL); err == nil {
+				// Valid WLED JSON
+				pattern.WLEDState = req.LCL
+				pattern.FormatVersion = shared.FormatVersionWLED
 
-		// Recompile to bytecode
-		bytecode, _, compileErr := shared.CompileLCL(req.LCL)
-		if compileErr != nil {
-			return shared.CreateErrorResponse(400, "Failed to compile pattern: "+compileErr.Error()), nil
+				// Compile to WLED binary
+				compiled, _, compileErr := shared.CompileWLED(req.LCL)
+				if compileErr != nil {
+					return shared.CreateErrorResponse(400, "Failed to compile WLED pattern: "+compileErr.Error()), nil
+				}
+				pattern.WLEDBinary = compiled
+				pattern.Bytecode = compiled // Also set legacy field
+			} else {
+				return shared.CreateErrorResponse(400, "Invalid WLED JSON: "+err.Error()), nil
+			}
+		} else {
+			// Legacy LCL format
+			pattern.LCLSpec = req.LCL
+			pattern.IntentLayer = req.LCL
+			pattern.FormatVersion = shared.FormatVersionLCL
+
+			// Recompile to bytecode
+			bytecode, _, compileErr := shared.CompileLCL(req.LCL)
+			if compileErr != nil {
+				return shared.CreateErrorResponse(400, "Failed to compile pattern: "+compileErr.Error()), nil
+			}
+			pattern.Bytecode = bytecode
 		}
-		pattern.Bytecode = bytecode
 	}
 
 	// Update name if provided
@@ -634,14 +758,9 @@ func handleUpdatePattern(ctx context.Context, username string, patternID string,
 		pattern.Name = req.Name
 	}
 
-	// Update description if provided, otherwise extract from LCL
+	// Update description if provided
 	if req.Description != "" {
 		pattern.Description = req.Description
-	} else if req.LCL != "" {
-		// Extract description from updated LCL
-		if desc := shared.ExtractDescriptionFromLCL(req.LCL); desc != "" {
-			pattern.Description = desc
-		}
 	}
 
 	pattern.UpdatedAt = time.Now()

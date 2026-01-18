@@ -6,7 +6,8 @@ function glowBlasterPage() {
         devices: [],
         activeConversation: null,
         currentMessages: [],
-        currentLCL: '',
+        currentLCL: '',       // Legacy LCL YAML (kept for backwards compatibility)
+        currentWLED: '',      // WLED JSON state
         currentBytecode: null,
         userMessage: '',
         isLoading: false,
@@ -109,14 +110,15 @@ function glowBlasterPage() {
             this.editingPatternId = patternId;
             this.editingPatternName = pattern.name;
 
-            // Load the LCL from the pattern
-            this.currentLCL = pattern.lclSpec || pattern.intentLayer || '';
+            // Load pattern data - prefer WLED format
+            this.currentWLED = pattern.wledState || '';
+            this.currentLCL = this.currentWLED ? '' : (pattern.lclSpec || pattern.intentLayer || '');
 
-            if (this.currentLCL) {
+            if (this.currentWLED || this.currentLCL) {
                 await this.updatePreview();
                 NotificationBanner.info(`Editing pattern: ${pattern.name}`);
             } else {
-                NotificationBanner.warning('Pattern has no GlowBlaster Language data to edit');
+                NotificationBanner.warning('Pattern has no data to edit');
             }
         },
 
@@ -200,22 +202,29 @@ function glowBlasterPage() {
                 if (data.success) {
                     this.activeConversation = data.data;
                     this.currentMessages = data.data.messages || [];
+                    this.currentWLED = data.data.currentWled || '';
                     this.currentLCL = data.data.currentLcl || '';
                     this.currentBytecode = null; // Reset bytecode so updatePreview recompiles
                     this.totalTokens = data.data.totalTokens || 0;
                     this.selectedModel = data.data.model || 'claude-sonnet-4-20250514';
 
                     console.log('[LoadConversation] State after load:', {
+                        currentWLED: this.currentWLED ? `${this.currentWLED.substring(0, 100)}...` : '(empty)',
                         currentLCL: this.currentLCL ? `${this.currentLCL.substring(0, 100)}...` : '(empty)',
                         currentBytecode: this.currentBytecode
                     });
 
-                    if (this.currentLCL) {
-                        console.log('[LoadConversation] Has LCL, calling updatePreview...');
+                    // Prefer WLED format over legacy LCL
+                    if (this.currentWLED) {
+                        console.log('[LoadConversation] Has WLED JSON, calling updatePreview...');
+                        await this.updatePreview();
+                        console.log('[LoadConversation] After updatePreview, bytecode:', this.currentBytecode ? 'SET' : 'NULL');
+                    } else if (this.currentLCL) {
+                        console.log('[LoadConversation] Has legacy LCL, calling updatePreview...');
                         await this.updatePreview();
                         console.log('[LoadConversation] After updatePreview, bytecode:', this.currentBytecode ? 'SET' : 'NULL');
                     } else {
-                        console.log('[LoadConversation] No LCL, clearing preview');
+                        console.log('[LoadConversation] No WLED or LCL, clearing preview');
                         this.clearPreview();
                     }
 
@@ -240,6 +249,7 @@ function glowBlasterPage() {
                     if (this.activeConversation?.conversationId === conversationId) {
                         this.activeConversation = null;
                         this.currentMessages = [];
+                        this.currentWLED = '';
                         this.currentLCL = '';
                         this.clearPreview();
                     }
@@ -295,10 +305,18 @@ function glowBlasterPage() {
                         timestamp: new Date().toISOString()
                     });
 
-                    // Update LCL if provided
-                    if (data.data.lcl) {
+                    // Update WLED JSON if provided (new format)
+                    if (data.data.wled) {
+                        this.currentWLED = data.data.wled;
+                        this.currentBytecode = data.data.wledBinary || data.data.bytecode;
+                        this.currentLCL = ''; // Clear legacy LCL
+                        this.updatePreview();
+                    }
+                    // Fallback to LCL if provided (legacy format)
+                    else if (data.data.lcl) {
                         this.currentLCL = data.data.lcl;
                         this.currentBytecode = data.data.bytecode;
+                        this.currentWLED = ''; // Clear WLED
                         this.updatePreview();
                     }
 
@@ -334,6 +352,7 @@ function glowBlasterPage() {
         async updatePreview() {
             console.log('[UpdatePreview] Starting...', {
                 hasBytecode: !!this.currentBytecode,
+                hasWLED: !!this.currentWLED,
                 hasLCL: !!this.currentLCL
             });
 
@@ -346,15 +365,54 @@ function glowBlasterPage() {
             // Clear existing content
             container.innerHTML = '';
 
+            // If we have bytecode, use PatternPreview for auto-detection
             if (this.currentBytecode && this.currentBytecode.length > 0) {
                 console.log('[UpdatePreview] Using existing bytecode');
-                // Use LCL preview interpreter
-                if (typeof LCLPreview !== 'undefined') {
+                if (typeof PatternPreview !== 'undefined') {
+                    PatternPreview.render(container, this.currentBytecode, 12);
+                } else if (typeof LCLPreview !== 'undefined') {
+                    // Fallback to LCL preview
                     LCLPreview.render(container, this.currentBytecode, 12);
                 }
-            } else if (this.currentLCL) {
-                console.log('[UpdatePreview] Compiling LCL:', this.currentLCL.substring(0, 100));
-                // Compile LCL and render
+            }
+            // WLED JSON - compile to binary first
+            else if (this.currentWLED) {
+                console.log('[UpdatePreview] Compiling WLED JSON:', this.currentWLED.substring(0, 100));
+                try {
+                    const resp = await fetch('/api/glowblaster/compile', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ lcl: this.currentWLED }) // Send WLED JSON via lcl field
+                    });
+                    const data = await resp.json();
+                    console.log('[UpdatePreview] WLED Compile response:', JSON.stringify(data, null, 2));
+
+                    if (data.success && data.data) {
+                        if (data.data.success && data.data.bytecode) {
+                            console.log('[UpdatePreview] WLED Compile SUCCESS, bytecode length:', data.data.bytecode.length);
+                            this.currentBytecode = data.data.bytecode;
+                            if (typeof PatternPreview !== 'undefined') {
+                                PatternPreview.render(container, data.data.bytecode, 12);
+                            } else if (typeof WLEDPreview !== 'undefined') {
+                                WLEDPreview.render(container, data.data.bytecode, 12);
+                            }
+                        } else if (data.data.errors && data.data.errors.length > 0) {
+                            console.error('[UpdatePreview] WLED Compile FAILED with errors:', data.data.errors);
+                            container.innerHTML = '<div class="compile-error">Compile error: ' + data.data.errors.join(', ') + '</div>';
+                        } else {
+                            console.warn('[UpdatePreview] WLED Compile returned no bytecode and no errors:', data.data);
+                        }
+                    } else {
+                        console.warn('[UpdatePreview] WLED Compile response missing success or data:', data);
+                    }
+                } catch (err) {
+                    console.error('[UpdatePreview] WLED Compile fetch failed:', err);
+                }
+            }
+            // Legacy LCL YAML
+            else if (this.currentLCL) {
+                console.log('[UpdatePreview] Compiling legacy LCL:', this.currentLCL.substring(0, 100));
                 try {
                     const resp = await fetch('/api/glowblaster/compile', {
                         method: 'POST',
@@ -363,29 +421,31 @@ function glowBlasterPage() {
                         body: JSON.stringify({ lcl: this.currentLCL })
                     });
                     const data = await resp.json();
-                    console.log('[UpdatePreview] Compile response:', JSON.stringify(data, null, 2));
+                    console.log('[UpdatePreview] LCL Compile response:', JSON.stringify(data, null, 2));
 
                     if (data.success && data.data) {
                         if (data.data.success && data.data.bytecode) {
-                            console.log('[UpdatePreview] Compile SUCCESS, bytecode length:', data.data.bytecode.length);
+                            console.log('[UpdatePreview] LCL Compile SUCCESS, bytecode length:', data.data.bytecode.length);
                             this.currentBytecode = data.data.bytecode;
-                            if (typeof LCLPreview !== 'undefined') {
+                            if (typeof PatternPreview !== 'undefined') {
+                                PatternPreview.render(container, data.data.bytecode, 12);
+                            } else if (typeof LCLPreview !== 'undefined') {
                                 LCLPreview.render(container, data.data.bytecode, 12);
                             }
                         } else if (data.data.errors && data.data.errors.length > 0) {
-                            console.error('[UpdatePreview] Compile FAILED with errors:', data.data.errors);
+                            console.error('[UpdatePreview] LCL Compile FAILED with errors:', data.data.errors);
                             container.innerHTML = '<div class="compile-error">Compile error: ' + data.data.errors.join(', ') + '</div>';
                         } else {
-                            console.warn('[UpdatePreview] Compile returned no bytecode and no errors:', data.data);
+                            console.warn('[UpdatePreview] LCL Compile returned no bytecode and no errors:', data.data);
                         }
                     } else {
-                        console.warn('[UpdatePreview] Compile response missing success or data:', data);
+                        console.warn('[UpdatePreview] LCL Compile response missing success or data:', data);
                     }
                 } catch (err) {
-                    console.error('[UpdatePreview] Fetch failed:', err);
+                    console.error('[UpdatePreview] LCL Compile fetch failed:', err);
                 }
             } else {
-                console.log('[UpdatePreview] No bytecode or LCL to preview');
+                console.log('[UpdatePreview] No bytecode, WLED, or LCL to preview');
             }
         },
 
@@ -401,15 +461,22 @@ function glowBlasterPage() {
             if (!name) return;
 
             try {
+                // Build request body - prefer WLED format
+                const body = {
+                    name,
+                    conversationId: this.activeConversation?.conversationId
+                };
+                if (this.currentWLED) {
+                    body.wled = this.currentWLED;
+                } else if (this.currentLCL) {
+                    body.lcl = this.currentLCL;
+                }
+
                 const resp = await fetch('/api/glowblaster/patterns', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'same-origin',
-                    body: JSON.stringify({
-                        name,
-                        conversationId: this.activeConversation?.conversationId,
-                        lcl: this.currentLCL
-                    })
+                    body: JSON.stringify(body)
                 });
                 const data = await resp.json();
                 if (data.success) {
@@ -430,13 +497,19 @@ function glowBlasterPage() {
             if (!this.editingPatternId) return;
 
             try {
+                // Build request body - prefer WLED format
+                const body = {};
+                if (this.currentWLED) {
+                    body.wled = this.currentWLED;
+                } else if (this.currentLCL) {
+                    body.lcl = this.currentLCL;
+                }
+
                 const resp = await fetch(`/api/glowblaster/patterns/${this.editingPatternId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'same-origin',
-                    body: JSON.stringify({
-                        lcl: this.currentLCL
-                    })
+                    body: JSON.stringify(body)
                 });
                 const data = await resp.json();
                 if (data.success) {
@@ -510,12 +583,14 @@ function glowBlasterPage() {
                         // Conversation exists, load it
                         this.activeConversation = data.data;
                         this.currentMessages = data.data.messages || [];
-                        this.currentLCL = data.data.currentLcl || pattern.lclSpec || pattern.intentLayer || '';
+                        // Prefer WLED format
+                        this.currentWLED = data.data.currentWled || pattern.wledState || '';
+                        this.currentLCL = this.currentWLED ? '' : (data.data.currentLcl || pattern.lclSpec || pattern.intentLayer || '');
                         this.currentBytecode = null;
                         this.totalTokens = data.data.totalTokens || 0;
                         this.selectedModel = data.data.model || 'claude-sonnet-4-20250514';
 
-                        if (this.currentLCL) {
+                        if (this.currentWLED || this.currentLCL) {
                             await this.updatePreview();
                         }
 
@@ -535,13 +610,24 @@ function glowBlasterPage() {
             this.editingPatternId = pattern.patternId;
             this.editingPatternName = pattern.name;
 
-            // Load the pattern's GlowBlaster Language
-            this.currentLCL = pattern.lclSpec || pattern.intentLayer || '';
+            // Load the pattern data - prefer WLED format
+            this.currentWLED = pattern.wledState || '';
+            this.currentLCL = this.currentWLED ? '' : (pattern.lclSpec || pattern.intentLayer || '');
 
-            if (this.currentLCL) {
+            if (this.currentWLED) {
                 await this.updatePreview();
 
-                // Add a system message showing the loaded pattern
+                // Add a system message showing the loaded WLED pattern
+                this.currentMessages.push({
+                    role: 'assistant',
+                    content: `I've loaded the pattern "${pattern.name}" for editing. Here's the current WLED configuration:\n\n\`\`\`json\n${this.currentWLED}\n\`\`\`\n\nHow would you like to modify it?`,
+                    timestamp: new Date().toISOString()
+                });
+                this.scrollToBottom();
+            } else if (this.currentLCL) {
+                await this.updatePreview();
+
+                // Add a system message showing the loaded LCL pattern (legacy)
                 this.currentMessages.push({
                     role: 'assistant',
                     content: `I've loaded the pattern "${pattern.name}" for editing. Here's the current GlowBlaster Language:\n\n\`\`\`lcl\n${this.currentLCL}\n\`\`\`\n\nHow would you like to modify it?`,
@@ -615,7 +701,9 @@ function glowBlasterPage() {
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;');
 
-            // Convert LCL code blocks to styled HTML
+            // Convert WLED JSON code blocks to styled HTML
+            escaped = escaped.replace(/```json\n([\s\S]*?)```/g, '<pre class="wled-code">$1</pre>');
+            // Convert LCL code blocks to styled HTML (legacy)
             escaped = escaped.replace(/```lcl\n([\s\S]*?)```/g, '<pre class="lcl-code">$1</pre>');
             escaped = escaped.replace(/```yaml\n([\s\S]*?)```/g, '<pre class="lcl-code">$1</pre>');
             escaped = escaped.replace(/```([\s\S]*?)```/g, '<pre>$1</pre>');

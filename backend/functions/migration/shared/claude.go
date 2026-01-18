@@ -144,7 +144,7 @@ func (c *ClaudeClient) GetResponseText(resp *ClaudeResponse) string {
 // Tries code blocks first, then falls back to raw YAML-like text
 func ExtractLCLFromResponse(text string) string {
 	// First try ```yaml or ```lcl code blocks
-	re := regexp.MustCompile("(?s)```(?:yaml|lcl)\\s*\\n(.+?)\\n```")
+	re := regexp.MustCompile(`(?s)` + "```(?:yaml|lcl)" + `\s*\n(.+?)\n` + "```")
 	matches := re.FindStringSubmatch(text)
 	if len(matches) > 1 {
 		return strings.TrimSpace(matches[1])
@@ -172,8 +172,6 @@ func ExtractLCLFromResponse(text string) string {
 
 	return ""
 }
-
-// Note: IsValidModel is defined in conversation_models.go
 
 // ClaudeModel represents a model returned by the API
 
@@ -222,25 +220,21 @@ func (c *ClaudeClient) FetchLatestModels() (map[string]string, error) {
 
 
 	req.Header.Set("x-api-key", c.apiKey)
-
 	req.Header.Set("anthropic-version", ClaudeAPIVersion)
 
 
 
 	resp, err := c.httpClient.Do(req)
-
 	if err != nil {
 
 		return nil, fmt.Errorf("failed to fetch models: %w", err)
 
 	}
-
 	defer resp.Body.Close()
 
 
 
 	body, err := io.ReadAll(resp.Body)
-
 	if err != nil {
 
 		return nil, fmt.Errorf("failed to read response body: %w", err)
@@ -258,7 +252,6 @@ func (c *ClaudeClient) FetchLatestModels() (map[string]string, error) {
 
 
 	var listResp ClaudeModelListResponse
-
 	if err := json.Unmarshal(body, &listResp); err != nil {
 
 		return nil, fmt.Errorf("failed to decode models response: %w", err)
@@ -270,17 +263,14 @@ func (c *ClaudeClient) FetchLatestModels() (map[string]string, error) {
 	// Logic to find latest models
 
 	latestModels := make(map[string]string)
-
-	families := []string{"opus", "sonnet", "haiku"}
-
+	
+families := []string{"opus", "sonnet", "haiku"}
 	
 
 	// Helper to calculate score based on user algorithm
 
 	getScore := func(id string) float64 {
-
 		// "claude-3-5-sonnet-20241022"
-
 		
 
 		// 1. Remove anything but numbers and dashes
@@ -288,13 +278,11 @@ func (c *ClaudeClient) FetchLatestModels() (map[string]string, error) {
 		reg := regexp.MustCompile("[^0-9-]")
 
 		clean := reg.ReplaceAllString(id, "")
-
 		
 
 		// 2. Remove leading/trailing dashes
 
 		clean = strings.Trim(clean, "-")
-
 		
 
 		// 3. Replace dashes with periods
@@ -302,7 +290,6 @@ func (c *ClaudeClient) FetchLatestModels() (map[string]string, error) {
 		// "3-5--20241022" -> "3.5..20241022"
 
 		clean = strings.ReplaceAll(clean, "-", ".")
-
 		
 
 		// 4. Convert to float
@@ -318,15 +305,11 @@ func (c *ClaudeClient) FetchLatestModels() (map[string]string, error) {
 		// Keep first dot, remove others.
 
 		parts := strings.Split(clean, ".")
-
-		if len(parts) == 0 { return 0 }
-
+	if len(parts) == 0 { return 0 }
 		
 
 		floatStr := parts[0]
-
-		if len(parts) > 1 {
-
+	if len(parts) > 1 {
 			// Join the rest without dots? Or keep decimal precision?
 
 			// "3.5" vs "3.7". 
@@ -336,7 +319,6 @@ func (c *ClaudeClient) FetchLatestModels() (map[string]string, error) {
 			floatStr += "." + strings.Join(parts[1:], "")
 
 		}
-
 		
 
 		f, _ := strconv.ParseFloat(floatStr, 64)
@@ -410,5 +392,3 @@ func ConvertMessagesToClaudeFormat(messages []Message) []ClaudeMessage {
 	return claudeMessages
 
 }
-
-

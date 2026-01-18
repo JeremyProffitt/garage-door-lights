@@ -4,15 +4,18 @@ import "time"
 
 // Conversation represents a Glow Blaster chat session
 type Conversation struct {
-	ConversationID string    `json:"conversationId" dynamodbav:"conversationId"`
-	UserID         string    `json:"userId" dynamodbav:"userId"`
-	Title          string    `json:"title" dynamodbav:"title"`
-	Messages       []Message `json:"messages" dynamodbav:"messages"`
-	CurrentLCL     string    `json:"currentLcl,omitempty" dynamodbav:"currentLcl,omitempty"`
-	CurrentBytecode []byte   `json:"currentBytecode,omitempty" dynamodbav:"currentBytecode,omitempty"`
-	Model          string    `json:"model" dynamodbav:"model"` // claude-sonnet-4, claude-3-5-sonnet, claude-3-5-haiku
-	TotalTokens    int       `json:"totalTokens" dynamodbav:"totalTokens"`
-	PatternID      string    `json:"patternId,omitempty" dynamodbav:"patternId,omitempty"` // Associated saved pattern
+	ConversationID  string    `json:"conversationId" dynamodbav:"conversationId"`
+	UserID          string    `json:"userId" dynamodbav:"userId"`
+	Title           string    `json:"title" dynamodbav:"title"`
+	Messages        []Message `json:"messages" dynamodbav:"messages"`
+	CurrentLCL      string    `json:"currentLcl,omitempty" dynamodbav:"currentLcl,omitempty"`           // Legacy LCL YAML
+	CurrentBytecode []byte    `json:"currentBytecode,omitempty" dynamodbav:"currentBytecode,omitempty"` // Legacy LCL bytecode
+	// WLED fields (new format)
+	CurrentWLED    string `json:"currentWled,omitempty" dynamodbav:"currentWled,omitempty"`       // Current WLED JSON state
+	CurrentWLEDBin []byte `json:"currentWledBin,omitempty" dynamodbav:"currentWledBin,omitempty"` // Current WLED binary
+	Model          string `json:"model" dynamodbav:"model"`                                       // claude-sonnet-4, claude-3-5-sonnet, claude-3-5-haiku
+	TotalTokens    int    `json:"totalTokens" dynamodbav:"totalTokens"`
+	PatternID      string `json:"patternId,omitempty" dynamodbav:"patternId,omitempty"` // Associated saved pattern
 	CreatedAt      time.Time `json:"createdAt" dynamodbav:"createdAt"`
 	UpdatedAt      time.Time `json:"updatedAt" dynamodbav:"updatedAt"`
 	ExpiresAt      int64     `json:"expiresAt,omitempty" dynamodbav:"expiresAt,omitempty"` // TTL (1 year)
@@ -36,8 +39,10 @@ type ChatRequest struct {
 // ChatResponse represents the response from a chat message
 type ChatResponse struct {
 	Message     string         `json:"message"`               // AI response text
-	LCL         string         `json:"lcl,omitempty"`         // Updated LCL if pattern changed
-	Bytecode    []byte         `json:"bytecode,omitempty"`    // Compiled bytecode for preview
+	LCL         string         `json:"lcl,omitempty"`         // Updated LCL if pattern changed (legacy)
+	Bytecode    []byte         `json:"bytecode,omitempty"`    // Compiled bytecode for preview (legacy LCL or WLED)
+	WLED        string         `json:"wled,omitempty"`        // WLED JSON state
+	WLEDBinary  []byte         `json:"wledBinary,omitempty"`  // WLED binary for device
 	TokensUsed  int            `json:"tokensUsed"`            // Tokens used in this request
 	TotalTokens int            `json:"totalTokens"`           // Total tokens in conversation
 	Suggestions []string       `json:"suggestions,omitempty"` // Follow-up suggestions
