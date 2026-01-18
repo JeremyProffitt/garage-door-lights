@@ -2,9 +2,11 @@ function dashboard() {
     return {
         devices: [],
         patterns: [],
+        virtualGroups: [],
         particleStatus: 'checking',
         selectedPatternId: '',
         isLoading: true,
+        isApplyingGroup: null,
 
         get deviceCount() {
             return this.devices.filter(d => !d.isHidden).length;
@@ -28,6 +30,7 @@ function dashboard() {
             this.checkParticleConnection();
             this.loadDevices();
             this.loadPatterns();
+            this.loadVirtualGroups();
         },
 
         async checkParticleConnection() {
@@ -282,6 +285,80 @@ function dashboard() {
 
             // Send bytecode to device
             await this.sendBytecodeToStrip(deviceId, pin, compileData.data.bytecode);
+        },
+
+        // Virtual Groups Functions
+        async loadVirtualGroups() {
+            try {
+                const resp = await fetch('/api/virtual-groups', {
+                    credentials: 'same-origin'
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    this.virtualGroups = (data.data || []).map(g => ({
+                        ...g,
+                        selectedPatternId: g.patternId || ''
+                    }));
+                }
+            } catch (err) {
+                console.error('Failed to load virtual groups:', err);
+                this.virtualGroups = [];
+            }
+        },
+
+        getDeviceName(deviceId) {
+            const device = this.devices.find(d => d.deviceId === deviceId);
+            return device ? device.name : 'Unknown';
+        },
+
+        setGroupPattern(group, patternId) {
+            group.selectedPatternId = patternId;
+        },
+
+        async applyGroupPattern(group) {
+            const patternId = group.selectedPatternId || group.patternId;
+            if (!patternId) {
+                NotificationBanner.warning('Please select a pattern first');
+                return;
+            }
+
+            const pattern = this.patterns.find(p => p.patternId === patternId);
+            if (!pattern) {
+                NotificationBanner.error('Pattern not found');
+                return;
+            }
+
+            this.isApplyingGroup = group.groupId;
+
+            try {
+                const resp = await fetch(`/api/virtual-groups/${group.groupId}/apply`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ patternId })
+                });
+
+                const data = await resp.json();
+                if (data.success) {
+                    if (data.data.failed === 0) {
+                        NotificationBanner.success(`Pattern "${pattern.name}" applied to all ${data.data.succeeded} members`);
+                    } else if (data.data.succeeded === 0) {
+                        NotificationBanner.error(`Failed to apply pattern to all members`);
+                    } else {
+                        NotificationBanner.warning(`Pattern applied to ${data.data.succeeded} members, failed on ${data.data.failed}`);
+                    }
+                    // Update group's patternId
+                    group.patternId = patternId;
+                    // Reload devices to update strip patterns
+                    this.loadDevices();
+                } else {
+                    NotificationBanner.error('Error: ' + (data.error || 'Unknown error'));
+                }
+            } catch (err) {
+                NotificationBanner.error('Error applying pattern: ' + err.message);
+            } finally {
+                this.isApplyingGroup = null;
+            }
         }
     }
 }

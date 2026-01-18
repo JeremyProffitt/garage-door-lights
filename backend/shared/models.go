@@ -115,3 +115,20 @@ type ParticleCommandRequest struct {
     Function string `json:"function"`
     Argument string `json:"argument"`
 }
+
+// VirtualGroupMember represents a device pin that is part of a virtual group
+type VirtualGroupMember struct {
+    DeviceID string `json:"deviceId" dynamodbav:"deviceId"`
+    Pin      int    `json:"pin" dynamodbav:"pin"`
+}
+
+// VirtualGroup represents a collection of device LED strips that can be controlled together
+type VirtualGroup struct {
+    GroupID   string               `json:"groupId" dynamodbav:"groupId"`
+    UserID    string               `json:"userId" dynamodbav:"userId"`
+    Name      string               `json:"name" dynamodbav:"name"`
+    Members   []VirtualGroupMember `json:"members" dynamodbav:"members"`
+    PatternID string               `json:"patternId,omitempty" dynamodbav:"patternId,omitempty"`
+    CreatedAt time.Time            `json:"createdAt" dynamodbav:"createdAt"`
+    UpdatedAt time.Time            `json:"updatedAt" dynamodbav:"updatedAt"`
+}

@@ -12,10 +12,19 @@ function devicesPage() {
         isRefreshing: false,
         refreshMessage: '',
         showHidden: false,
+        // Virtual groups
+        virtualGroups: [],
+        isLoadingGroups: false,
+        showGroupModal: false,
+        editingGroup: null,
+        groupName: '',
+        groupMembers: [],
+        isSavingGroup: false,
 
         init() {
             this.loadDevices();
             this.loadPatterns();
+            this.loadVirtualGroups();
         },
 
         get filteredDevices() {
@@ -486,6 +495,132 @@ function devicesPage() {
                     argument: '1'
                 })
             });
+        },
+
+        // Virtual Groups Functions
+        async loadVirtualGroups() {
+            this.isLoadingGroups = true;
+            try {
+                const resp = await fetch('/api/virtual-groups', {
+                    credentials: 'same-origin'
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    this.virtualGroups = data.data || [];
+                }
+            } catch (err) {
+                console.error('Failed to load virtual groups:', err);
+                this.virtualGroups = [];
+            }
+            this.isLoadingGroups = false;
+        },
+
+        getDeviceName(deviceId) {
+            const device = this.devices.find(d => d.deviceId === deviceId);
+            return device ? device.name : 'Unknown Device';
+        },
+
+        getStripLedCount(deviceId, pin) {
+            const device = this.devices.find(d => d.deviceId === deviceId);
+            if (!device || !device.ledStrips) return '?';
+            const strip = device.ledStrips.find(s => s.pin === pin);
+            return strip ? strip.ledCount : '?';
+        },
+
+        openCreateGroupModal() {
+            this.editingGroup = null;
+            this.groupName = '';
+            this.groupMembers = [];
+            this.showGroupModal = true;
+        },
+
+        openEditGroupModal(group) {
+            this.editingGroup = group;
+            this.groupName = group.name;
+            this.groupMembers = group.members.map(m => ({ deviceId: m.deviceId, pin: m.pin }));
+            this.showGroupModal = true;
+        },
+
+        isMemberSelected(deviceId, pin) {
+            return this.groupMembers.some(m => m.deviceId === deviceId && m.pin === pin);
+        },
+
+        toggleMember(deviceId, pin) {
+            const index = this.groupMembers.findIndex(m => m.deviceId === deviceId && m.pin === pin);
+            if (index >= 0) {
+                this.groupMembers.splice(index, 1);
+            } else {
+                this.groupMembers.push({ deviceId, pin });
+            }
+        },
+
+        async saveGroup() {
+            if (!this.groupName || this.groupMembers.length === 0) {
+                NotificationBanner.warning('Please provide a name and select at least one strip');
+                return;
+            }
+
+            this.isSavingGroup = true;
+
+            try {
+                const groupData = {
+                    name: this.groupName,
+                    members: this.groupMembers
+                };
+
+                let resp;
+                if (this.editingGroup) {
+                    resp = await fetch(`/api/virtual-groups/${this.editingGroup.groupId}`, {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        credentials: 'same-origin',
+                        body: JSON.stringify(groupData)
+                    });
+                } else {
+                    resp = await fetch('/api/virtual-groups', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        credentials: 'same-origin',
+                        body: JSON.stringify(groupData)
+                    });
+                }
+
+                const data = await resp.json();
+                if (data.success) {
+                    this.showGroupModal = false;
+                    this.loadVirtualGroups();
+                    NotificationBanner.success(this.editingGroup ? 'Virtual group updated' : 'Virtual group created');
+                } else {
+                    NotificationBanner.error('Error: ' + (data.error || 'Unknown error'));
+                }
+            } catch (err) {
+                NotificationBanner.error('Error saving group: ' + err.message);
+            } finally {
+                this.isSavingGroup = false;
+            }
+        },
+
+        async deleteGroup(groupId) {
+            if (!confirm('Are you sure you want to delete this virtual group?')) {
+                return;
+            }
+
+            try {
+                const resp = await fetch(`/api/virtual-groups/${groupId}`, {
+                    method: 'DELETE',
+                    credentials: 'same-origin'
+                });
+
+                const data = await resp.json();
+                if (data.success) {
+                    this.loadVirtualGroups();
+                    NotificationBanner.success('Virtual group deleted');
+                } else {
+                    NotificationBanner.error('Error: ' + (data.error || 'Unknown error'));
+                }
+            } catch (err) {
+                NotificationBanner.error('Error deleting group: ' + err.message);
+            }
         }
     }
 }

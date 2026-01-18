@@ -160,6 +160,61 @@
                 <span x-show="offlineCount > 0" x-text="`${offlineCount} device${offlineCount !== 1 ? 's' : ''} offline`"></span>
             </div>
         </div>
+
+        <!-- Virtual Device Groups Section -->
+        <div class="card" x-show="virtualGroups.length > 0" style="margin-top: 1.5rem; border-top: 3px solid #7e22ce;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h2 style="margin: 0; color: #7e22ce;">Virtual Device Groups</h2>
+                <a href="/devices" class="btn btn-sm btn-secondary">Manage Groups</a>
+            </div>
+
+            <div class="devices-grid">
+                <template x-for="group in virtualGroups" :key="group.groupId">
+                    <div class="card device-card" style="border-left: 3px solid #7e22ce; margin-bottom: 0;">
+                        <div class="device-header">
+                            <div>
+                                <h3 x-text="group.name" style="margin: 0;"></h3>
+                                <p style="font-size: 0.85rem; color: #a78bfa; margin: 0;">
+                                    <span x-text="group.members.length"></span> member<span x-show="group.members.length !== 1">s</span>
+                                </p>
+                            </div>
+                            <span class="badge" style="background: #7e22ce;">Virtual</span>
+                        </div>
+
+                        <!-- Pattern Selection -->
+                        <div style="margin-top: 0.75rem; padding: 0.5rem; background: rgba(126, 34, 206, 0.1); border-radius: 4px;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <select
+                                    @change="setGroupPattern(group, $event.target.value)"
+                                    style="flex: 1; padding: 0.25rem; font-size: 0.8rem; border-radius: 4px;"
+                                    :value="group.selectedPatternId || group.patternId || ''">
+                                    <option value="">-- Select Pattern --</option>
+                                    <template x-for="pattern in patterns" :key="pattern.patternId">
+                                        <option :value="pattern.patternId" x-text="pattern.name" :selected="(group.selectedPatternId || group.patternId) === pattern.patternId"></option>
+                                    </template>
+                                </select>
+                                <button
+                                    @click="applyGroupPattern(group)"
+                                    class="btn btn-sm btn-primary"
+                                    style="padding: 4px 12px; font-size: 0.85rem; border-radius: 20px; min-width: 62px; text-align: center; background: #7e22ce; border-color: #7e22ce;"
+                                    :disabled="!group.selectedPatternId && !group.patternId || isApplyingGroup === group.groupId">
+                                    <span x-show="isApplyingGroup !== group.groupId">Apply</span>
+                                    <span x-show="isApplyingGroup === group.groupId">...</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Members summary -->
+                        <div style="margin-top: 0.5rem; font-size: 0.8rem; color: #9ca3af;">
+                            <template x-for="member in group.members.slice(0, 3)" :key="member.deviceId + '-' + member.pin">
+                                <span x-text="getDeviceName(member.deviceId) + ' D' + member.pin" style="margin-right: 0.5rem;"></span>
+                            </template>
+                            <span x-show="group.members.length > 3" x-text="'+ ' + (group.members.length - 3) + ' more'"></span>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
     </div>
 
     <script src="/static/js/dashboard.js"></script>
