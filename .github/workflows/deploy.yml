@@ -90,7 +90,7 @@ jobs:
 
       - name: Copy shared module to function directories
         run: |
-          for func in auth patterns devices particle oauth alexa glowblaster; do
+          for func in auth patterns devices particle oauth alexa glowblaster virtualgroups; do
             cp -r backend/shared backend/functions/$func/
           done
 
