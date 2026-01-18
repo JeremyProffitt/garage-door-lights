@@ -974,6 +974,29 @@ void parseWLEDBinary(int stripIdx) {
             seg.colors[0][0], seg.colors[0][1], seg.colors[0][2]);
     }
 
+    // Check if any segment requires more LEDs than currently configured
+    uint16_t maxStop = 0;
+    for (int s = 0; s < wled.segmentCount; s++) {
+        if (wled.segments[s].stop > maxStop) {
+            maxStop = wled.segments[s].stop;
+        }
+    }
+
+    // Resize strip if needed (segment stop exceeds current LED count)
+    if (maxStop > cfg.ledCount && maxStop <= MAX_LEDS_PER_STRIP) {
+        Serial.printlnf("WLED: Resizing strip from %d to %d LEDs", cfg.ledCount, maxStop);
+        cfg.ledCount = maxStop;
+
+        // Reinitialize the NeoPixel strip with new size
+        if (rt.strip != nullptr) {
+            delete rt.strip;
+        }
+        rt.strip = new Adafruit_NeoPixel(cfg.ledCount, pinFromNumber(cfg.pin), PIXEL_TYPE);
+        rt.strip->begin();
+        rt.strip->clear();
+        rt.strip->show();
+    }
+
     // Apply brightness to strip
     if (rt.strip != nullptr) {
         rt.strip->setBrightness(wled.brightness);
