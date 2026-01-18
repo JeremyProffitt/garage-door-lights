@@ -589,18 +589,65 @@ function glowBlasterPage() {
                 selectedStripPin: this.selectedStripPin
             });
 
-            if (!this.selectedDeviceId || !this.currentBytecode) {
+            if (!this.selectedDeviceId || (!this.currentBytecode && !this.currentWLED)) {
                 console.error('[SendToDevice] FAILED - Missing:', {
                     hasDeviceId: !!this.selectedDeviceId,
-                    hasBytecode: !!this.currentBytecode
+                    hasBytecode: !!this.currentBytecode,
+                    hasWLED: !!this.currentWLED
                 });
                 NotificationBanner.error('Select a device and ensure pattern is compiled');
                 return;
             }
 
             try {
-                // Bytecode is already base64-encoded from Go backend
-                const base64Bytecode = this.currentBytecode;
+                // Get the selected strip's LED count
+                const selectedStrip = this.selectedDevice?.ledStrips?.find(s => s.pin === this.selectedStripPin);
+                const ledCount = selectedStrip?.ledCount || 8;
+                console.log('[SendToDevice] Selected strip LED count:', ledCount);
+
+                let bytecodeToSend = this.currentBytecode;
+
+                // If we have WLED JSON, recompile with the correct LED count
+                if (this.currentWLED) {
+                    console.log('[SendToDevice] Recompiling WLED JSON with ledCount:', ledCount);
+                    try {
+                        const wledJson = JSON.parse(this.currentWLED);
+                        // Update all segment stop values to match device LED count
+                        if (wledJson.seg && Array.isArray(wledJson.seg)) {
+                            wledJson.seg.forEach(seg => {
+                                seg.stop = ledCount;
+                            });
+                        }
+                        const updatedWledState = JSON.stringify(wledJson);
+                        console.log('[SendToDevice] Updated WLED JSON:', updatedWledState);
+
+                        const compileResp = await fetch('/api/glowblaster/compile', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'same-origin',
+                            body: JSON.stringify({ lcl: updatedWledState })
+                        });
+                        const compileData = await compileResp.json();
+                        console.log('[SendToDevice] Compile response:', compileData);
+
+                        if (compileData.success && compileData.data?.bytecode) {
+                            bytecodeToSend = compileData.data.bytecode;
+                            console.log('[SendToDevice] Using recompiled bytecode');
+                        } else {
+                            console.error('[SendToDevice] Compile failed:', compileData.data?.errors);
+                            NotificationBanner.error('Failed to compile pattern: ' + (compileData.data?.errors?.join(', ') || 'Unknown error'));
+                            return;
+                        }
+                    } catch (parseErr) {
+                        console.error('[SendToDevice] Failed to parse/update WLED JSON:', parseErr);
+                        // Fall through to use existing bytecode
+                    }
+                }
+
+                if (!bytecodeToSend) {
+                    NotificationBanner.error('No bytecode available to send');
+                    return;
+                }
 
                 const resp = await fetch('/api/particle/command', {
                     method: 'POST',
@@ -609,7 +656,7 @@ function glowBlasterPage() {
                     body: JSON.stringify({
                         deviceId: this.selectedDeviceId,
                         command: 'setBytecode',
-                        argument: `${this.selectedStripPin},${base64Bytecode}`
+                        argument: `${this.selectedStripPin},${bytecodeToSend}`
                     })
                 });
                 const data = await resp.json();
