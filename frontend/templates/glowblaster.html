@@ -158,9 +158,9 @@
                     </div>
                 </div>
 
-                <div x-show="currentWLED" class="wled-display">
-                    <h4>WLED JSON</h4>
-                    <pre x-text="formatWLEDDisplay(currentWLED)"></pre>
+                <div x-show="currentWLED" class="wled-display" style="margin-top: 1rem;">
+                    <h4 style="margin-bottom: 0.5rem; font-size: 0.9rem; color: #374151;">GlowBlaster JSON</h4>
+                    <pre x-text="formatWLEDDisplay(currentWLED)" style="max-height: 200px; overflow-y: auto; background: #1f2937; color: #e5e7eb; padding: 0.75rem; border-radius: 8px; font-size: 0.75rem; margin: 0;"></pre>
                 </div>
 
                 <div class="token-usage" x-show="totalTokens > 0">
