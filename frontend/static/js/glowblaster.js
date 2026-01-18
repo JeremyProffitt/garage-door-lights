@@ -367,7 +367,7 @@ function glowBlasterPage() {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         credentials: 'same-origin',
-                        body: JSON.stringify({ wled: this.currentWLED })
+                        body: JSON.stringify({ lcl: this.currentWLED })
                     });
                     const data = await resp.json();
                     console.log('[UpdatePreview] WLED Compile response:', JSON.stringify(data, null, 2));
