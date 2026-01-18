@@ -471,10 +471,6 @@ func handleApplyPattern(ctx context.Context, username string, groupID string, re
 
         if stripUpdated {
             device.UpdatedAt = time.Now()
-            deviceKey, _ := attributevalue.MarshalMap(map[string]string{
-                "deviceId": device.DeviceID,
-            })
-            _ = attributevalue.MarshalMap(deviceKey) // ignore error
             if err := shared.PutItem(ctx, devicesTable, *device); err != nil {
                 log.Printf("Warning: Failed to update device %s strip patternId: %v", device.DeviceID, err)
             }
