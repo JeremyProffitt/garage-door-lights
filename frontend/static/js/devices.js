@@ -201,7 +201,7 @@ function devicesPage() {
                 }
 
                 // Then send the pattern to the device for this specific strip
-                await this.sendPatternToStrip(device.deviceId, pin, pattern);
+                await this.sendPatternToStrip(device.deviceId, pin, pattern, strip.ledCount || 8);
                 NotificationBanner.success(`Pattern "${pattern.name}" applied to strip D${pin}`);
             } catch (err) {
                 NotificationBanner.error('Error applying pattern: ' + err.message);
@@ -226,8 +226,8 @@ function devicesPage() {
             }
         },
 
-        async sendPatternToStrip(deviceId, pin, pattern) {
-            console.log('[sendPatternToStrip] Starting for pattern:', pattern.name);
+        async sendPatternToStrip(deviceId, pin, pattern, ledCount = 8) {
+            console.log('[sendPatternToStrip] Starting for pattern:', pattern.name, 'ledCount:', ledCount);
             console.log('[sendPatternToStrip] Has wledState:', !!pattern.wledState, 'length:', pattern.wledState?.length || 0);
             console.log('[sendPatternToStrip] Has wledBinary:', !!pattern.wledBinary);
             console.log('[sendPatternToStrip] Has bytecode:', !!pattern.bytecode);
@@ -309,7 +309,7 @@ function devicesPage() {
                 seg: [{
                     id: 0,
                     start: 0,
-                    stop: 8,
+                    stop: ledCount,
                     fx: effectId,
                     sx: clamp(speed),
                     ix: clamp(intensity),
