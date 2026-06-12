@@ -100,6 +100,13 @@ jobs:
       - name: Build application
         run: sam build
 
+      - name: Ensure CloudWatch log groups exist
+        run: |
+          for func in AuthFunction PatternsFunction DevicesFunction ParticleFunction OAuthFunction AlexaFunction GlowBlasterFunction VirtualGroupsFunction FrontendFunction; do
+            LOG_GROUP="/aws/lambda/${{ env.STACK_NAME }}-${func}"
+            aws logs create-log-group --log-group-name "$LOG_GROUP" --region ${{ env.AWS_REGION }} 2>/dev/null || true
+          done
+
       - name: Deploy application
         run: |
           sam deploy \
